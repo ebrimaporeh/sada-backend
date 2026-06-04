@@ -1,0 +1,46 @@
+# Core
+Django==4.2.16
+djangorestframework==3.15.2
+
+# CORS
+django-cors-headers==4.4.0
+
+# Filtering
+django-filter==24.3
+
+# Authentication
+djangorestframework-simplejwt==5.3.1
+django-allauth==64.2.1
+django-rest-passwordreset==1.4.1
+
+# API Documentation
+drf-spectacular==0.27.2
+drf-spectacular-sidecar==2024.7.1
+
+# Environment
+python-decouple==3.8
+python-dotenv==1.0.1
+dj-database-url==2.2.0
+
+# Utilities
+Pillow==10.4.0
+
+# Production
+gunicorn==23.0.0
+whitenoise==6.7.0
+
+# Background Tasks (optional — uncomment when needed)
+# celery==5.4.0
+# redis==5.0.8
+# django-celery-beat==2.7.0
+# django-celery-results==2.5.1
+
+# Rate Limiting (optional)
+# django-ratelimit==4.1.0
+
+# Database (uncomment for production)
+# psycopg2-binary==2.9.9    # PostgreSQL
+# mysqlclient==2.2.4        # MySQL
+
+# Development
+# django-debug-toolbar==4.4.2

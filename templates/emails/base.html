@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block subject %}Email{% endblock %} | {{ site_name }}</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f4f4f5; margin: 0; padding: 0; }
+    .wrapper { max-width: 600px; margin: 40px auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .header { background: #18181b; color: #ffffff; padding: 24px 32px; }
+    .header h1 { margin: 0; font-size: 22px; font-weight: 600; }
+    .body { padding: 32px; color: #3f3f46; line-height: 1.6; }
+    .body h2 { margin-top: 0; color: #18181b; }
+    .btn { display: inline-block; margin: 20px 0; padding: 12px 24px; background: #18181b; color: #ffffff !important; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 15px; }
+    .footer { padding: 20px 32px; border-top: 1px solid #e4e4e7; font-size: 13px; color: #a1a1aa; }
+    p { margin: 0 0 16px; }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="header">
+      <h1>{{ site_name }}</h1>
+    </div>
+    <div class="body">
+      {% block content %}{% endblock %}
+    </div>
+    <div class="footer">
+      &copy; {% now "Y" %} {{ site_name }}. All rights reserved.
+      <br />If you didn't request this email, you can safely ignore it.
+    </div>
+  </div>
+</body>
+</html>

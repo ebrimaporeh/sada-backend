@@ -1,0 +1,9 @@
+{% extends "emails/base.html" %}
+{% block subject %}Welcome{% endblock %}
+{% block content %}
+<h2>Welcome to {{ site_name }}, {{ user.first_name|default:user.email }}!</h2>
+<p>We're excited to have you on board. Your account has been created successfully.</p>
+<p>You can now log in and start using the platform.</p>
+<a href="{{ frontend_url }}/dashboard" class="btn">Go to Dashboard</a>
+<p>If you have any questions, feel free to reach out to our support team.</p>
+{% endblock %}
