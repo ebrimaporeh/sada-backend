@@ -44,3 +44,4 @@ whitenoise==6.7.0
 
 # Development
 # django-debug-toolbar==4.4.2
+requests==2.32.3

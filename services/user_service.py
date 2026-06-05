@@ -33,7 +33,7 @@ def create_user(email: str, password: str, **kwargs) -> User:
 
 
 def update_user(user: User, **data) -> User:
-    allowed_fields = {'first_name', 'last_name', 'phone', 'avatar'}
+    allowed_fields = {'first_name', 'last_name', 'phone', 'bio', 'region', 'avatar', 'default_payment_provider', 'default_payment_phone'}
     update_fields = []
     for field, value in data.items():
         if field in allowed_fields:

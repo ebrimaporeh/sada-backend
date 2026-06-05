@@ -42,6 +42,10 @@ LOCAL_APPS = [
     'apps.common',
     'apps.authentication',
     'apps.users',
+    'apps.campaigns',
+    'apps.donations',
+    'apps.payments',
+    'apps.notifications',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -88,7 +92,7 @@ import dj_database_url
 
 DATABASES = {
     'default': dj_database_url.config(
-        default=config('DATABASE_URL', default='sqlite:///db.sqlite3'),
+        default=config('DATABASE_URL', default=f'sqlite:///{BASE_DIR}/db.sqlite3'),
         conn_max_age=600,
     )
 }
@@ -218,3 +222,10 @@ SITE_NAME = config('SITE_NAME', default='My App')
 SITE_DESCRIPTION = config('SITE_DESCRIPTION', default='A great application')
 CONTACT_EMAIL = config('CONTACT_EMAIL', default='support@yourapp.com')
 FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:5173')
+
+# ─── ModemPay ────────────────────────────────────────────────────────────────
+
+MODEMPAY_API_URL = config('MODEMPAY_API_URL', default='https://api.modempay.com/v1')
+MODEMPAY_SECRET_KEY = config('MODEMPAY_SECRET_KEY', default='')
+MODEMPAY_PUBLIC_KEY = config('MODEMPAY_PUBLIC_KEY', default='')
+DEMO_MODE = config('DEMO_MODE', default=True, cast=bool)

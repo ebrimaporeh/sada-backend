@@ -26,6 +26,23 @@ class User(AbstractBaseUser, PermissionsMixin):
         ADMIN = 'admin', 'Admin'
         USER = 'user', 'User'
         PREMIUM = 'premium', 'Premium User'
+        MODERATOR = 'moderator', 'Moderator'
+
+    class Region(models.TextChoices):
+        BANJUL = 'banjul', 'Banjul'
+        KANIFING = 'kanifing', 'Kanifing'
+        BRIKAMA = 'brikama', 'Brikama'
+        MANSAKONKO = 'mansakonko', 'Mansakonko'
+        KEREWAN = 'kerewan', 'Kerewan'
+        KUNTAUR = 'kuntaur', 'Kuntaur'
+        JANJANBUREH = 'janjanbureh', 'Janjanbureh'
+        BASSE = 'basse', 'Basse'
+
+    class PaymentProvider(models.TextChoices):
+        MODEMPAY = 'modempay', 'ModemPay'
+        WAVE = 'wave', 'Wave'
+        ORANGE_MONEY = 'orange_money', 'Orange Money'
+        AFRIMONEY = 'afrimoney', 'Afrimoney'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     email = models.EmailField(unique=True)
@@ -34,9 +51,16 @@ class User(AbstractBaseUser, PermissionsMixin):
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.USER)
     avatar = models.ImageField(upload_to='avatars/', null=True, blank=True)
     phone = models.CharField(max_length=20, blank=True)
+    bio = models.TextField(blank=True)
+    region = models.CharField(max_length=20, choices=Region.choices, blank=True)
+    default_payment_provider = models.CharField(
+        max_length=20, choices=PaymentProvider.choices, blank=True,
+    )
+    default_payment_phone = models.CharField(max_length=20, blank=True)
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     email_verified = models.BooleanField(default=False)
+    is_verified = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -64,3 +88,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     @property
     def is_premium(self):
         return self.role in (self.Role.PREMIUM, self.Role.ADMIN)
+
+    @property
+    def is_moderator(self):
+        return self.role in (self.Role.MODERATOR, self.Role.ADMIN)
