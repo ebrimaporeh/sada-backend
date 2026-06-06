@@ -3,9 +3,11 @@ import json
 from decimal import Decimal
 from django.utils import timezone
 from django.db import transaction
+from django.db.models import Sum
 from django.shortcuts import get_object_or_404
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.exceptions import ValidationError
 from services import modempay_service
 
 
@@ -27,17 +29,30 @@ def request_payout(user, validated_data):
     from apps.notifications.models import Notification
 
     campaign_id = validated_data.pop('campaign_id')
-    campaign = get_object_or_404(Campaign, pk=campaign_id, owner=user)
 
-    # Calculate available balance (raised minus already paid out)
-    completed_payouts = campaign.payouts.filter(status=Payout.Status.COMPLETED)
-    already_paid = sum(p.amount for p in completed_payouts)
-    available = campaign.raised - already_paid
+    # Lock the campaign row to prevent concurrent over-withdrawals
+    campaign = Campaign.objects.select_for_update().filter(
+        pk=campaign_id, owner=user
+    ).first()
+    if campaign is None:
+        from django.http import Http404
+        raise Http404('Campaign not found.')
 
+    # Sum all active (non-failed, non-cancelled) payouts against this campaign
+    active_statuses = [Payout.Status.PENDING, Payout.Status.PROCESSING, Payout.Status.COMPLETED]
+    already_requested = campaign.payouts.filter(
+        status__in=active_statuses
+    ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+
+    available = (campaign.raised - already_requested).quantize(Decimal('0.01'))
     amount = Decimal(str(validated_data['amount']))
+
+    if available <= 0:
+        raise ValidationError('No funds are available for withdrawal.')
     if amount > available:
-        from rest_framework.exceptions import ValidationError
-        raise ValidationError(f'Requested amount D{amount} exceeds available balance D{available}.')
+        raise ValidationError(
+            f'Requested amount D{amount} exceeds available balance D{available}.'
+        )
 
     fee = (amount * PAYOUT_FEE_RATE).quantize(Decimal('0.01'))
     net = (amount - fee).quantize(Decimal('0.01'))

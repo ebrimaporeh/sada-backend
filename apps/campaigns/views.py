@@ -49,6 +49,16 @@ class CampaignListView(APIView):
         return paginator.get_paginated_response(serializer.data)
 
 
+class FeaturedCampaignsView(APIView):
+    permission_classes = [AllowAny]
+
+    @extend_schema(summary='Get up to 4 featured campaigns', responses={200: CampaignListSerializer(many=True)})
+    def get(self, request):
+        campaigns = campaign_service.get_featured_campaigns()
+        serializer = CampaignListSerializer(campaigns, many=True, context={'request': request})
+        return campaign_service.success_response({'campaigns': serializer.data})
+
+
 class CampaignDetailView(APIView):
     permission_classes = [AllowAny]
 

@@ -41,6 +41,22 @@ def get_public_campaigns(filters=None):
     return qs.order_by('-is_featured', '-created_at')
 
 
+def get_featured_campaigns():
+    from apps.campaigns.models import Campaign
+    visible = [Campaign.Status.ACTIVE, Campaign.Status.APPROVED]
+    qs = Campaign.objects.filter(status__in=visible).select_related('owner', 'category')
+    featured = list(qs.filter(is_featured=True).order_by('-approved_at')[:4])
+    if len(featured) < 4:
+        seen = {c.pk for c in featured}
+        extra = qs.filter(is_urgent=True).exclude(pk__in=seen).order_by('-created_at')[:4 - len(featured)]
+        featured += list(extra)
+    if len(featured) < 4:
+        seen = {c.pk for c in featured}
+        extra = qs.exclude(pk__in=seen).order_by('-created_at')[:4 - len(featured)]
+        featured += list(extra)
+    return featured
+
+
 def get_campaign_by_slug(slug):
     from apps.campaigns.models import Campaign
     return get_object_or_404(

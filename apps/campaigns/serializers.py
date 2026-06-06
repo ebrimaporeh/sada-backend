@@ -75,6 +75,8 @@ class CampaignDetailSerializer(serializers.ModelSerializer):
     owner_name = serializers.SerializerMethodField()
     progress_percent = serializers.ReadOnlyField()
     cover_image_url = serializers.SerializerMethodField()
+    total_withdrawn = serializers.SerializerMethodField()
+    available_balance = serializers.SerializerMethodField()
 
     class Meta:
         model = Campaign
@@ -85,6 +87,7 @@ class CampaignDetailSerializer(serializers.ModelSerializer):
             'beneficiary', 'beneficiary_relationship',
             'is_urgent', 'is_featured', 'is_anonymous',
             'category', 'images', 'updates', 'owner_name',
+            'total_withdrawn', 'available_balance',
             'approved_at', 'created_at', 'updated_at',
         ]
 
@@ -98,6 +101,21 @@ class CampaignDetailSerializer(serializers.ModelSerializer):
         if obj.cover_image and request:
             return request.build_absolute_uri(obj.cover_image.url)
         return None
+
+    def get_total_withdrawn(self, obj):
+        from apps.payments.models import Payout
+        from django.db.models import Sum
+        active = [Payout.Status.PENDING, Payout.Status.PROCESSING, Payout.Status.COMPLETED]
+        total = obj.payouts.filter(status__in=active).aggregate(t=Sum('amount'))['t']
+        return total or 0
+
+    def get_available_balance(self, obj):
+        from apps.payments.models import Payout
+        from django.db.models import Sum
+        from decimal import Decimal
+        active = [Payout.Status.PENDING, Payout.Status.PROCESSING, Payout.Status.COMPLETED]
+        withdrawn = obj.payouts.filter(status__in=active).aggregate(t=Sum('amount'))['t'] or Decimal('0')
+        return max(obj.raised - withdrawn, Decimal('0'))
 
 
 class CampaignCreateSerializer(serializers.ModelSerializer):

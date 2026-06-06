@@ -4,8 +4,10 @@ from django.utils import timezone
 from django.db import transaction
 from django.db.models import F
 from django.shortcuts import get_object_or_404
+from django.http import Http404
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.exceptions import ValidationError
 
 
 TRANSACTION_FEE_RATE = Decimal('0.015')  # 1.5%
@@ -24,28 +26,46 @@ def create_donation(donor, validated_data):
     from apps.campaigns.models import Campaign
 
     campaign_id = validated_data.pop('campaign_id')
-    campaign = get_object_or_404(Campaign, pk=campaign_id, status=Campaign.Status.ACTIVE)
 
-    amount = Decimal(str(validated_data['amount']))
-    fee = (amount * TRANSACTION_FEE_RATE).quantize(Decimal('0.01'))
-
-    # Commit the donation record first so it always persists.
     with transaction.atomic():
+        # Lock the row so concurrent donations can't both pass the goal check
+        campaign = Campaign.objects.select_for_update().filter(
+            pk=campaign_id,
+            status__in=[Campaign.Status.ACTIVE, Campaign.Status.APPROVED],
+        ).first()
+
+        if campaign is None:
+            raise Http404('Campaign not found or not accepting donations.')
+
+        # Deadline check
+        if campaign.deadline and campaign.deadline < timezone.now().date():
+            raise ValidationError('This campaign has ended and is no longer accepting donations.')
+
+        # Goal check — prevent raised from exceeding goal
+        remaining = (campaign.goal - campaign.raised).quantize(Decimal('0.01'))
+        if remaining <= 0:
+            raise ValidationError('This campaign has already reached its funding goal.')
+
+        amount = Decimal(str(validated_data['amount']))
+        fee = (amount * TRANSACTION_FEE_RATE).quantize(Decimal('0.01'))
+        net = (amount - fee).quantize(Decimal('0.01'))
+
+        if net > remaining:
+            max_gross = (remaining / (1 - TRANSACTION_FEE_RATE)).quantize(Decimal('0.01'))
+            raise ValidationError(
+                f'Donation of D{amount} would exceed the campaign goal. '
+                f'Maximum you can donate is D{max_gross}.'
+            )
+
         donation = Donation.objects.create(
             campaign=campaign,
             donor=donor,
             fee=fee,
-            payment_reference=f'GF-{uuid.uuid4().hex[:12].upper()}',
+            payment_reference=f'SD-{uuid.uuid4().hex[:12].upper()}',
             **validated_data,
         )
-
-    # Payment initiation / auto-confirm runs in its own transaction so any
-    # failure there does not roll back the donation record above.
-    try:
         _initiate_payment(donation)
         donation.refresh_from_db()
-    except Exception:
-        pass
 
     return donation
 

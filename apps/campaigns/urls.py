@@ -4,6 +4,7 @@ from . import views
 urlpatterns = [
     # Specific fixed paths MUST come before the generic <slug> catch-all
     path('', views.CampaignListView.as_view(), name='campaign-list'),
+    path('featured/', views.FeaturedCampaignsView.as_view(), name='campaign-featured'),
     path('categories/', views.CategoryListView.as_view(), name='category-list'),
     path('create/', views.CampaignCreateView.as_view(), name='campaign-create'),
 
