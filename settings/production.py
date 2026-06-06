@@ -1,6 +1,6 @@
 from .base import *
 
-DEBUG = False
+DEBUG = config('DEBUG', default=False, cast=bool)
 
 # ─── Security ─────────────────────────────────────────────────────────────────
 
