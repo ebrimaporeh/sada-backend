@@ -17,6 +17,11 @@ class Command(BaseCommand):
         if options['clear']:
             self._clear()
 
+        from apps.campaigns.models import Category
+        if not options['clear'] and Category.objects.exists():
+            self.stdout.write(self.style.WARNING('Database already seeded — skipping. Use --clear to reseed.'))
+            return
+
         self.stdout.write('Seeding users...')
         users = self._seed_users()
 
