@@ -199,3 +199,18 @@ class AdminCampaignActionView(APIView):
         campaign = campaign_service.admin_action(pk, action, reason, request.user)
         serializer = AdminCampaignSerializer(campaign)
         return campaign_service.success_response({'campaign': serializer.data})
+
+
+class AdminCampaignMediaView(APIView):
+    permission_classes = [IsAdminUser]
+
+    @extend_schema(summary='[Admin] Upload cover and gallery images for any campaign')
+    def post(self, request, pk):
+        from django.shortcuts import get_object_or_404
+        from apps.campaigns.models import Campaign
+        campaign = get_object_or_404(Campaign, pk=pk)
+        cover_file = request.FILES.get('cover')
+        gallery_files = request.FILES.getlist('gallery')
+        updated = campaign_service.update_campaign_media(campaign, cover_file, gallery_files)
+        serializer = CampaignDetailSerializer(updated, context={'request': request})
+        return campaign_service.success_response({'campaign': serializer.data})

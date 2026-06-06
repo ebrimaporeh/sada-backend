@@ -20,6 +20,7 @@ urlpatterns = [
     # Admin routes
     path('admin/all/', views.AdminCampaignListView.as_view(), name='admin-campaign-list'),
     path('admin/<uuid:pk>/action/<str:action>/', views.AdminCampaignActionView.as_view(), name='admin-campaign-action'),
+    path('admin/<uuid:pk>/media/', views.AdminCampaignMediaView.as_view(), name='admin-campaign-media'),
 
     # Generic slug LAST — catches /campaigns/{slug}/
     path('<slug:slug>/', views.CampaignDetailView.as_view(), name='campaign-detail'),
