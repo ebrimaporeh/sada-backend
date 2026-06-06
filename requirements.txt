@@ -1,47 +1,34 @@
-# Core
+asgiref==3.11.1
+attrs==26.1.0
+certifi==2026.5.20
+charset-normalizer==3.4.7
+dj-database-url==2.2.0
 Django==4.2.16
-djangorestframework==3.15.2
-
-# CORS
-django-cors-headers==4.4.0
-
-# Filtering
-django-filter==24.3
-
-# Authentication
-djangorestframework-simplejwt==5.3.1
 django-allauth==64.2.1
+django-cors-headers==4.4.0
+django-filter==24.3
 django-rest-passwordreset==1.4.1
-
-# API Documentation
+djangorestframework==3.15.2
+djangorestframework-simplejwt==5.3.1
 drf-spectacular==0.27.2
 drf-spectacular-sidecar==2024.7.1
-
-# Environment
+gunicorn==23.0.0
+psycopg2-binary==2.9.9
+idna==3.18
+inflection==0.5.1
+jsonschema==4.26.0
+jsonschema-specifications==2025.9.1
+packaging==26.2
+pillow==10.4.0
+PyJWT==2.13.0
 python-decouple==3.8
 python-dotenv==1.0.1
-dj-database-url==2.2.0
-
-# Utilities
-Pillow==10.4.0
-
-# Production
-gunicorn==23.0.0
+PyYAML==6.0.3
+referencing==0.37.0
+requests==2.34.2
+rpds-py==2026.5.1
+sqlparse==0.5.5
+typing_extensions==4.15.0
+uritemplate==4.2.0
+urllib3==2.7.0
 whitenoise==6.7.0
-
-# Background Tasks (optional — uncomment when needed)
-# celery==5.4.0
-# redis==5.0.8
-# django-celery-beat==2.7.0
-# django-celery-results==2.5.1
-
-# Rate Limiting (optional)
-# django-ratelimit==4.1.0
-
-# Database (uncomment for production)
-# psycopg2-binary==2.9.9    # PostgreSQL
-# mysqlclient==2.2.4        # MySQL
-
-# Development
-# django-debug-toolbar==4.4.2
-requests==2.32.3
