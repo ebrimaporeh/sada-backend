@@ -21,7 +21,7 @@ def get_categories():
 
 def get_public_campaigns(filters=None):
     from apps.campaigns.models import Campaign
-    qs = Campaign.objects.filter(status=Campaign.Status.ACTIVE).select_related('owner', 'category')
+    qs = Campaign.objects.filter(status__in=[Campaign.Status.ACTIVE, Campaign.Status.APPROVED]).select_related('owner', 'category')
 
     if filters:
         if filters.get('category'):
@@ -48,6 +48,7 @@ def get_campaign_by_slug(slug):
         slug=slug,
         status__in=[
             Campaign.Status.ACTIVE,
+            Campaign.Status.APPROVED,
             Campaign.Status.COMPLETED,
             Campaign.Status.PENDING,
             Campaign.Status.SUSPENDED,
