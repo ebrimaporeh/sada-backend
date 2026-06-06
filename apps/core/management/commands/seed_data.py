@@ -7,7 +7,7 @@ from apps.users.models import User
 
 
 class Command(BaseCommand):
-    help = 'Seed the database with realistic GambiaFund data'
+    help = 'Seed the database with realistic Sada data'
 
     def add_arguments(self, parser):
         parser.add_argument('--clear', action='store_true', help='Clear all data before seeding')
@@ -68,8 +68,8 @@ class Command(BaseCommand):
         users_data = [
             # Admin
             dict(
-                email='admin@gambiafund.gm', password='Admin@1234',
-                first_name='Admin', last_name='GambiaFund',
+                email='admin@sada.gm', password='Admin@1234',
+                first_name='Admin', last_name='Sada',
                 role=User.Role.ADMIN, is_staff=True, is_superuser=True,
                 email_verified=True, is_verified=True,
                 phone='+220 9000000', region='banjul',
@@ -77,7 +77,7 @@ class Command(BaseCommand):
             ),
             # Demo / main user — matches DEMO_USER in mockData.js
             dict(
-                email='ousman@gambiafund.gm', password='User@1234',
+                email='ousman@sada.gm', password='User@1234',
                 first_name='Ousman', last_name='Camara',
                 role=User.Role.USER, email_verified=True, is_verified=True,
                 phone='+220 7612345', region='banjul',
@@ -471,7 +471,7 @@ Omar always said: "Education is the candle that lights the darkness." Let's keep
             ),
             dict(
                 slug='gambia-tech-hub-banjul',
-                owner=U.get('ousman@gambiafund.gm'),
+                owner=U.get('ousman@sada.gm'),
                 category=cats.get('business'),
                 title="Launch Gambia's First Free Coding Bootcamp",
                 short_description='Train 100 young Gambians in software development, data science and digital skills — completely free.',
@@ -549,7 +549,7 @@ The course is completely free for students. All they need is the determination t
             ),
             dict(
                 campaign=campaigns.get('gambia-tech-hub-banjul'),
-                posted_by=users.get('ousman@gambiafund.gm'),
+                posted_by=users.get('ousman@sada.gm'),
                 title='Venue secured in Banjul',
                 content='We have signed the lease for our bootcamp venue on Kairaba Avenue. The space will accommodate 50 students per cohort. Equipment procurement starts next week.',
             ),
@@ -588,21 +588,21 @@ The course is completely free for students. All they need is the determination t
             dict(campaign='help-fatou-get-kidney-surgery', donor='baboucarr.sowe@example.gm',amount=200, msg='Get well soon Fatou!',                      anon=False, days_ago=5,  phone='+220 7100009'),
             dict(campaign='help-fatou-get-kidney-surgery', donor='ndey.joof@example.gm',   amount=2000,  msg='Sending love from London.',                 anon=False, days_ago=6,  phone='+220 7100007'),
             # Campaign 2: Brikama School
-            dict(campaign='brikama-school-building-project', donor='ousman@gambiafund.gm',  amount=10000, msg='Building The Gambia one classroom at a time!',anon=False,days_ago=2, phone='+220 7612345'),
+            dict(campaign='brikama-school-building-project', donor='ousman@sada.gm',  amount=10000, msg='Building The Gambia one classroom at a time!',anon=False,days_ago=2, phone='+220 7612345'),
             dict(campaign='brikama-school-building-project', donor='aminata.k@example.gm',  amount=500,   msg='',                                           anon=False,days_ago=3, phone='+220 7200001'),
             dict(campaign='brikama-school-building-project', donor=None,                     amount=5000,  msg='',                                           anon=True, days_ago=5, phone='+220 7999004'),
             dict(campaign='brikama-school-building-project', donor='alieu.n@example.gm',    amount=2500,  msg='Support our children.',                      anon=False,days_ago=7, phone='+220 7200006'),
             # Campaign 3: Flood Relief
-            dict(campaign='flood-relief-basse-2026', donor='ousman@gambiafund.gm',           amount=20000, msg='Sending hope to Basse.',                    anon=False,days_ago=0, phone='+220 7612345'),
+            dict(campaign='flood-relief-basse-2026', donor='ousman@sada.gm',           amount=20000, msg='Sending hope to Basse.',                    anon=False,days_ago=0, phone='+220 7612345'),
             dict(campaign='flood-relief-basse-2026', donor=None,                              amount=50000, msg='',                                          anon=True, days_ago=1, phone='+220 7999005'),
             dict(campaign='flood-relief-basse-2026', donor='modou.t@example.gm',             amount=5000,  msg='Stay strong Basse!',                        anon=False,days_ago=2, phone='+220 7200005'),
             dict(campaign='flood-relief-basse-2026', donor='alieu.n@example.gm',             amount=3000,  msg='',                                          anon=False,days_ago=3, phone='+220 7200006'),
             # Campaign 6: Baby Modou
             dict(campaign='baby-modou-heart-surgery', donor='aminata.k@example.gm',          amount=1000,  msg='God bless baby Modou.',                     anon=False,days_ago=1, phone='+220 7200001'),
             dict(campaign='baby-modou-heart-surgery', donor=None,                             amount=5000,  msg='',                                          anon=True, days_ago=2, phone='+220 7999006'),
-            dict(campaign='baby-modou-heart-surgery', donor='ousman@gambiafund.gm',           amount=10000, msg='Praying for a full recovery.',              anon=False,days_ago=3, phone='+220 7612345'),
+            dict(campaign='baby-modou-heart-surgery', donor='ousman@sada.gm',           amount=10000, msg='Praying for a full recovery.',              anon=False,days_ago=3, phone='+220 7612345'),
             # Campaign 7: Girls Scholarship
-            dict(campaign='girls-scholarship-fund-gambia', donor='ousman@gambiafund.gm',      amount=15000, msg='Educate a girl, transform a nation.',       anon=False,days_ago=1, phone='+220 7612345'),
+            dict(campaign='girls-scholarship-fund-gambia', donor='ousman@sada.gm',      amount=15000, msg='Educate a girl, transform a nation.',       anon=False,days_ago=1, phone='+220 7612345'),
             dict(campaign='girls-scholarship-fund-gambia', donor='modou.t@example.gm',        amount=5000,  msg='',                                          anon=False,days_ago=4, phone='+220 7200005'),
             dict(campaign='girls-scholarship-fund-gambia', donor=None,                         amount=25000, msg='',                                          anon=True, days_ago=6, phone='+220 7999007'),
             # Campaign 12: Tech Hub
@@ -670,7 +670,7 @@ The course is completely free for students. All they need is the determination t
             ),
             dict(
                 campaign='gambia-tech-hub-banjul',
-                requested_by='ousman@gambiafund.gm',
+                requested_by='ousman@sada.gm',
                 amount=Decimal('100000.00'),
                 provider='modempay', phone='+220 7612345',
                 status=Payout.Status.COMPLETED,
@@ -715,8 +715,8 @@ The course is completely free for students. All they need is the determination t
         self.stdout.write(f'  Payouts:   {Payout.objects.count()}')
         self.stdout.write('─' * 50)
         self.stdout.write('\nTest accounts (password: User@1234 for all):')
-        self.stdout.write('  admin@gambiafund.gm   — Admin')
-        self.stdout.write('  ousman@gambiafund.gm  — Campaign owner (Tech Bootcamp)')
+        self.stdout.write('  admin@sada.gm   — Admin')
+        self.stdout.write('  ousman@sada.gm  — Campaign owner (Tech Bootcamp)')
         self.stdout.write('  omar.jallow@example.gm — Campaign owner (Help Fatou)')
         self.stdout.write('  aminata.k@example.gm  — Donor')
         self.stdout.write('  Admin password: Admin@1234')
