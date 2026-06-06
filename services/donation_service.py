@@ -71,10 +71,8 @@ def create_donation(donor, validated_data):
 
 
 def _initiate_payment(donation):
-    """Initiate payment with the chosen provider. In demo mode, immediately mark paid."""
-    from django.conf import settings
-    if getattr(settings, 'DEMO_MODE', False):
-        _confirm_donation(donation)
+    """Confirm donation immediately. Replace with real provider call when payment is integrated."""
+    _confirm_donation(donation)
 
 
 @transaction.atomic
