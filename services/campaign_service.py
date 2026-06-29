@@ -190,15 +190,62 @@ def delete_campaign_image(user, slug, image_id):
     )
 
 
-def add_campaign_update(campaign, user, validated_data):
-    from apps.campaigns.models import CampaignUpdate
+def add_campaign_update(campaign, user, title, content, images=None):
+    from apps.campaigns.models import CampaignUpdate, CampaignUpdateImage
     update = CampaignUpdate.objects.create(
         campaign=campaign,
         posted_by=user,
-        **validated_data,
+        title=title,
+        content=content,
     )
+
+    if images:
+        for idx, image in enumerate(images):
+            CampaignUpdateImage.objects.create(
+                update=update,
+                image=image,
+                order=idx,
+            )
+
     _notify_donors_of_update(campaign, update)
     return update
+
+
+def update_campaign_update(campaign, update_id, user, title=None, content=None, images=None, images_to_remove=None):
+    from apps.campaigns.models import CampaignUpdate, CampaignUpdateImage
+    from django.shortcuts import get_object_or_404
+    update = get_object_or_404(CampaignUpdate, id=update_id, campaign=campaign)
+    if update.posted_by != user:
+        raise PermissionError('You can only edit your own updates.')
+
+    if title is not None:
+        update.title = title
+    if content is not None:
+        update.content = content
+    update.save()
+
+    if images_to_remove:
+        CampaignUpdateImage.objects.filter(id__in=images_to_remove).delete()
+
+    if images:
+        current_max_order = update.images.aggregate(max_order=models.Max('order'))['max_order'] or -1
+        for idx, image in enumerate(images):
+            CampaignUpdateImage.objects.create(
+                update=update,
+                image=image,
+                order=current_max_order + idx + 1,
+            )
+
+    return update
+
+
+def delete_campaign_update(campaign, update_id, user):
+    from apps.campaigns.models import CampaignUpdate
+    from django.shortcuts import get_object_or_404
+    update = get_object_or_404(CampaignUpdate, id=update_id, campaign=campaign)
+    if update.posted_by != user:
+        raise PermissionError('You can only delete your own updates.')
+    update.delete()
 
 
 def _notify_donors_of_update(campaign, update):
@@ -221,6 +268,31 @@ def _notify_donors_of_update(campaign, update):
     ]
     if notifications:
         Notification.objects.bulk_create(notifications)
+
+
+def create_campaign_report(campaign, user, reason, description, reporter_name='', reporter_phone=''):
+    from apps.campaigns.models import CampaignReport
+
+    if user:
+        report, created = CampaignReport.objects.update_or_create(
+            campaign=campaign,
+            reported_by=user,
+            defaults={
+                'reason': reason,
+                'description': description,
+                'status': CampaignReport.Status.PENDING,
+            },
+        )
+    else:
+        report = CampaignReport.objects.create(
+            campaign=campaign,
+            reason=reason,
+            description=description,
+            reporter_name=reporter_name,
+            reporter_phone=reporter_phone,
+            status=CampaignReport.Status.PENDING,
+        )
+    return report
 
 
 def get_all_campaigns(params=None):
@@ -275,3 +347,24 @@ def admin_action(campaign_id, action, reason, admin_user):
         raise ValueError(f'Unknown action: {action}')
 
     return campaign
+
+
+def get_all_campaign_reports(params=None):
+    from apps.campaigns.models import CampaignReport
+    qs = CampaignReport.objects.select_related('campaign', 'reported_by').order_by('-created_at')
+
+    if params:
+        status = params.get('status')
+        if status and status != 'all':
+            qs = qs.filter(status=status)
+
+        search = params.get('search')
+        if search:
+            from django.db.models import Q
+            qs = qs.filter(
+                Q(campaign__title__icontains=search) |
+                Q(reporter_name__icontains=search) |
+                Q(reported_by__full_name__icontains=search)
+            )
+
+    return qs

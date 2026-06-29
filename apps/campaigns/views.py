@@ -7,7 +7,7 @@ from permissions.base import IsAdminUser
 from .serializers import (
     CampaignListSerializer, CampaignDetailSerializer, CampaignCreateSerializer,
     CategorySerializer, CampaignUpdateCreateSerializer, CampaignUpdateSerializer,
-    AdminCampaignSerializer,
+    AdminCampaignSerializer, CampaignReportCreateSerializer, CampaignReportSerializer,
 )
 import services.campaign_service as campaign_service
 
@@ -173,9 +173,39 @@ class CampaignUpdateListCreateView(APIView):
         campaign = campaign_service.get_owner_campaign(request.user, slug)
         serializer = CampaignUpdateCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        update = campaign_service.add_campaign_update(campaign, request.user, serializer.validated_data)
-        out = CampaignUpdateSerializer(update)
+
+        images = request.FILES.getlist('images')
+        update = campaign_service.add_campaign_update(
+            campaign, request.user,
+            title=serializer.validated_data['title'],
+            content=serializer.validated_data['content'],
+            images=images,
+        )
+        out = CampaignUpdateSerializer(update, context={'request': request})
         return campaign_service.success_response({'update': out.data}, status_code=status.HTTP_201_CREATED)
+
+
+class CampaignUpdateDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(summary='Update a campaign update')
+    def patch(self, request, slug, update_id):
+        campaign = campaign_service.get_owner_campaign(request.user, slug)
+        update = campaign_service.update_campaign_update(
+            campaign, update_id, request.user,
+            title=request.data.get('title'),
+            content=request.data.get('content'),
+            images=request.FILES.getlist('images'),
+            images_to_remove=request.data.getlist('images_to_remove'),
+        )
+        out = CampaignUpdateSerializer(update, context={'request': request})
+        return campaign_service.success_response({'update': out.data})
+
+    @extend_schema(summary='Delete a campaign update')
+    def delete(self, request, slug, update_id):
+        campaign = campaign_service.get_owner_campaign(request.user, slug)
+        campaign_service.delete_campaign_update(campaign, update_id, request.user)
+        return campaign_service.success_response({}, message='Update deleted.')
 
 
 class AdminCampaignListView(APIView):
@@ -214,3 +244,40 @@ class AdminCampaignMediaView(APIView):
         updated = campaign_service.update_campaign_media(campaign, cover_file, gallery_files)
         serializer = CampaignDetailSerializer(updated, context={'request': request})
         return campaign_service.success_response({'campaign': serializer.data})
+
+
+class CampaignReportView(APIView):
+    permission_classes = [AllowAny]
+
+    @extend_schema(summary='Report a campaign', request=CampaignReportCreateSerializer)
+    def post(self, request, slug):
+        campaign = campaign_service.get_campaign_by_slug(slug)
+        serializer = CampaignReportCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        report = campaign_service.create_campaign_report(
+            campaign=campaign,
+            user=request.user if request.user.is_authenticated else None,
+            reason=serializer.validated_data['reason'],
+            description=serializer.validated_data['description'],
+            reporter_name=serializer.validated_data.get('reporter_name', ''),
+            reporter_phone=serializer.validated_data.get('reporter_phone', ''),
+        )
+        out = CampaignReportSerializer(report)
+        return campaign_service.success_response(
+            {'report': out.data},
+            message='Thank you for reporting. Our team will review this.',
+            status_code=status.HTTP_201_CREATED,
+        )
+
+
+class AdminCampaignReportsView(APIView):
+    permission_classes = [IsAdminUser]
+
+    @extend_schema(summary='[Admin] List all campaign reports', responses={200: CampaignReportSerializer(many=True)})
+    def get(self, request):
+        reports = campaign_service.get_all_campaign_reports(request.query_params)
+        paginator = StandardResultsPagination()
+        page = paginator.paginate_queryset(reports, request)
+        serializer = CampaignReportSerializer(page, many=True)
+        return paginator.get_paginated_response(serializer.data)
