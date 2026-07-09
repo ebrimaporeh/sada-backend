@@ -1,10 +1,11 @@
 from rest_framework import serializers
-from .models import User
+from .models import User, IdentityVerification
 
 
 class UserSerializer(serializers.ModelSerializer):
     full_name = serializers.ReadOnlyField()
     is_moderator = serializers.ReadOnlyField()
+    avatar = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -13,8 +14,16 @@ class UserSerializer(serializers.ModelSerializer):
             'role', 'avatar', 'phone', 'bio', 'region',
             'default_payment_provider', 'default_payment_phone',
             'email_verified', 'is_verified', 'is_moderator', 'created_at',
+            'notify_donations_received', 'notify_campaign_approved', 'notify_campaign_rejected',
+            'notify_goal_reached', 'notify_new_comment', 'notify_new_update', 'notify_marketing',
         ]
         read_only_fields = ['id', 'email', 'role', 'email_verified', 'is_verified', 'created_at']
+
+    def get_avatar(self, obj):
+        request = self.context.get('request')
+        if obj.avatar and request:
+            return request.build_absolute_uri(obj.avatar.url)
+        return None
 
 
 class UserUpdateSerializer(serializers.ModelSerializer):
@@ -23,11 +32,14 @@ class UserUpdateSerializer(serializers.ModelSerializer):
         fields = [
             'first_name', 'last_name', 'phone', 'bio', 'region', 'avatar',
             'default_payment_provider', 'default_payment_phone',
+            'notify_donations_received', 'notify_campaign_approved', 'notify_campaign_rejected',
+            'notify_goal_reached', 'notify_new_comment', 'notify_new_update', 'notify_marketing',
         ]
 
 
 class AdminUserSerializer(serializers.ModelSerializer):
     full_name = serializers.ReadOnlyField()
+    avatar = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -36,6 +48,57 @@ class AdminUserSerializer(serializers.ModelSerializer):
             'role', 'avatar', 'phone', 'bio', 'region',
             'default_payment_provider', 'default_payment_phone',
             'is_active', 'email_verified', 'is_verified',
+            'notify_donations_received', 'notify_campaign_approved', 'notify_campaign_rejected',
+            'notify_goal_reached', 'notify_new_comment', 'notify_new_update', 'notify_marketing',
             'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
+
+    def get_avatar(self, obj):
+        request = self.context.get('request')
+        if obj.avatar and request:
+            return request.build_absolute_uri(obj.avatar.url)
+        return None
+
+
+class IdentityVerificationCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = IdentityVerification
+        fields = ['id_type', 'id_number', 'id_photo_front', 'id_photo_back']
+
+    def validate(self, data):
+        if data.get('id_type') != IdentityVerification.IdType.PASSPORT and not data.get('id_photo_back'):
+            raise serializers.ValidationError({'id_photo_back': 'Back photo is required for this ID type.'})
+        return data
+
+
+class IdentityVerificationSerializer(serializers.ModelSerializer):
+    user_id = serializers.CharField(source='user.id', read_only=True)
+    user_name = serializers.CharField(source='user.full_name', read_only=True)
+    user_email = serializers.CharField(source='user.email', read_only=True)
+    reviewed_by_name = serializers.SerializerMethodField()
+    id_photo_front = serializers.SerializerMethodField()
+    id_photo_back = serializers.SerializerMethodField()
+
+    class Meta:
+        model = IdentityVerification
+        fields = [
+            'id', 'user_id', 'user_name', 'user_email',
+            'id_type', 'id_number', 'id_photo_front', 'id_photo_back',
+            'status', 'rejection_reason', 'reviewed_by_name', 'reviewed_at', 'created_at',
+        ]
+
+    def get_reviewed_by_name(self, obj):
+        return obj.reviewed_by.full_name if obj.reviewed_by else None
+
+    def get_id_photo_front(self, obj):
+        request = self.context.get('request')
+        if obj.id_photo_front and request:
+            return request.build_absolute_uri(obj.id_photo_front.url)
+        return None
+
+    def get_id_photo_back(self, obj):
+        request = self.context.get('request')
+        if obj.id_photo_back and request:
+            return request.build_absolute_uri(obj.id_photo_back.url)
+        return None

@@ -23,6 +23,10 @@ def get_all_users(filters: dict = None) -> 'QuerySet[User]':
     return qs
 
 
+def get_user_stats() -> dict:
+    return {'total_users': User.objects.count()}
+
+
 def create_user(email: str, password: str, **kwargs) -> User:
     if User.objects.filter(email=email.lower()).exists():
         raise ValidationError('A user with this email already exists.')
@@ -33,7 +37,13 @@ def create_user(email: str, password: str, **kwargs) -> User:
 
 
 def update_user(user: User, **data) -> User:
-    allowed_fields = {'first_name', 'last_name', 'phone', 'bio', 'region', 'avatar', 'default_payment_provider', 'default_payment_phone'}
+    allowed_fields = {
+        'first_name', 'last_name', 'phone', 'bio', 'region', 'avatar',
+        'default_payment_provider', 'default_payment_phone',
+        'notify_donations_received', 'notify_campaign_approved',
+        'notify_campaign_rejected', 'notify_goal_reached',
+        'notify_new_comment', 'notify_new_update', 'notify_marketing',
+    }
     update_fields = []
     for field, value in data.items():
         if field in allowed_fields:

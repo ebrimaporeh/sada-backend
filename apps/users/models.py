@@ -1,6 +1,8 @@
 import uuid
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
 from django.db import models
+from apps.core.models import BaseModel
+from apps.core.validators import validate_image_size
 
 
 class UserManager(BaseUserManager):
@@ -39,17 +41,17 @@ class User(AbstractBaseUser, PermissionsMixin):
         BASSE = 'basse', 'Basse'
 
     class PaymentProvider(models.TextChoices):
-        MODEMPAY = 'modempay', 'ModemPay'
+        # ModemPay is the payment gateway, not itself a provider — these are
+        # the underlying networks it processes payments through.
         WAVE = 'wave', 'Wave'
-        ORANGE_MONEY = 'orange_money', 'Orange Money'
-        AFRIMONEY = 'afrimoney', 'Afrimoney'
+        APS = 'aps', 'APS Wallet'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     email = models.EmailField(unique=True)
     first_name = models.CharField(max_length=150, blank=True)
     last_name = models.CharField(max_length=150, blank=True)
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.USER)
-    avatar = models.ImageField(upload_to='avatars/', null=True, blank=True)
+    avatar = models.ImageField(upload_to='avatars/', null=True, blank=True, validators=[validate_image_size])
     phone = models.CharField(max_length=20, blank=True)
     bio = models.TextField(blank=True)
     region = models.CharField(max_length=20, choices=Region.choices, blank=True)
@@ -61,6 +63,16 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_staff = models.BooleanField(default=False)
     email_verified = models.BooleanField(default=False)
     is_verified = models.BooleanField(default=False)
+
+    # Notification settings
+    notify_donations_received = models.BooleanField(default=True)
+    notify_campaign_approved = models.BooleanField(default=True)
+    notify_campaign_rejected = models.BooleanField(default=True)
+    notify_goal_reached = models.BooleanField(default=True)
+    notify_new_comment = models.BooleanField(default=False)
+    notify_new_update = models.BooleanField(default=False)
+    notify_marketing = models.BooleanField(default=False)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -92,3 +104,41 @@ class User(AbstractBaseUser, PermissionsMixin):
     @property
     def is_moderator(self):
         return self.role in (self.Role.MODERATOR, self.Role.ADMIN)
+
+
+class IdentityVerification(BaseModel):
+    """A user's submission of a government ID for manual admin review.
+
+    Distinct from email_verified (proves email ownership, automatic) —
+    is_verified on User only flips to True once an admin approves one of
+    these requests.
+    """
+    class IdType(models.TextChoices):
+        NATIONAL_ID = 'national_id', 'National ID Card'
+        PASSPORT = 'passport', 'Passport'
+        DRIVERS_LICENSE = 'drivers_license', "Driver's License"
+
+    class Status(models.TextChoices):
+        PENDING = 'pending', 'Pending Review'
+        APPROVED = 'approved', 'Approved'
+        REJECTED = 'rejected', 'Rejected'
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='verification_requests')
+    id_type = models.CharField(max_length=20, choices=IdType.choices)
+    id_number = models.CharField(max_length=50)
+    id_photo_front = models.ImageField(upload_to='verifications/', validators=[validate_image_size])
+    id_photo_back = models.ImageField(upload_to='verifications/', null=True, blank=True, validators=[validate_image_size])
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    rejection_reason = models.TextField(blank=True)
+    reviewed_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='reviewed_verifications',
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Identity Verification'
+        verbose_name_plural = 'Identity Verifications'
+
+    def __str__(self):
+        return f'{self.user.email} — {self.status}'
