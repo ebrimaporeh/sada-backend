@@ -44,3 +44,12 @@ class TokenResponseSerializer(serializers.Serializer):
 
 class TokenRefreshSerializer(serializers.Serializer):
     refresh = serializers.CharField()
+
+
+class GoogleOAuthSerializer(serializers.Serializer):
+    id_token = serializers.CharField()
+
+    def validate_id_token(self, value):
+        if not value:
+            raise serializers.ValidationError('ID token is required.')
+        return value

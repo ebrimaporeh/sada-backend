@@ -8,13 +8,16 @@ from rest_framework_simplejwt.exceptions import TokenError
 from drf_spectacular.utils import extend_schema
 
 from services import auth_service
+from services.google_oauth_service import verify_google_token, get_or_create_google_user
 from apps.users.serializers import UserSerializer
-from .serializers import RegisterSerializer, LoginSerializer, ChangePasswordSerializer
+from throttling.base import LoginThrottle, RegisterThrottle, ResendVerificationThrottle
+from .serializers import RegisterSerializer, LoginSerializer, ChangePasswordSerializer, GoogleOAuthSerializer
 
 
 @extend_schema(tags=['Authentication'])
 class RegisterView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [RegisterThrottle]
 
     @extend_schema(request=RegisterSerializer, responses={201: UserSerializer})
     def post(self, request):
@@ -25,7 +28,7 @@ class RegisterView(APIView):
             'success': True,
             'message': 'Registration successful. Please verify your email.',
             'data': {
-                'user': UserSerializer(user).data,
+                'user': UserSerializer(user, context={'request': request}).data,
                 'tokens': tokens,
             },
         }, status=status.HTTP_201_CREATED)
@@ -34,6 +37,7 @@ class RegisterView(APIView):
 @extend_schema(tags=['Authentication'])
 class LoginView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [LoginThrottle]
 
     @extend_schema(request=LoginSerializer)
     def post(self, request):
@@ -47,7 +51,7 @@ class LoginView(APIView):
             'success': True,
             'message': 'Login successful.',
             'data': {
-                'user': UserSerializer(user).data,
+                'user': UserSerializer(user, context={'request': request}).data,
                 'tokens': tokens,
             },
         })
@@ -101,3 +105,49 @@ class VerifyEmailView(APIView):
             )
         auth_service.verify_email(token=token)
         return Response({'success': True, 'message': 'Email verified successfully.'})
+
+
+@extend_schema(tags=['Authentication'])
+class ResendVerificationEmailView(APIView):
+    permission_classes = [AllowAny]
+    throttle_classes = [ResendVerificationThrottle]
+
+    def post(self, request):
+        email = request.data.get('email')
+        if not email:
+            return Response(
+                {'success': False, 'message': 'Email is required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        auth_service.resend_verification_email(email=email)
+        return Response({'success': True, 'message': 'If that email is registered and unverified, a new verification link has been sent.'})
+
+
+@extend_schema(tags=['Authentication'])
+class GoogleOAuthView(APIView):
+    permission_classes = [AllowAny]
+
+    @extend_schema(request=GoogleOAuthSerializer)
+    def post(self, request):
+        serializer = GoogleOAuthSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        id_token_str = serializer.validated_data['id_token']
+
+        # Verify Google token and extract user info
+        google_data = verify_google_token(id_token_str)
+
+        # Get or create user
+        user = get_or_create_google_user(google_data)
+
+        # Generate JWT tokens
+        tokens = auth_service._get_tokens_for_user(user)
+
+        return Response({
+            'success': True,
+            'message': 'Login successful via Google.',
+            'data': {
+                'user': UserSerializer(user, context={'request': request}).data,
+                'tokens': tokens,
+            },
+        }, status=status.HTTP_200_OK)

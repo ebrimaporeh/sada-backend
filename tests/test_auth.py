@@ -40,6 +40,7 @@ class LoginViewTest(APITestCase):
         self.user = User.objects.create_user(
             email='login@example.com',
             password='StrongPass@1',
+            email_verified=True,
         )
 
     def test_login_success(self):
@@ -55,6 +56,19 @@ class LoginViewTest(APITestCase):
         response = self.client.post(self.url, {
             'email': 'login@example.com',
             'password': 'WrongPass@1',
+        })
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(response.data['success'])
+
+    def test_login_blocked_when_email_unverified(self):
+        User.objects.create_user(
+            email='unverified@example.com',
+            password='StrongPass@1',
+            email_verified=False,
+        )
+        response = self.client.post(self.url, {
+            'email': 'unverified@example.com',
+            'password': 'StrongPass@1',
         })
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(response.data['success'])

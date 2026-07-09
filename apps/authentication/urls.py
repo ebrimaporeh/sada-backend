@@ -9,4 +9,6 @@ urlpatterns = [
     path('refresh/', TokenRefreshView.as_view(), name='auth-token-refresh'),
     path('change-password/', views.ChangePasswordView.as_view(), name='auth-change-password'),
     path('verify-email/', views.VerifyEmailView.as_view(), name='auth-verify-email'),
+    path('resend-verification/', views.ResendVerificationEmailView.as_view(), name='auth-resend-verification'),
+    path('google/', views.GoogleOAuthView.as_view(), name='auth-google'),
 ]
