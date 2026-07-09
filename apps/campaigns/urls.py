@@ -6,6 +6,8 @@ urlpatterns = [
     path('', views.CampaignListView.as_view(), name='campaign-list'),
     path('featured/', views.FeaturedCampaignsView.as_view(), name='campaign-featured'),
     path('categories/', views.CategoryListView.as_view(), name='category-list'),
+    path('categories/<uuid:pk>/', views.AdminCategoryDetailView.as_view(), name='admin-category-detail'),
+    path('categories/<uuid:pk>/upload-image/', views.AdminCategoryImageUploadView.as_view(), name='admin-category-image-upload'),
     path('create/', views.CampaignCreateView.as_view(), name='campaign-create'),
 
     # Owner routes
@@ -20,9 +22,15 @@ urlpatterns = [
 
     # Admin routes
     path('admin/all/', views.AdminCampaignListView.as_view(), name='admin-campaign-list'),
+    path('admin/stats/', views.AdminCampaignStatsView.as_view(), name='admin-campaign-stats'),
+    path('admin/reports/stats/', views.AdminCampaignReportStatsView.as_view(), name='admin-campaign-report-stats'),
     path('admin/reports/', views.AdminCampaignReportsView.as_view(), name='admin-campaign-reports'),
     path('admin/<uuid:pk>/action/<str:action>/', views.AdminCampaignActionView.as_view(), name='admin-campaign-action'),
+    path('admin/<uuid:pk>/update/', views.AdminCampaignUpdateView.as_view(), name='admin-campaign-update'),
+    path('admin/<uuid:pk>/', views.AdminCampaignDetailView.as_view(), name='admin-campaign-detail'),
+    path('admin/<uuid:pk>/status-change/', views.AdminCampaignStatusChangeView.as_view(), name='admin-campaign-status-change'),
     path('admin/<uuid:pk>/media/', views.AdminCampaignMediaView.as_view(), name='admin-campaign-media'),
+    path('admin/reports/<uuid:pk>/update/', views.AdminCampaignReportUpdateView.as_view(), name='admin-campaign-report-update'),
 
     # Report a campaign
     path('<slug:slug>/report/', views.CampaignReportView.as_view(), name='campaign-report'),

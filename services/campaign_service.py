@@ -16,7 +16,13 @@ def error_response(message, errors=None, status_code=status.HTTP_400_BAD_REQUEST
 
 def get_categories():
     from apps.campaigns.models import Category
-    return Category.objects.filter(is_active=True)
+    from apps.donations.models import Donation
+    return Category.objects.filter(is_active=True).annotate(
+        total_donated=models.Sum(
+            'campaigns__donations__amount',
+            filter=models.Q(campaigns__donations__status=Donation.Status.PAID),
+        )
+    ).order_by(models.F('total_donated').desc(nulls_last=True), 'name')
 
 
 def get_public_campaigns(filters=None):
@@ -67,7 +73,6 @@ def get_campaign_by_slug(slug):
             Campaign.Status.APPROVED,
             Campaign.Status.COMPLETED,
             Campaign.Status.PENDING,
-            Campaign.Status.SUSPENDED,
         ],
     )
 
@@ -97,7 +102,8 @@ def create_campaign(user, validated_data):
     campaign = Campaign.objects.create(
         owner=user,
         category=category,
-        status=Campaign.Status.DRAFT,
+        status=Campaign.Status.ACTIVE,
+        approved_at=timezone.now(),
         **validated_data,
     )
     return campaign
@@ -108,9 +114,6 @@ def update_campaign(campaign, validated_data):
     category_id = validated_data.pop('category_id', None)
     if category_id is not None:
         campaign.category = Category.objects.filter(id=category_id).first()
-
-    if campaign.status == campaign.Status.ACTIVE:
-        campaign.status = campaign.Status.PENDING
 
     for attr, value in validated_data.items():
         setattr(campaign, attr, value)
@@ -225,7 +228,7 @@ def update_campaign_update(campaign, update_id, user, title=None, content=None, 
     update.save()
 
     if images_to_remove:
-        CampaignUpdateImage.objects.filter(id__in=images_to_remove).delete()
+        CampaignUpdateImage.objects.filter(id__in=images_to_remove, update=update).delete()
 
     if images:
         current_max_order = update.images.aggregate(max_order=models.Max('order'))['max_order'] or -1
@@ -304,8 +307,35 @@ def get_all_campaigns(params=None):
             qs = qs.filter(status=s)
         q = params.get('search')
         if q:
-            qs = qs.filter(models.Q(title__icontains=q) | models.Q(owner__email__icontains=q))
+            qs = qs.filter(
+                models.Q(title__icontains=q)
+                | models.Q(owner__email__icontains=q)
+                | models.Q(beneficiary__icontains=q)
+                | models.Q(region__icontains=q)
+            )
     return qs
+
+
+def get_campaign_stats():
+    from apps.campaigns.models import Campaign
+    counts = {row['status']: row['count'] for row in Campaign.objects.values('status').annotate(count=models.Count('id'))}
+    return {
+        'total_campaigns': sum(counts.values()),
+        'active_campaigns': counts.get(Campaign.Status.ACTIVE, 0),
+        'pending_campaigns': counts.get(Campaign.Status.PENDING, 0),
+        'completed_campaigns': counts.get(Campaign.Status.COMPLETED, 0),
+    }
+
+
+def get_campaign_report_stats():
+    from apps.campaigns.models import CampaignReport
+    counts = {row['status']: row['count'] for row in CampaignReport.objects.values('status').annotate(count=models.Count('id'))}
+    return {
+        'total_reports': sum(counts.values()),
+        'pending_reports': counts.get(CampaignReport.Status.PENDING, 0),
+        'investigating_reports': counts.get(CampaignReport.Status.INVESTIGATING, 0),
+        'resolved_reports': counts.get(CampaignReport.Status.RESOLVED, 0),
+    }
 
 
 def admin_action(campaign_id, action, reason, admin_user):
@@ -349,6 +379,34 @@ def admin_action(campaign_id, action, reason, admin_user):
     return campaign
 
 
+def change_campaign_status(campaign_id, new_status, reason=''):
+    from apps.campaigns.models import Campaign
+    from apps.notifications.models import Notification
+    from emails.tasks import send_campaign_status_update_email_task
+
+    campaign = get_object_or_404(Campaign, pk=campaign_id)
+    old_status = campaign.status
+
+    campaign.status = new_status
+    if new_status == Campaign.Status.REJECTED:
+        campaign.rejection_reason = reason
+    elif new_status == Campaign.Status.ACTIVE:
+        campaign.approved_at = timezone.now()
+    campaign.save()
+
+    send_campaign_status_update_email_task.delay(str(campaign.owner_id), str(campaign.id), new_status, reason)
+
+    Notification.objects.create(
+        user=campaign.owner,
+        notification_type=Notification.Type.CAMPAIGN_APPROVED,
+        title=f'Campaign Status Updated to {new_status.title()}',
+        message=f'Your campaign "{campaign.title}" status has been changed to {new_status}.',
+        link=f'/campaigns/{campaign.slug}',
+    )
+
+    return campaign
+
+
 def get_all_campaign_reports(params=None):
     from apps.campaigns.models import CampaignReport
     qs = CampaignReport.objects.select_related('campaign', 'reported_by').order_by('-created_at')
@@ -357,6 +415,10 @@ def get_all_campaign_reports(params=None):
         status = params.get('status')
         if status and status != 'all':
             qs = qs.filter(status=status)
+
+        campaign_id = params.get('campaign')
+        if campaign_id:
+            qs = qs.filter(campaign_id=campaign_id)
 
         search = params.get('search')
         if search:

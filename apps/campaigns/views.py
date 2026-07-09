@@ -1,13 +1,17 @@
+from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from drf_spectacular.utils import extend_schema, OpenApiParameter
 from pagination.base import StandardResultsPagination
 from permissions.base import IsAdminUser
+from throttling.base import ReportCreateThrottle
+from .models import Campaign, Category, CampaignReport
 from .serializers import (
     CampaignListSerializer, CampaignDetailSerializer, CampaignCreateSerializer,
     CategorySerializer, CampaignUpdateCreateSerializer, CampaignUpdateSerializer,
     AdminCampaignSerializer, CampaignReportCreateSerializer, CampaignReportSerializer,
+    AdminCampaignUpdateSerializer, CampaignReportUpdateSerializer,
 )
 import services.campaign_service as campaign_service
 
@@ -18,8 +22,58 @@ class CategoryListView(APIView):
     @extend_schema(summary='List all active categories', responses={200: CategorySerializer(many=True)})
     def get(self, request):
         categories = campaign_service.get_categories()
-        serializer = CategorySerializer(categories, many=True)
+        serializer = CategorySerializer(categories, many=True, context={'request': request})
         return campaign_service.success_response({'categories': serializer.data})
+
+
+class AdminCategoryDetailView(APIView):
+    permission_classes = [IsAdminUser]
+
+    @extend_schema(summary='[Admin] Get category detail', responses={200: CategorySerializer})
+    def get(self, request, pk):
+        category = get_object_or_404(Category, pk=pk)
+        serializer = CategorySerializer(category, context={'request': request})
+        return campaign_service.success_response({'category': serializer.data})
+
+    @extend_schema(
+        summary='[Admin] Update category details',
+        request={
+            'type': 'object',
+            'properties': {
+                'name': {'type': 'string'},
+                'description': {'type': 'string'},
+            },
+        }
+    )
+    def patch(self, request, pk):
+        category = get_object_or_404(Category, pk=pk)
+
+        if 'name' in request.data:
+            category.name = request.data['name']
+        if 'description' in request.data:
+            category.description = request.data['description']
+
+        category.save()
+        serializer = CategorySerializer(category, context={'request': request})
+        return campaign_service.success_response({'category': serializer.data})
+
+
+class AdminCategoryImageUploadView(APIView):
+    permission_classes = [IsAdminUser]
+
+    @extend_schema(summary='[Admin] Upload category image')
+    def post(self, request, pk):
+        category = get_object_or_404(Category, pk=pk)
+
+        if 'image' not in request.FILES:
+            return campaign_service.error_response('Image file is required', status_code=status.HTTP_400_BAD_REQUEST)
+
+        image_file = request.FILES['image']
+        category.image = image_file
+        category.save()
+
+        serializer = CategorySerializer(category, context={'request': request})
+        return campaign_service.success_response({'category': serializer.data}, message='Image uploaded successfully')
 
 
 class CampaignListView(APIView):
@@ -216,8 +270,16 @@ class AdminCampaignListView(APIView):
         campaigns = campaign_service.get_all_campaigns(request.query_params)
         paginator = StandardResultsPagination()
         page = paginator.paginate_queryset(campaigns, request)
-        serializer = AdminCampaignSerializer(page, many=True)
+        serializer = AdminCampaignSerializer(page, many=True, context={'request': request})
         return paginator.get_paginated_response(serializer.data)
+
+
+class AdminCampaignStatsView(APIView):
+    permission_classes = [IsAdminUser]
+
+    @extend_schema(summary='[Admin] Campaign stats')
+    def get(self, request):
+        return campaign_service.success_response(campaign_service.get_campaign_stats())
 
 
 class AdminCampaignActionView(APIView):
@@ -227,8 +289,61 @@ class AdminCampaignActionView(APIView):
     def post(self, request, pk, action):
         reason = request.data.get('reason', '')
         campaign = campaign_service.admin_action(pk, action, reason, request.user)
-        serializer = AdminCampaignSerializer(campaign)
+        serializer = AdminCampaignSerializer(campaign, context={'request': request})
         return campaign_service.success_response({'campaign': serializer.data})
+
+
+class AdminCampaignUpdateView(APIView):
+    permission_classes = [IsAdminUser]
+
+    @extend_schema(summary='[Admin] Update campaign details', request=AdminCampaignUpdateSerializer)
+    def patch(self, request, pk):
+        campaign = get_object_or_404(Campaign, pk=pk)
+        serializer = AdminCampaignUpdateSerializer(campaign, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        out = AdminCampaignSerializer(campaign, context={'request': request})
+        return campaign_service.success_response({'campaign': out.data})
+
+
+class AdminCampaignDetailView(APIView):
+    permission_classes = [IsAdminUser]
+
+    @extend_schema(summary='[Admin] Get campaign detail by ID', responses={200: AdminCampaignSerializer})
+    def get(self, request, pk):
+        campaign = get_object_or_404(Campaign, pk=pk)
+        serializer = AdminCampaignSerializer(campaign, context={'request': request})
+        return campaign_service.success_response({'campaign': serializer.data})
+
+
+class AdminCampaignStatusChangeView(APIView):
+    permission_classes = [IsAdminUser]
+
+    @extend_schema(
+        summary='[Admin] Change campaign status and send email notification',
+        request={
+            'type': 'object',
+            'properties': {
+                'status': {'type': 'string', 'description': 'New campaign status'},
+                'reason': {'type': 'string', 'description': 'Reason for status change (optional)'},
+            },
+            'required': ['status'],
+        }
+    )
+    def post(self, request, pk):
+        new_status = request.data.get('status')
+        reason = request.data.get('reason', '')
+
+        if not new_status:
+            return campaign_service.error_response('Status is required')
+
+        campaign = campaign_service.change_campaign_status(pk, new_status, reason)
+        out = AdminCampaignSerializer(campaign, context={'request': request})
+        return campaign_service.success_response(
+            {'campaign': out.data},
+            message=f'Campaign status updated to {new_status}',
+            status_code=status.HTTP_200_OK
+        )
 
 
 class AdminCampaignMediaView(APIView):
@@ -236,8 +351,6 @@ class AdminCampaignMediaView(APIView):
 
     @extend_schema(summary='[Admin] Upload cover and gallery images for any campaign')
     def post(self, request, pk):
-        from django.shortcuts import get_object_or_404
-        from apps.campaigns.models import Campaign
         campaign = get_object_or_404(Campaign, pk=pk)
         cover_file = request.FILES.get('cover')
         gallery_files = request.FILES.getlist('gallery')
@@ -248,6 +361,7 @@ class AdminCampaignMediaView(APIView):
 
 class CampaignReportView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [ReportCreateThrottle]
 
     @extend_schema(summary='Report a campaign', request=CampaignReportCreateSerializer)
     def post(self, request, slug):
@@ -281,3 +395,25 @@ class AdminCampaignReportsView(APIView):
         page = paginator.paginate_queryset(reports, request)
         serializer = CampaignReportSerializer(page, many=True)
         return paginator.get_paginated_response(serializer.data)
+
+
+class AdminCampaignReportStatsView(APIView):
+    permission_classes = [IsAdminUser]
+
+    @extend_schema(summary='[Admin] Campaign report stats')
+    def get(self, request):
+        return campaign_service.success_response(campaign_service.get_campaign_report_stats())
+
+
+class AdminCampaignReportUpdateView(APIView):
+    permission_classes = [IsAdminUser]
+
+    @extend_schema(summary='[Admin] Update campaign report', request=CampaignReportUpdateSerializer)
+    def patch(self, request, pk):
+        from django.shortcuts import get_object_or_404
+        report = get_object_or_404(CampaignReport, pk=pk)
+        serializer = CampaignReportUpdateSerializer(report, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        out = CampaignReportSerializer(report)
+        return campaign_service.success_response({'report': out.data})

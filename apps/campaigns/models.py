@@ -2,6 +2,7 @@ from django.db import models
 from django.utils.text import slugify
 from django.conf import settings
 from apps.core.models import BaseModel
+from apps.core.validators import validate_image_size
 
 
 class Category(BaseModel):
@@ -9,6 +10,7 @@ class Category(BaseModel):
     slug = models.SlugField(max_length=120, unique=True)
     description = models.TextField(blank=True)
     icon = models.CharField(max_length=50, blank=True)
+    image = models.ImageField(upload_to='categories/', null=True, blank=True, validators=[validate_image_size])
     is_active = models.BooleanField(default=True)
 
     class Meta:
@@ -74,7 +76,7 @@ class Campaign(BaseModel):
     is_urgent = models.BooleanField(default=False)
     is_featured = models.BooleanField(default=False)
     is_anonymous = models.BooleanField(default=False)
-    cover_image = models.ImageField(upload_to='campaigns/covers/', null=True, blank=True)
+    cover_image = models.ImageField(upload_to='campaigns/covers/', null=True, blank=True, validators=[validate_image_size])
     rejection_reason = models.TextField(blank=True)
     approved_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
@@ -115,7 +117,7 @@ class Campaign(BaseModel):
 
 class CampaignImage(BaseModel):
     campaign = models.ForeignKey(Campaign, on_delete=models.CASCADE, related_name='images')
-    image = models.ImageField(upload_to='campaigns/gallery/')
+    image = models.ImageField(upload_to='campaigns/gallery/', validators=[validate_image_size])
     order = models.PositiveSmallIntegerField(default=0)
     is_cover = models.BooleanField(default=False)
 
@@ -138,3 +140,49 @@ class CampaignUpdate(BaseModel):
 
     def __str__(self):
         return f'{self.campaign.title}: {self.title}'
+
+
+class CampaignUpdateImage(BaseModel):
+    update = models.ForeignKey(CampaignUpdate, on_delete=models.CASCADE, related_name='images')
+    image = models.ImageField(upload_to='campaign_updates/', validators=[validate_image_size])
+    order = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ['order']
+
+
+class CampaignReport(BaseModel):
+    class Reason(models.TextChoices):
+        FRAUDULENT = 'fraudulent', 'Fraudulent activity'
+        MISLEADING = 'misleading', 'Misleading information'
+        INAPPROPRIATE = 'inappropriate', 'Inappropriate content'
+        SPAM = 'spam', 'Spam or scam'
+        DUPLICATE = 'duplicate', 'Duplicate campaign'
+        OTHER = 'other', 'Other'
+
+    class Status(models.TextChoices):
+        PENDING = 'pending', 'Pending Review'
+        INVESTIGATING = 'investigating', 'Under Investigation'
+        RESOLVED = 'resolved', 'Resolved'
+        DISMISSED = 'dismissed', 'Dismissed'
+
+    campaign = models.ForeignKey(Campaign, on_delete=models.CASCADE, related_name='reports')
+    reported_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='campaign_reports',
+    )
+    reporter_name = models.CharField(max_length=200, blank=True)
+    reporter_phone = models.CharField(max_length=20, blank=True)
+    reason = models.CharField(max_length=20, choices=Reason.choices)
+    description = models.TextField()
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    admin_notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.campaign.title}: {self.reason}'
