@@ -11,9 +11,6 @@ from rest_framework.exceptions import ValidationError
 from services import modempay_service
 
 
-PAYOUT_FEE_RATE = Decimal('0.01')  # 1%
-
-
 def success_response(data, message='Success.', status_code=status.HTTP_200_OK):
     return Response({'success': True, 'message': message, 'data': data}, status=status_code)
 
@@ -25,7 +22,7 @@ def error_response(message, errors=None, status_code=status.HTTP_400_BAD_REQUEST
 @transaction.atomic
 def request_payout(user, validated_data):
     from apps.campaigns.models import Campaign
-    from apps.payments.models import Payout
+    from apps.payments.models import Payout, PlatformSettings
     from apps.notifications.models import Notification
 
     campaign_id = validated_data.pop('campaign_id')
@@ -45,7 +42,7 @@ def request_payout(user, validated_data):
     ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
 
     available = (campaign.raised - already_requested).quantize(Decimal('0.01'))
-    amount = Decimal(str(validated_data['amount']))
+    amount = Decimal(str(validated_data.pop('amount')))
 
     if available <= 0:
         raise ValidationError('No funds are available for withdrawal.')
@@ -54,8 +51,24 @@ def request_payout(user, validated_data):
             f'Requested amount D{amount} exceeds available balance D{available}.'
         )
 
-    fee = (amount * PAYOUT_FEE_RATE).quantize(Decimal('0.01'))
+    fee_rate = PlatformSettings.get_fee_rate()
+    fee = (amount * fee_rate).quantize(Decimal('0.01'))
     net = (amount - fee).quantize(Decimal('0.01'))
+
+    # Our own ledger (campaign.raised) can show funds as available before
+    # ModemPay has actually settled them into the pooled payout_balance
+    # wallet real disbursements draw from — check that directly so a
+    # shortfall fails cleanly here instead of after creating a Payout row.
+    balance = modempay_service.get_balance()
+    if balance is None:
+        raise ValidationError('Could not verify payout balance right now. Please try again shortly.')
+    payout_balance = Decimal(str(balance.get('payout_balance', 0)))
+    if net > payout_balance:
+        raise ValidationError(
+            'Withdrawal is on hold — funds are still settling with our payment provider. '
+            'Please try again shortly or contact support if this persists.'
+        )
+
     reference = f'PO-{uuid.uuid4().hex[:12].upper()}'
 
     payout = Payout.objects.create(
@@ -69,20 +82,35 @@ def request_payout(user, validated_data):
         **validated_data,
     )
 
-    # Trigger disbursement
-    result, _ = modempay_service.request_disbursement(
+    # Trigger disbursement — this is async in practice; a "completed" result
+    # here (or from DEMO_MODE) is a real terminal state, otherwise ModemPay
+    # confirms for real later via the transfer.succeeded/failed webhook.
+    result = modempay_service.request_disbursement(
         reference=reference,
-        amount=amount,
+        net_amount=net,
         phone=validated_data.get('phone', ''),
-        provider=validated_data.get('provider', 'modempay'),
+        provider=validated_data.get('provider', 'wave'),
+        beneficiary_name=user.full_name,
     )
 
-    if result:
-        payout.provider_reference = result.get('transaction_id', '')
+    if result is None:
+        # request_disbursement() returned None only when no transfer was
+        # ever created at ModemPay (rejected outright, or the call errored) —
+        # there's no transfer to wait on, so this is a real terminal failure,
+        # not something a webhook will ever resolve.
+        payout.status = Payout.Status.FAILED
+    elif result.get('status') == 'completed':
+        payout.provider_reference = result.get('id', '')
         payout.status = Payout.Status.COMPLETED
         payout.processed_at = timezone.now()
+    elif result.get('status') in ('failed', 'cancelled'):
+        payout.provider_reference = result.get('id', '')
+        payout.status = Payout.Status.FAILED
     else:
-        payout.status = Payout.Status.PENDING
+        # ModemPay accepted the transfer but it's still processing —
+        # transfer.succeeded/transfer.failed webhook resolves it for real.
+        payout.provider_reference = result.get('id', '')
+        payout.status = Payout.Status.PROCESSING
 
     payout.save()
 
@@ -94,6 +122,9 @@ def request_payout(user, validated_data):
         link=f'/my-campaigns/{campaign.slug}',
     )
 
+    from emails.tasks import send_payout_update_email_task
+    transaction.on_commit(lambda: send_payout_update_email_task.delay(str(payout.id)))
+
     return payout
 
 
@@ -104,32 +135,72 @@ def get_campaign_payouts(user, slug):
     return Payout.objects.filter(campaign=campaign).order_by('-created_at')
 
 
-def handle_modempay_webhook(data, headers):
-    """Process incoming ModemPay webhook: confirm payment or payout."""
-    from apps.donations.models import Donation
+def handle_modempay_webhook(payload, signature):
+    """Verify and process an incoming ModemPay webhook: confirm/fail a donation or payout.
 
-    event_type = data.get('event')
-    reference = data.get('reference') or data.get('data', {}).get('reference')
-
-    if not reference:
+    `payload` is the raw parsed request body (dict); `signature` is the
+    `x-modem-signature` header. Returns True if the signature was valid and
+    the event was handled or safely ignored (unknown event types are
+    acknowledged, not treated as errors) — False only for an invalid
+    signature or a referenced donation/payout we can't find.
+    """
+    event = modempay_service.verify_and_parse_webhook(payload, signature)
+    if event is None:
         return False
 
-    if event_type == 'charge.success':
+    event_type = event.get('event')
+    data = event.get('payload') or {}
+    metadata = data.get('metadata') or {}
+    provider_ref = data.get('id', '')
+
+    if event_type == 'charge.succeeded':
         from services.donation_service import confirm_donation_by_reference
-        provider_ref = data.get('data', {}).get('transaction_id', '')
+        reference = metadata.get('donation_reference')
+        if not reference:
+            return False
         donation = confirm_donation_by_reference(reference, provider_ref)
         return donation is not None
 
-    if event_type == 'disbursement.success':
+    if event_type in ('charge.failed', 'charge.cancelled'):
+        from services.donation_service import fail_donation_by_reference
+        reference = metadata.get('donation_reference')
+        return bool(reference) and fail_donation_by_reference(reference)
+
+    if event_type == 'transfer.succeeded':
         from apps.payments.models import Payout
+        from emails.tasks import send_payout_update_email_task
+        reference = metadata.get('payout_reference')
         try:
             payout = Payout.objects.get(reference=reference)
-            payout.status = Payout.Status.COMPLETED
-            payout.provider_reference = data.get('data', {}).get('transaction_id', '')
-            payout.processed_at = timezone.now()
-            payout.save()
-            return True
         except Payout.DoesNotExist:
             return False
+        was_already_completed = payout.status == Payout.Status.COMPLETED
+        payout.status = Payout.Status.COMPLETED
+        payout.provider_reference = provider_ref
+        payout.processed_at = timezone.now()
+        payout.save()
+        # Only email on the transition — the initial request already sent one
+        # if ModemPay resolved it synchronously; this covers the case where
+        # it was left PROCESSING and only resolves later via this webhook.
+        if not was_already_completed:
+            send_payout_update_email_task.delay(str(payout.id))
+        return True
 
-    return False
+    if event_type in ('transfer.failed', 'transfer.reversed'):
+        from apps.payments.models import Payout
+        from emails.tasks import send_payout_update_email_task
+        reference = metadata.get('payout_reference')
+        try:
+            payout = Payout.objects.get(reference=reference)
+        except Payout.DoesNotExist:
+            return False
+        was_already_failed = payout.status == Payout.Status.FAILED
+        payout.status = Payout.Status.FAILED
+        payout.save(update_fields=['status'])
+        if not was_already_failed:
+            send_payout_update_email_task.delay(str(payout.id))
+        return True
+
+    # Unhandled event types (customer.*, payment_intent.*, charge.created, ...)
+    # — acknowledge receipt, nothing for us to do.
+    return True

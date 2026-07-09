@@ -11,10 +11,11 @@ class Donation(BaseModel):
         REFUNDED = 'refunded', 'Refunded'
 
     class Provider(models.TextChoices):
-        MODEMPAY = 'modempay', 'ModemPay'
+        # ModemPay is the payment gateway, not itself a provider — these are
+        # the underlying networks it processes payments through. Visa/
+        # Mastercard/ModemPay Bank are planned but not live yet.
         WAVE = 'wave', 'Wave'
-        ORANGE_MONEY = 'orange_money', 'Orange Money'
-        AFRIMONEY = 'afrimoney', 'Afrimoney'
+        APS = 'aps', 'APS Wallet'
 
     campaign = models.ForeignKey(
         'campaigns.Campaign',
@@ -28,9 +29,10 @@ class Donation(BaseModel):
         blank=True,
         related_name='donations',
     )
+    donor_name = models.CharField(max_length=300, blank=True, help_text='Name for unauthenticated donors')
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     currency = models.CharField(max_length=3, default='GMD')
-    provider = models.CharField(max_length=20, choices=Provider.choices, default=Provider.MODEMPAY)
+    provider = models.CharField(max_length=20, choices=Provider.choices, default=Provider.WAVE)
     phone = models.CharField(max_length=20)
     payment_reference = models.CharField(max_length=200, unique=True, null=True, blank=True)
     provider_reference = models.CharField(max_length=200, blank=True)
@@ -54,6 +56,10 @@ class Donation(BaseModel):
 
     @property
     def donor_display(self):
-        if self.is_anonymous or not self.donor:
+        if self.is_anonymous:
             return 'Anonymous'
-        return self.donor.full_name
+        if self.donor:
+            return self.donor.full_name
+        if self.donor_name:
+            return self.donor_name
+        return 'Anonymous'

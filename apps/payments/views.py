@@ -3,7 +3,9 @@ from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema
-from .serializers import PayoutCreateSerializer, PayoutSerializer
+from permissions.base import IsAdminUser
+from .models import PlatformSettings
+from .serializers import PayoutCreateSerializer, PayoutSerializer, PlatformSettingsSerializer
 import services.payment_service as payment_service
 
 
@@ -29,12 +31,40 @@ class MyCampaignPayoutListView(APIView):
         return payment_service.success_response({'payouts': serializer.data})
 
 
+class PlatformSettingsView(APIView):
+    """Any authenticated user can read the current platform fee (campaign
+    owners need it to preview payout amounts) — only admins can change it."""
+
+    def get_permissions(self):
+        if self.request.method == 'PATCH':
+            return [IsAdminUser()]
+        return [IsAuthenticated()]
+
+    @extend_schema(summary='Get current platform settings', responses={200: PlatformSettingsSerializer})
+    def get(self, request):
+        settings_obj = PlatformSettings.get_solo()
+        return payment_service.success_response(PlatformSettingsSerializer(settings_obj).data)
+
+    @extend_schema(summary='[Admin] Update platform settings', request=PlatformSettingsSerializer)
+    def patch(self, request):
+        settings_obj = PlatformSettings.get_solo()
+        serializer = PlatformSettingsSerializer(settings_obj, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return payment_service.success_response(serializer.data, message='Platform settings updated.')
+
+
 class ModemPayWebhookView(APIView):
     permission_classes = [AllowAny]
+    # Server-to-server traffic authenticated by signature, not by IP-based
+    # anon throttling meant for public users — a busy day of donations
+    # shouldn't risk ModemPay's callbacks getting 429'd.
+    throttle_classes = []
 
     @extend_schema(summary='ModemPay payment webhook', exclude=True)
     def post(self, request):
-        result = payment_service.handle_modempay_webhook(request.data, request.headers)
+        signature = request.headers.get('x-modem-signature', '')
+        result = payment_service.handle_modempay_webhook(request.data, signature)
         if result:
             return payment_service.success_response({}, message='Webhook processed.')
         return Response({'error': 'Invalid webhook'}, status=status.HTTP_400_BAD_REQUEST)
