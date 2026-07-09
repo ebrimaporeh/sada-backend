@@ -1,0 +1,24 @@
+{% extends "emails/base.html" %}
+{% block subject %}New Donation Received!{% endblock %}
+{% block content %}
+<h2 style="margin: 0 0 4px; color: #18181b; font-size: 20px;">You've received a new donation! 🎉</h2>
+<p>Hi {{ owner_name }},</p>
+<p><strong>{{ donor_name }}</strong> just donated to your campaign <strong>"{{ campaign_title }}"</strong>.</p>
+
+<div class="card">
+  <div class="row"><span class="label">Amount</span><span class="value" style="color:#16793a;">D{{ amount }}</span></div>
+  <div class="row"><span class="label">Donor</span><span class="value">{{ donor_name }}</span></div>
+  <div class="row"><span class="label">Campaign progress</span><span class="value">{{ campaign_progress_percent }}% of D{{ campaign_goal }}</span></div>
+</div>
+
+{% if message %}
+<div class="card">
+  <p class="label" style="margin: 0 0 4px;">Message from {{ donor_name }}</p>
+  <p style="margin: 0; font-style: italic;">&ldquo;{{ message }}&rdquo;</p>
+</div>
+{% endif %}
+
+<a href="{{ frontend_url }}/my-campaigns/{{ campaign_slug }}" class="btn">View Campaign</a>
+
+<p class="muted">You're receiving this because donation email alerts are turned on in your notification settings.</p>
+{% endblock %}

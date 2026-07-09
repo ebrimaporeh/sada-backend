@@ -1,0 +1,69 @@
+# Render Blueprint — reference for wiring up the worker process this project
+# now needs for background email sending. If you're not on Render, treat
+# this as documentation: same idea applies to Railway/Heroku/etc — a second
+# process type running `celery -A config worker --loglevel=info`, pointed at
+# the same Redis instance and env vars as the web service.
+#
+# Not auto-applied — deploy config for this project is currently dashboard-
+# configured (see build.sh), so this only takes effect if you explicitly
+# create a Blueprint from this file.
+
+services:
+  - type: web
+    name: sada-backend
+    runtime: python
+    buildCommand: ./build.sh
+    startCommand: gunicorn config.wsgi:application
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: settings.production
+      - key: CELERY_BROKER_URL
+        fromService:
+          type: redis
+          name: sada-redis
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromService:
+          type: redis
+          name: sada-redis
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: sada-redis
+          property: connectionString
+      # Everything else (SECRET_KEY, DATABASE_URL, EMAIL_*, MODEMPAY_*,
+      # DEMO_MODE, etc.) — set manually in the dashboard; see
+      # .claude/backend/deployment.md for the full list.
+
+  - type: worker
+    name: sada-worker
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: celery -A config worker --loglevel=info
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: settings.production
+      - key: CELERY_BROKER_URL
+        fromService:
+          type: redis
+          name: sada-redis
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromService:
+          type: redis
+          name: sada-redis
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: sada-redis
+          property: connectionString
+      # Worker needs the same DB/email/ModemPay env vars as the web service —
+      # copy them over in the dashboard (Render doesn't share env vars
+      # across services automatically).
+
+  - type: redis
+    name: sada-redis
+    plan: free
+    ipAllowList: []

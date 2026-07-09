@@ -1,0 +1,31 @@
+{% extends "emails/base.html" %}
+
+{% block subject %}Your identity verification was {% if approved %}approved{% else %}rejected{% endif %}{% endblock %}
+
+{% block content %}
+<h2 style="margin: 0 0 4px; color: #18181b; font-size: 20px;">Identity verification {% if approved %}approved{% else %}update{% endif %}</h2>
+<p>Hi {{ user.first_name|default:user.email }},</p>
+
+<p>
+  <span class="badge {% if approved %}badge-success{% else %}badge-danger{% endif %}">
+    {% if approved %}Verified{% else %}Not approved{% endif %}
+  </span>
+</p>
+
+{% if approved %}
+<p>Your government ID has been reviewed and approved. Your account now shows the verified badge, which helps build trust with donors on your campaigns.</p>
+{% else %}
+<p>We weren't able to approve your identity verification submission.</p>
+{% if rejection_reason %}
+<div class="card">
+  <p class="label" style="margin: 0 0 4px;">Reason</p>
+  <p style="margin: 0;">{{ rejection_reason }}</p>
+</div>
+{% endif %}
+<p>You're welcome to submit a new request with corrected information or clearer photos.</p>
+{% endif %}
+
+<a href="{{ frontend_url }}/profile" class="btn">View Profile</a>
+
+<p class="muted">Questions? Just reply to this email.</p>
+{% endblock %}

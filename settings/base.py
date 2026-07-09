@@ -11,6 +11,12 @@ DEBUG = config('DEBUG', default=False, cast=bool)
 
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost', cast=Csv())
 
+# Bounds the whole request body (including multipart file uploads) Django will
+# parse before rejecting with a 400 — a backstop above the per-field
+# validate_image_size checks on individual ImageFields.
+DATA_UPLOAD_MAX_MEMORY_SIZE = config('DATA_UPLOAD_MAX_MEMORY_SIZE', default=10 * 1024 * 1024, cast=int)
+FILE_UPLOAD_MAX_MEMORY_SIZE = config('FILE_UPLOAD_MAX_MEMORY_SIZE', default=10 * 1024 * 1024, cast=int)
+
 # ─── Apps ────────────────────────────────────────────────────────────────────
 
 DJANGO_APPS = [
@@ -46,6 +52,7 @@ LOCAL_APPS = [
     'apps.donations',
     'apps.payments',
     'apps.notifications',
+    'apps.analytics',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -189,6 +196,20 @@ EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@yourapp.com')
 
+# ─── Celery ──────────────────────────────────────────────────────────────────
+# Emails (and any other background work) run through Celery so a slow SMTP
+# server never blocks the request that triggered the send.
+
+REDIS_URL = config('REDIS_URL', default='redis://localhost:6379/0')
+CELERY_BROKER_URL = config('CELERY_BROKER_URL', default=REDIS_URL)
+CELERY_RESULT_BACKEND = config('CELERY_RESULT_BACKEND', default=REDIS_URL)
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_TIME_LIMIT = 30
+CELERY_TASK_ALWAYS_EAGER = config('CELERY_TASK_ALWAYS_EAGER', default=False, cast=bool)
+
 # ─── Allauth ─────────────────────────────────────────────────────────────────
 
 SITE_ID = 1
@@ -218,14 +239,20 @@ USE_TZ = True
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-SITE_NAME = config('SITE_NAME', default='My App')
-SITE_DESCRIPTION = config('SITE_DESCRIPTION', default='A great application')
+SITE_NAME = config('SITE_NAME', default='SADA')
+SITE_DESCRIPTION = config('SITE_DESCRIPTION', default='Crowdfunding for The Gambia')
 CONTACT_EMAIL = config('CONTACT_EMAIL', default='support@yourapp.com')
 FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:5173')
+# Used to build the ModemPay webhook callback URL. Falls back to deriving it
+# from FRONTEND_URL (see modempay_service._build_webhook_url) if left blank.
+BACKEND_URL = config('BACKEND_URL', default='')
 
 # ─── ModemPay ────────────────────────────────────────────────────────────────
+# The real ModemPay Python SDK (modempay) reads only the secret key — it talks
+# to https://api.modempay.com directly, so there's no API URL to configure.
 
-MODEMPAY_API_URL = config('MODEMPAY_API_URL', default='https://api.modempay.com/v1')
-MODEMPAY_SECRET_KEY = config('MODEMPAY_SECRET_KEY', default='')
-MODEMPAY_PUBLIC_KEY = config('MODEMPAY_PUBLIC_KEY', default='')
+MODEMPAY_SECRET_KEY = config('MODEMPAY_SECRET_API_KEY', default='')
+MODEMPAY_PUBLIC_KEY = config('MODEMPAY_PUBLIC_API_KEY', default='')
+MODEMPAY_WEBHOOK_SECRET = config('MODEMPAY_WEBHOOK_SECRET', default='')
+MODEMPAY_MERCHANT_ID = config('MODEMPAY_MERCHANT_ID', default='')
 DEMO_MODE = config('DEMO_MODE', default=True, cast=bool)

@@ -1,0 +1,38 @@
+{% extends "emails/base.html" %}
+
+{% block subject %}Your Campaign Status Has Changed{% endblock %}
+
+{% block content %}
+<h2 style="margin: 0 0 4px; color: #18181b; font-size: 20px;">Campaign status update</h2>
+<p>Hello {{ campaign_owner_name }},</p>
+<p>The status of your campaign <strong>"{{ campaign_title }}"</strong> has changed:</p>
+
+<p>
+  <span class="badge {% if new_status == 'active' or new_status == 'approved' %}badge-success{% elif new_status == 'rejected' or new_status == 'suspended' %}badge-danger{% elif new_status == 'completed' %}badge-info{% else %}badge-warning{% endif %}">
+    {{ new_status }}
+  </span>
+</p>
+
+{% if reason %}
+<div class="card">
+  <p class="label" style="margin: 0 0 4px;">Reason</p>
+  <p style="margin: 0;">{{ reason }}</p>
+</div>
+{% endif %}
+
+<p>
+  {% if new_status == 'approved' or new_status == 'active' %}
+    Your campaign is live! Donors can now find it and start contributing.
+  {% elif new_status == 'rejected' %}
+    Unfortunately, your campaign didn't meet our approval criteria this time. Review the reason above and feel free to submit a revised version.
+  {% elif new_status == 'suspended' %}
+    Your campaign has been temporarily suspended. Please contact support for more information.
+  {% elif new_status == 'completed' %}
+    Your campaign has been marked as completed. Thank you for fundraising with {{ site_name }}!
+  {% endif %}
+</p>
+
+<a href="{{ frontend_url }}/campaigns/{{ campaign_slug }}" class="btn">View Campaign</a>
+
+<p class="muted">Questions, or want to dispute this decision? Just reply to this email.</p>
+{% endblock %}

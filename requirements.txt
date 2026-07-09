@@ -1,5 +1,6 @@
 asgiref==3.11.1
 attrs==26.1.0
+celery==5.6.3
 certifi==2026.5.20
 charset-normalizer==3.4.7
 dj-database-url==2.2.0
@@ -18,12 +19,14 @@ idna==3.18
 inflection==0.5.1
 jsonschema==4.26.0
 jsonschema-specifications==2025.9.1
+modempay==1.0.4
 packaging==26.2
 pillow==10.4.0
 PyJWT==2.13.0
 python-decouple==3.8
 python-dotenv==1.0.1
 PyYAML==6.0.3
+redis==8.0.1
 referencing==0.37.0
 requests==2.34.2
 rpds-py==2026.5.1
@@ -32,3 +35,4 @@ typing_extensions==4.15.0
 uritemplate==4.2.0
 urllib3==2.7.0
 whitenoise==6.7.0
+google-auth==2.27.0

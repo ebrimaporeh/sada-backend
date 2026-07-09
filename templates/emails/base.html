@@ -3,31 +3,78 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>{% block subject %}Email{% endblock %} | {{ site_name }}</title>
+  <meta name="color-scheme" content="light" />
+  <title>{% block subject %}Notification{% endblock %} | {{ site_name }}</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f4f4f5; margin: 0; padding: 0; }
-    .wrapper { max-width: 600px; margin: 40px auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-    .header { background: #18181b; color: #ffffff; padding: 24px 32px; }
-    .header h1 { margin: 0; font-size: 22px; font-weight: 600; }
-    .body { padding: 32px; color: #3f3f46; line-height: 1.6; }
-    .body h2 { margin-top: 0; color: #18181b; }
-    .btn { display: inline-block; margin: 20px 0; padding: 12px 24px; background: #18181b; color: #ffffff !important; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 15px; }
-    .footer { padding: 20px 32px; border-top: 1px solid #e4e4e7; font-size: 13px; color: #a1a1aa; }
-    p { margin: 0 0 16px; }
+    body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    img { -ms-interpolation-mode: bicubic; border: 0; line-height: 100%; outline: none; text-decoration: none; }
+    body {
+      margin: 0; padding: 0; width: 100% !important;
+      background: #f4f4f5;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      color: #3f3f46;
+    }
+    a { color: #16793a; }
+    p { margin: 0 0 16px; line-height: 1.6; }
+    .btn {
+      display: inline-block; margin: 8px 0 20px; padding: 13px 28px;
+      background: #16793a; color: #ffffff !important; text-decoration: none;
+      border-radius: 8px; font-weight: 600; font-size: 15px;
+    }
+    .btn-secondary {
+      display: inline-block; margin: 8px 0 20px; padding: 12px 27px;
+      background: #ffffff; color: #16793a !important; text-decoration: none;
+      border: 1px solid #16793a; border-radius: 8px; font-weight: 600; font-size: 15px;
+    }
+    .card { background: #f9fafb; border: 1px solid #e4e4e7; border-radius: 10px; padding: 20px 24px; margin: 20px 0; }
+    .row { display: block; padding: 6px 0; border-bottom: 1px solid #e4e4e7; }
+    .row:last-child { border-bottom: none; }
+    .label { color: #71717a; font-size: 13px; }
+    .value { color: #18181b; font-weight: 600; font-size: 14px; float: right; }
+    .badge {
+      display: inline-block; padding: 4px 12px; border-radius: 999px;
+      font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
+    }
+    .badge-success { background: #dcfce7; color: #15803d; }
+    .badge-warning { background: #fef3c7; color: #b45309; }
+    .badge-danger { background: #fee2e2; color: #b91c1c; }
+    .badge-info { background: #dbeafe; color: #1d4ed8; }
+    .muted { color: #71717a; font-size: 13px; }
   </style>
 </head>
 <body>
-  <div class="wrapper">
-    <div class="header">
-      <h1>{{ site_name }}</h1>
-    </div>
-    <div class="body">
-      {% block content %}{% endblock %}
-    </div>
-    <div class="footer">
-      &copy; {% now "Y" %} {{ site_name }}. All rights reserved.
-      <br />If you didn't request this email, you can safely ignore it.
-    </div>
-  </div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5; padding: 32px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width: 560px; background:#ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+          <tr>
+            <td style="background: #16793a; padding: 28px 32px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="color: #ffffff; font-size: 20px; font-weight: 700; letter-spacing: -0.02em;">
+                    {{ site_name }}
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 36px 32px;">
+              {% block content %}{% endblock %}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 20px 32px; border-top: 1px solid #e4e4e7;">
+              <p class="muted" style="margin: 0;">
+                &copy; {% now "Y" %} {{ site_name }}. All rights reserved.
+                {% block footer_note %}<br />If you didn't expect this email, you can safely ignore it.{% endblock %}
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
 </body>
 </html>

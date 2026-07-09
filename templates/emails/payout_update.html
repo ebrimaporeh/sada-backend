@@ -1,0 +1,43 @@
+{% extends "emails/base.html" %}
+{% block subject %}Withdrawal Update{% endblock %}
+{% block content %}
+<h2 style="margin: 0 0 4px; color: #18181b; font-size: 20px;">
+  {% if status == 'completed' %}Your withdrawal has arrived 💸
+  {% elif status == 'processing' %}Your withdrawal is on its way
+  {% elif status == 'failed' %}Your withdrawal couldn't be completed
+  {% else %}Your withdrawal is on hold
+  {% endif %}
+</h2>
+<p>Hi {{ owner_name }},</p>
+<p>
+  {% if status == 'completed' %}
+    Your withdrawal from <strong>"{{ campaign_title }}"</strong> has been sent to your {{ provider|upper }} account.
+  {% elif status == 'processing' %}
+    Your withdrawal from <strong>"{{ campaign_title }}"</strong> has been submitted and is being processed by our payment provider. We'll email you again once it's confirmed.
+  {% elif status == 'failed' %}
+    We couldn't complete your withdrawal from <strong>"{{ campaign_title }}"</strong>. No funds have left your campaign balance — you're welcome to try again.
+  {% else %}
+    Your withdrawal from <strong>"{{ campaign_title }}"</strong> is on hold and hasn't been sent yet.
+  {% endif %}
+</p>
+
+<p>
+  <span class="badge {% if status == 'completed' %}badge-success{% elif status == 'processing' %}badge-info{% elif status == 'failed' %}badge-danger{% else %}badge-warning{% endif %}">
+    {{ status }}
+  </span>
+</p>
+
+<div class="card">
+  <div class="row"><span class="label">Requested amount</span><span class="value">D{{ amount }}</span></div>
+  <div class="row"><span class="label">Platform fee</span><span class="value">-D{{ fee }}</span></div>
+  <div class="row"><span class="label">{% if status == 'completed' %}Sent to you{% else %}You'll receive{% endif %}</span><span class="value" style="color:#16793a;">D{{ net_amount }}</span></div>
+  <div class="row"><span class="label">To</span><span class="value">{{ provider|upper }} &middot; {{ phone }}</span></div>
+  <div class="row"><span class="label">Reference</span><span class="value">{{ reference }}</span></div>
+</div>
+
+<a href="{{ frontend_url }}/my-campaigns/{{ campaign_slug }}" class="btn">View Campaign</a>
+
+{% if status == 'failed' %}
+<p class="muted">If this keeps happening, please contact support and reference the withdrawal number above.</p>
+{% endif %}
+{% endblock %}

@@ -6,8 +6,9 @@ ALLOWED_HOSTS = ['*']
 
 CORS_ALLOW_ALL_ORIGINS = True
 
-# Show emails in console during development
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+# EMAIL_BACKEND is already read from .env in base.py (defaults to console if
+# unset there) — don't hardcode it here, or a real SMTP backend configured in
+# .env gets silently overridden and "sent" emails just print to the terminal.
 
 # Faster password hashing for tests
 PASSWORD_HASHERS = [
