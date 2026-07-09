@@ -18,6 +18,7 @@ urlpatterns = [
     path('api/v1/donations/', include('apps.donations.urls')),
     path('api/v1/payments/', include('apps.payments.urls')),
     path('api/v1/notifications/', include('apps.notifications.urls')),
+    path('api/v1/analytics/', include('apps.analytics.urls')),
 
     # Password reset
     path('api/v1/auth/password-reset/', include('django_rest_passwordreset.urls', namespace='password_reset')),
