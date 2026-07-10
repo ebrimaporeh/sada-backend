@@ -316,6 +316,40 @@ def get_all_campaigns(params=None):
     return qs
 
 
+def get_public_platform_stats():
+    """Real trust-badge stats for the public homepage — no fabricated numbers."""
+    from apps.campaigns.models import Campaign
+    from apps.donations.models import Donation
+
+    ever_public = [
+        Campaign.Status.ACTIVE, Campaign.Status.APPROVED,
+        Campaign.Status.COMPLETED, Campaign.Status.SUSPENDED,
+    ]
+    campaigns = Campaign.objects.filter(status__in=ever_public)
+
+    agg = campaigns.aggregate(
+        total_raised=models.Sum('raised'),
+        total=models.Count('id'),
+        funded=models.Count('id', filter=models.Q(raised__gte=models.F('goal'))),
+        fundraisers=models.Count('owner', distinct=True),
+    )
+
+    paid_donations = Donation.objects.filter(status=Donation.Status.PAID, campaign__status__in=ever_public)
+    known_donors = paid_donations.filter(donor__isnull=False).values('donor').distinct().count()
+    guest_donations = paid_donations.filter(donor__isnull=True).count()
+
+    total = agg['total'] or 0
+    success_rate = round((agg['funded'] or 0) / total * 100) if total else 0
+
+    return {
+        'total_raised': agg['total_raised'] or 0,
+        'active_campaigns': campaigns.filter(status=Campaign.Status.ACTIVE).count(),
+        'fundraisers_count': agg['fundraisers'] or 0,
+        'donors_count': known_donors + guest_donations,
+        'success_rate': success_rate,
+    }
+
+
 def get_campaign_stats():
     from apps.campaigns.models import Campaign
     counts = {row['status']: row['count'] for row in Campaign.objects.values('status').annotate(count=models.Count('id'))}

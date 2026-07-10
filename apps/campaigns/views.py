@@ -26,6 +26,14 @@ class CategoryListView(APIView):
         return campaign_service.success_response({'categories': serializer.data})
 
 
+class PublicPlatformStatsView(APIView):
+    permission_classes = [AllowAny]
+
+    @extend_schema(summary='Public homepage trust-badge stats (real numbers, not fabricated)')
+    def get(self, request):
+        return campaign_service.success_response(campaign_service.get_public_platform_stats())
+
+
 class AdminCategoryDetailView(APIView):
     permission_classes = [IsAdminUser]
 
