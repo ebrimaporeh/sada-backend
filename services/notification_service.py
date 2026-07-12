@@ -10,9 +10,12 @@ def success_response(data, message='Success.', status_code=status.HTTP_200_OK):
     return Response({'success': True, 'message': message, 'data': data}, status=status_code)
 
 
-def get_user_notifications(user):
+def get_user_notifications(user, is_read=None):
     from apps.notifications.models import Notification
-    return Notification.objects.filter(user=user).order_by('-created_at')
+    qs = Notification.objects.filter(user=user)
+    if is_read is not None:
+        qs = qs.filter(is_read=is_read)
+    return qs.order_by('-created_at')
 
 
 def mark_read(user, notification_id):

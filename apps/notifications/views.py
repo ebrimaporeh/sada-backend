@@ -11,7 +11,9 @@ class NotificationListView(APIView):
 
     @extend_schema(summary='List my notifications', responses={200: NotificationSerializer(many=True)})
     def get(self, request):
-        notifications = notification_service.get_user_notifications(request.user)
+        is_read_param = request.query_params.get('is_read')
+        is_read = {'true': True, 'false': False}.get(is_read_param)
+        notifications = notification_service.get_user_notifications(request.user, is_read=is_read)
         paginator = SmallResultsPagination()
         page = paginator.paginate_queryset(notifications, request)
         serializer = NotificationSerializer(page, many=True)
