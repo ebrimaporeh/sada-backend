@@ -29,20 +29,19 @@ def get_date_range(start_date_str=None, end_date_str=None):
 
 
 def get_dashboard_stats(start_date_str=None, end_date_str=None):
-    """Get all dashboard stats for a date range"""
+    """Get the dashboard's top-line "Total X" stat cards.
+
+    These are all-time cumulative totals, not scoped to the selected date range —
+    the range only drives the charts below (donations-by-day, top campaigns/donors,
+    recent donations). Campaigns in particular are created far less often than
+    donations come in, so date-filtering "Total Campaigns" made it read 0 under the
+    default "Last 7 Days" view even when the platform had dozens of campaigns.
+    """
     start_date, end_date = get_date_range(start_date_str, end_date_str)
 
-    # Date filters
-    date_filter = Q(created_at__date__gte=start_date, created_at__date__lte=end_date)
-
-    # Get donations stats
-    donations = Donation.objects.filter(date_filter)
-    donations_count = donations.count()
-    total_raised = donations.aggregate(total=Sum('amount'))['total'] or Decimal('0')
-
-    # Get campaigns stats
-    campaigns = Campaign.objects.filter(date_filter)
-    campaigns_count = campaigns.count()
+    donations_count = Donation.objects.count()
+    total_raised = Donation.objects.aggregate(total=Sum('amount'))['total'] or Decimal('0')
+    campaigns_count = Campaign.objects.count()
 
     # Get users count (not date filtered as it's cumulative)
     from apps.users.models import User
@@ -83,13 +82,15 @@ def get_donations_by_day(start_date_str=None, end_date_str=None):
 
 
 def get_campaign_status_distribution(start_date_str=None, end_date_str=None):
-    """Get campaign distribution by status"""
-    start_date, end_date = get_date_range(start_date_str, end_date_str)
+    """Get the current status distribution across all campaigns.
 
-    campaigns = Campaign.objects.filter(
-        created_at__date__gte=start_date,
-        created_at__date__lte=end_date
-    ).values('status').annotate(
+    Not scoped to the dashboard's date range on purpose: status is a live property
+    of a campaign (it can change long after creation), not an event that happened
+    within the selected period, so filtering by created_at made this chart go empty
+    whenever no campaigns happened to be *created* in the last 7 days — even though
+    plenty existed and had a status worth showing.
+    """
+    campaigns = Campaign.objects.values('status').annotate(
         count=Count('id')
     ).order_by('status')
 
@@ -103,13 +104,13 @@ def get_campaign_status_distribution(start_date_str=None, end_date_str=None):
 
 
 def get_top_campaigns(start_date_str=None, end_date_str=None, limit=5):
-    """Get top campaigns by amount raised"""
-    start_date, end_date = get_date_range(start_date_str, end_date_str)
+    """Get top campaigns by amount raised (all-time ranking).
 
-    campaigns = Campaign.objects.filter(
-        created_at__date__gte=start_date,
-        created_at__date__lte=end_date
-    ).order_by('-raised')[:limit]
+    `raised` is a lifetime running total on the campaign, not something that
+    happens within a date window, so — same reasoning as the status distribution
+    and top-line stats — this isn't scoped to the dashboard's selected period.
+    """
+    campaigns = Campaign.objects.order_by('-raised')[:limit]
 
     return [
         {
@@ -212,7 +213,26 @@ def get_finance_summary(period=None, start_date_str=None, end_date_str=None, top
         .order_by('-amount')
     )
 
-    top_campaigns = Campaign.objects.filter(date_filter).order_by('-raised')[:top_campaigns_limit]
+    # Rank by donation revenue actually received *during this period*, not by
+    # when the campaign was created — a campaign created long before the
+    # window can still be the top performer within it, and one created inside
+    # the window but filtering on created_at was hiding every older campaign
+    # (this is what made the widget show "No campaigns for this period" even
+    # with active fundraising happening).
+    top_campaigns = (
+        Campaign.objects.annotate(
+            period_raised=Sum(
+                'donations__amount',
+                filter=Q(
+                    donations__status=Donation.Status.PAID,
+                    donations__created_at__date__gte=start_date,
+                    donations__created_at__date__lte=end_date,
+                ),
+            )
+        )
+        .filter(period_raised__gt=0)
+        .order_by('-period_raised')[:top_campaigns_limit]
+    )
 
     return {
         'period': period,
