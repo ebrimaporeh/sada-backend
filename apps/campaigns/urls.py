@@ -7,6 +7,7 @@ urlpatterns = [
     path('featured/', views.FeaturedCampaignsView.as_view(), name='campaign-featured'),
     path('categories/', views.CategoryListView.as_view(), name='category-list'),
     path('stats/public/', views.PublicPlatformStatsView.as_view(), name='public-platform-stats'),
+    path('admin/categories/', views.AdminCategoryCreateView.as_view(), name='admin-category-create'),
     path('categories/<uuid:pk>/', views.AdminCategoryDetailView.as_view(), name='admin-category-detail'),
     path('categories/<uuid:pk>/upload-image/', views.AdminCategoryImageUploadView.as_view(), name='admin-category-image-upload'),
     path('create/', views.CampaignCreateView.as_view(), name='campaign-create'),

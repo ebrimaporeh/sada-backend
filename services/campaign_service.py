@@ -295,6 +295,12 @@ def create_campaign_report(campaign, user, reason, description, reporter_name=''
             reporter_phone=reporter_phone,
             status=CampaignReport.Status.PENDING,
         )
+        created = True
+
+    if created:
+        from emails.tasks import send_new_report_notification_task
+        send_new_report_notification_task.delay(str(report.id))
+
     return report
 
 
@@ -318,6 +324,8 @@ def get_all_campaigns(params=None):
 
 def get_public_platform_stats():
     """Real trust-badge stats for the public homepage — no fabricated numbers."""
+    from django.utils import timezone
+    from datetime import timedelta
     from apps.campaigns.models import Campaign
     from apps.donations.models import Donation
 
@@ -338,11 +346,17 @@ def get_public_platform_stats():
     known_donors = paid_donations.filter(donor__isnull=False).values('donor').distinct().count()
     guest_donations = paid_donations.filter(donor__isnull=True).count()
 
+    week_ago = timezone.now() - timedelta(days=7)
+    total_raised_this_week = paid_donations.filter(created_at__gte=week_ago).aggregate(
+        total=models.Sum('amount'),
+    )['total'] or 0
+
     total = agg['total'] or 0
     success_rate = round((agg['funded'] or 0) / total * 100) if total else 0
 
     return {
         'total_raised': agg['total_raised'] or 0,
+        'total_raised_this_week': total_raised_this_week,
         'active_campaigns': campaigns.filter(status=Campaign.Status.ACTIVE).count(),
         'fundraisers_count': agg['fundraisers'] or 0,
         'donors_count': known_donors + guest_donations,
@@ -460,7 +474,9 @@ def get_all_campaign_reports(params=None):
             qs = qs.filter(
                 Q(campaign__title__icontains=search) |
                 Q(reporter_name__icontains=search) |
-                Q(reported_by__full_name__icontains=search)
+                Q(reported_by__first_name__icontains=search) |
+                Q(reported_by__last_name__icontains=search) |
+                Q(reported_by__email__icontains=search)
             )
 
     return qs

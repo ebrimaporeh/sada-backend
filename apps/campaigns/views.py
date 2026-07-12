@@ -4,7 +4,8 @@ from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from drf_spectacular.utils import extend_schema, OpenApiParameter
 from pagination.base import StandardResultsPagination
-from permissions.base import IsAdminUser
+from permissions.base import HasResourceAccess
+from permissions.roles import Resource
 from throttling.base import ReportCreateThrottle
 from .models import Campaign, Category, CampaignReport
 from .serializers import (
@@ -34,8 +35,44 @@ class PublicPlatformStatsView(APIView):
         return campaign_service.success_response(campaign_service.get_public_platform_stats())
 
 
+class AdminCategoryCreateView(APIView):
+    permission_classes = [HasResourceAccess]
+    required_resource = Resource.CATEGORIES
+
+    @extend_schema(
+        summary='[Admin] Create a new category',
+        request={
+            'type': 'object',
+            'properties': {
+                'name': {'type': 'string'},
+                'description': {'type': 'string'},
+                'icon': {'type': 'string'},
+            },
+            'required': ['name'],
+        },
+        responses={201: CategorySerializer},
+    )
+    def post(self, request):
+        name = (request.data.get('name') or '').strip()
+        if not name:
+            return campaign_service.error_response('Category name is required', status_code=status.HTTP_400_BAD_REQUEST)
+        if Category.objects.filter(name__iexact=name).exists():
+            return campaign_service.error_response('A category with this name already exists', status_code=status.HTTP_400_BAD_REQUEST)
+
+        category = Category.objects.create(
+            name=name,
+            description=(request.data.get('description') or '').strip(),
+            icon=(request.data.get('icon') or '').strip(),
+        )
+        serializer = CategorySerializer(category, context={'request': request})
+        return campaign_service.success_response(
+            {'category': serializer.data}, message='Category created successfully', status_code=status.HTTP_201_CREATED,
+        )
+
+
 class AdminCategoryDetailView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [HasResourceAccess]
+    required_resource = Resource.CATEGORIES
 
     @extend_schema(summary='[Admin] Get category detail', responses={200: CategorySerializer})
     def get(self, request, pk):
@@ -65,9 +102,21 @@ class AdminCategoryDetailView(APIView):
         serializer = CategorySerializer(category, context={'request': request})
         return campaign_service.success_response({'category': serializer.data})
 
+    @extend_schema(summary='[Admin] Delete a category')
+    def delete(self, request, pk):
+        category = get_object_or_404(Category, pk=pk)
+        if category.campaigns.exists():
+            return campaign_service.error_response(
+                'Cannot delete a category that has campaigns. Reassign or remove those campaigns first.',
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+        category.delete()
+        return campaign_service.success_response({}, message='Category deleted successfully')
+
 
 class AdminCategoryImageUploadView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [HasResourceAccess]
+    required_resource = Resource.CATEGORIES
 
     @extend_schema(summary='[Admin] Upload category image')
     def post(self, request, pk):
@@ -271,7 +320,8 @@ class CampaignUpdateDetailView(APIView):
 
 
 class AdminCampaignListView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [HasResourceAccess]
+    required_resource = Resource.CAMPAIGNS_VIEW
 
     @extend_schema(summary='[Admin] List all campaigns', responses={200: AdminCampaignSerializer(many=True)})
     def get(self, request):
@@ -283,7 +333,8 @@ class AdminCampaignListView(APIView):
 
 
 class AdminCampaignStatsView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [HasResourceAccess]
+    required_resource = Resource.CAMPAIGNS_VIEW
 
     @extend_schema(summary='[Admin] Campaign stats')
     def get(self, request):
@@ -291,7 +342,8 @@ class AdminCampaignStatsView(APIView):
 
 
 class AdminCampaignActionView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [HasResourceAccess]
+    required_resource = Resource.CAMPAIGNS_MODERATE
 
     @extend_schema(summary='[Admin] Approve or reject a campaign')
     def post(self, request, pk, action):
@@ -302,7 +354,8 @@ class AdminCampaignActionView(APIView):
 
 
 class AdminCampaignUpdateView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [HasResourceAccess]
+    required_resource = Resource.CAMPAIGNS_MODERATE
 
     @extend_schema(summary='[Admin] Update campaign details', request=AdminCampaignUpdateSerializer)
     def patch(self, request, pk):
@@ -315,7 +368,8 @@ class AdminCampaignUpdateView(APIView):
 
 
 class AdminCampaignDetailView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [HasResourceAccess]
+    required_resource = Resource.CAMPAIGNS_VIEW
 
     @extend_schema(summary='[Admin] Get campaign detail by ID', responses={200: AdminCampaignSerializer})
     def get(self, request, pk):
@@ -325,7 +379,8 @@ class AdminCampaignDetailView(APIView):
 
 
 class AdminCampaignStatusChangeView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [HasResourceAccess]
+    required_resource = Resource.CAMPAIGNS_MODERATE
 
     @extend_schema(
         summary='[Admin] Change campaign status and send email notification',
@@ -355,7 +410,8 @@ class AdminCampaignStatusChangeView(APIView):
 
 
 class AdminCampaignMediaView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [HasResourceAccess]
+    required_resource = Resource.CAMPAIGNS_MODERATE
 
     @extend_schema(summary='[Admin] Upload cover and gallery images for any campaign')
     def post(self, request, pk):
@@ -394,7 +450,8 @@ class CampaignReportView(APIView):
 
 
 class AdminCampaignReportsView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [HasResourceAccess]
+    required_resource = Resource.REPORTS
 
     @extend_schema(summary='[Admin] List all campaign reports', responses={200: CampaignReportSerializer(many=True)})
     def get(self, request):
@@ -406,7 +463,8 @@ class AdminCampaignReportsView(APIView):
 
 
 class AdminCampaignReportStatsView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [HasResourceAccess]
+    required_resource = Resource.REPORTS
 
     @extend_schema(summary='[Admin] Campaign report stats')
     def get(self, request):
@@ -414,7 +472,8 @@ class AdminCampaignReportStatsView(APIView):
 
 
 class AdminCampaignReportUpdateView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [HasResourceAccess]
+    required_resource = Resource.REPORTS
 
     @extend_schema(summary='[Admin] Update campaign report', request=CampaignReportUpdateSerializer)
     def patch(self, request, pk):

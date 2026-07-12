@@ -1,6 +1,7 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from permissions.base import IsAdminUser
+from permissions.base import HasResourceAccess
+from permissions.roles import Resource
 from services.analytics_service import (
     get_dashboard_stats,
     get_donations_by_day,
@@ -13,7 +14,8 @@ from services.analytics_service import (
 
 
 class DashboardStatsView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [HasResourceAccess]
+    required_resource = Resource.DASHBOARD
 
     def get(self, request):
         """Get aggregated dashboard stats for a date range"""
@@ -25,7 +27,8 @@ class DashboardStatsView(APIView):
 
 
 class DonationsByDayView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [HasResourceAccess]
+    required_resource = Resource.DASHBOARD
 
     def get(self, request):
         """Get donations aggregated by day for chart"""
@@ -37,7 +40,8 @@ class DonationsByDayView(APIView):
 
 
 class CampaignStatusDistributionView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [HasResourceAccess]
+    required_resource = Resource.DASHBOARD
 
     def get(self, request):
         """Get campaign distribution by status"""
@@ -49,7 +53,8 @@ class CampaignStatusDistributionView(APIView):
 
 
 class TopCampaignsView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [HasResourceAccess]
+    required_resource = Resource.DASHBOARD
 
     def get(self, request):
         """Get top campaigns by amount raised"""
@@ -62,7 +67,8 @@ class TopCampaignsView(APIView):
 
 
 class TopDonorsView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [HasResourceAccess]
+    required_resource = Resource.DASHBOARD
 
     def get(self, request):
         """Get top donors by total amount"""
@@ -75,7 +81,8 @@ class TopDonorsView(APIView):
 
 
 class RecentDonationsView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [HasResourceAccess]
+    required_resource = Resource.DASHBOARD
 
     def get(self, request):
         """Get recent donations"""
@@ -88,7 +95,8 @@ class RecentDonationsView(APIView):
 
 
 class FinanceSummaryView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [HasResourceAccess]
+    required_resource = Resource.FINANCES
 
     def get(self, request):
         """Get all figures for the admin Finances page, fully aggregated for a period.

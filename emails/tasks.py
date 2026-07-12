@@ -119,3 +119,42 @@ def send_verification_reviewed_email_task(self, verification_id):
         self, email_service.send_verification_reviewed_email(verification.user, verification),
         f'verification reviewed email for verification {verification_id}',
     )
+
+
+def _get_moderation_staff():
+    """Moderators and admins — everyone with report/verification review
+    access (see permissions/roles.py). Broadcast recipients, not a single
+    user, so these tasks don't use the retry-the-whole-task pattern above:
+    one bad address shouldn't cause every other moderator to get a duplicate
+    email on retry.
+    """
+    from apps.users.models import User
+    return User.objects.filter(role__in=[User.Role.MODERATOR, User.Role.ADMIN], is_active=True)
+
+
+@shared_task(bind=True)
+def send_new_report_notification_task(self, report_id):
+    from apps.campaigns.models import CampaignReport
+    from emails.service import email_service
+    try:
+        report = CampaignReport.objects.select_related('campaign', 'reported_by').get(pk=report_id)
+    except CampaignReport.DoesNotExist:
+        logger.warning('send_new_report_notification_task: report %s not found', report_id)
+        return
+    for moderator in _get_moderation_staff():
+        if not email_service.send_new_report_notification_email(moderator, report):
+            logger.error('Failed to notify %s about report %s', moderator.email, report_id)
+
+
+@shared_task(bind=True)
+def send_new_verification_notification_task(self, verification_id):
+    from apps.users.models import IdentityVerification
+    from emails.service import email_service
+    try:
+        verification = IdentityVerification.objects.select_related('user').get(pk=verification_id)
+    except IdentityVerification.DoesNotExist:
+        logger.warning('send_new_verification_notification_task: verification %s not found', verification_id)
+        return
+    for moderator in _get_moderation_staff():
+        if not email_service.send_new_verification_notification_email(moderator, verification):
+            logger.error('Failed to notify %s about verification %s', moderator.email, verification_id)

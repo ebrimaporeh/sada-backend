@@ -29,6 +29,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         USER = 'user', 'User'
         PREMIUM = 'premium', 'Premium User'
         MODERATOR = 'moderator', 'Moderator'
+        FINANCE_OFFICER = 'finance_officer', 'Finance Officer'
 
     class Region(models.TextChoices):
         BANJUL = 'banjul', 'Banjul'

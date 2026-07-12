@@ -80,6 +80,7 @@ class CampaignListSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
     category_slug = serializers.CharField(source='category.slug', read_only=True)
     owner_name = serializers.SerializerMethodField()
+    owner_is_verified = serializers.SerializerMethodField()
     progress_percent = serializers.ReadOnlyField()
     cover_image_url = serializers.SerializerMethodField()
 
@@ -89,13 +90,18 @@ class CampaignListSerializer(serializers.ModelSerializer):
             'id', 'title', 'slug', 'short_description', 'cover_image_url',
             'goal', 'raised', 'currency', 'donors_count', 'progress_percent',
             'deadline', 'status', 'region', 'is_urgent', 'is_featured',
-            'category_name', 'category_slug', 'owner_name', 'created_at',
+            'category_name', 'category_slug', 'owner_name', 'owner_is_verified', 'created_at',
         ]
 
     def get_owner_name(self, obj):
         if obj.is_anonymous:
             return 'Anonymous'
         return obj.owner.full_name
+
+    def get_owner_is_verified(self, obj):
+        if obj.is_anonymous:
+            return False
+        return obj.owner.is_verified
 
     def get_cover_image_url(self, obj):
         request = self.context.get('request')
@@ -109,6 +115,7 @@ class CampaignDetailSerializer(serializers.ModelSerializer):
     images = CampaignImageSerializer(many=True, read_only=True)
     updates = CampaignUpdateSerializer(many=True, read_only=True)
     owner_name = serializers.SerializerMethodField()
+    owner_is_verified = serializers.SerializerMethodField()
     progress_percent = serializers.ReadOnlyField()
     cover_image_url = serializers.SerializerMethodField()
     total_withdrawn = serializers.SerializerMethodField()
@@ -122,7 +129,7 @@ class CampaignDetailSerializer(serializers.ModelSerializer):
             'progress_percent', 'deadline', 'status', 'region',
             'beneficiary', 'beneficiary_relationship',
             'is_urgent', 'is_featured', 'is_anonymous',
-            'category', 'images', 'updates', 'owner_name',
+            'category', 'images', 'updates', 'owner_name', 'owner_is_verified',
             'total_withdrawn', 'available_balance',
             'approved_at', 'created_at', 'updated_at',
         ]
@@ -131,6 +138,11 @@ class CampaignDetailSerializer(serializers.ModelSerializer):
         if obj.is_anonymous:
             return 'Anonymous'
         return obj.owner.full_name
+
+    def get_owner_is_verified(self, obj):
+        if obj.is_anonymous:
+            return False
+        return obj.owner.is_verified
 
     def get_cover_image_url(self, obj):
         request = self.context.get('request')

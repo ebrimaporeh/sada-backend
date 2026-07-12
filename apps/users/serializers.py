@@ -61,6 +61,19 @@ class AdminUserSerializer(serializers.ModelSerializer):
         return None
 
 
+class AdminUserCreateSerializer(serializers.ModelSerializer):
+    role = serializers.ChoiceField(choices=[User.Role.MODERATOR, User.Role.FINANCE_OFFICER])
+
+    class Meta:
+        model = User
+        fields = ['email', 'first_name', 'last_name', 'phone', 'role']
+
+    def validate_email(self, value):
+        if User.objects.filter(email__iexact=value).exists():
+            raise serializers.ValidationError('A user with this email already exists.')
+        return value
+
+
 class IdentityVerificationCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = IdentityVerification

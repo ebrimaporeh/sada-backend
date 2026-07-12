@@ -1,0 +1,23 @@
+{% extends "emails/base.html" %}
+{% block subject %}New Campaign Report{% endblock %}
+{% block content %}
+<h2 style="margin: 0 0 4px; color: #18181b; font-size: 20px;">A campaign was just reported</h2>
+<p>Hi {{ moderator_name }},</p>
+<p><strong>"{{ campaign_title }}"</strong> has a new report waiting for review.</p>
+
+<div class="card">
+  <div class="row"><span class="label">Reason</span><span class="value">{{ reason_label }}</span></div>
+  <div class="row"><span class="label">Reported by</span><span class="value">{{ reporter_name }}</span></div>
+</div>
+
+{% if description %}
+<div class="card">
+  <p class="label" style="margin: 0 0 4px;">Description</p>
+  <p style="margin: 0;">{{ description }}</p>
+</div>
+{% endif %}
+
+<a href="{{ frontend_url }}/admin/reports" class="btn">Review Reports</a>
+
+<p class="muted">You're receiving this because you have report-moderation access on {{ site_name }}.</p>
+{% endblock %}

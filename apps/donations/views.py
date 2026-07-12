@@ -3,7 +3,8 @@ from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from drf_spectacular.utils import extend_schema
 from pagination.base import StandardResultsPagination
-from permissions.base import IsAdminUser
+from permissions.base import HasResourceAccess
+from permissions.roles import Resource
 from throttling.base import DonationCreateThrottle
 from .serializers import DonationSerializer, DonationCreateSerializer, AdminDonationSerializer, AdminDonationUpdateSerializer
 import services.donation_service as donation_service
@@ -80,7 +81,8 @@ class PublicCampaignDonorListView(APIView):
 
 
 class AdminDonationListView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [HasResourceAccess]
+    required_resource = Resource.DONATIONS
 
     @extend_schema(summary='[Admin] List all donations', responses={200: AdminDonationSerializer(many=True)})
     def get(self, request):
@@ -92,7 +94,8 @@ class AdminDonationListView(APIView):
 
 
 class AdminDonationStatsView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [HasResourceAccess]
+    required_resource = Resource.DONATIONS
 
     @extend_schema(summary='[Admin] Donation stats')
     def get(self, request):
@@ -100,7 +103,8 @@ class AdminDonationStatsView(APIView):
 
 
 class AdminDonationUpdateView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [HasResourceAccess]
+    required_resource = Resource.DONATIONS
 
     @extend_schema(summary='[Admin] Update donation details', request=AdminDonationUpdateSerializer)
     def patch(self, request, pk):

@@ -115,6 +115,33 @@ class EmailService:
             },
         )
 
+    def send_new_report_notification_email(self, moderator, report) -> bool:
+        return self._send(
+            to=moderator.email,
+            subject=f'New report: "{report.campaign.title}"',
+            template='emails/new_report_notification.html',
+            context={
+                'moderator_name': moderator.full_name or moderator.email,
+                'campaign_title': report.campaign.title,
+                'reason_label': report.get_reason_display(),
+                'reporter_name': report.reported_by.full_name if report.reported_by else (report.reporter_name or 'Anonymous'),
+                'description': report.description,
+            },
+        )
+
+    def send_new_verification_notification_email(self, moderator, verification) -> bool:
+        return self._send(
+            to=moderator.email,
+            subject=f'New identity verification from {verification.user.full_name or verification.user.email}',
+            template='emails/new_verification_notification.html',
+            context={
+                'moderator_name': moderator.full_name or moderator.email,
+                'submitter_name': verification.user.full_name or verification.user.email,
+                'submitter_email': verification.user.email,
+                'id_type_label': verification.get_id_type_display(),
+            },
+        )
+
     def send_payout_update_email(self, owner, payout) -> bool:
         subject_by_status = {
             'completed': f'Your withdrawal of D{payout.net_amount} has arrived',

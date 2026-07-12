@@ -8,6 +8,9 @@ urlpatterns = [
     path('verification/me/', views.MyVerificationView.as_view(), name='verification-me'),
     path('admin/verifications/', views.AdminVerificationListView.as_view(), name='admin-verification-list'),
     path('admin/verifications/<uuid:pk>/<str:action>/', views.AdminVerificationActionView.as_view(), name='admin-verification-action'),
+    path('admin/create/', views.AdminUserCreateView.as_view(), name='admin-user-create'),
+    path('admin/staff/', views.AdminStaffListView.as_view(), name='admin-staff-list'),
+    path('admin/staff/<uuid:pk>/role/', views.AdminStaffRoleChangeView.as_view(), name='admin-staff-role-change'),
     path('', views.UserListView.as_view(), name='user-list'),
     path('<uuid:pk>/', views.UserDetailView.as_view(), name='user-detail'),
 ]

@@ -3,7 +3,8 @@ from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema
-from permissions.base import IsAdminUser
+from permissions.base import HasResourceAccess
+from permissions.roles import Resource
 from .models import PlatformSettings
 from .serializers import PayoutCreateSerializer, PayoutSerializer, PlatformSettingsSerializer
 import services.payment_service as payment_service
@@ -35,9 +36,11 @@ class PlatformSettingsView(APIView):
     """Any authenticated user can read the current platform fee (campaign
     owners need it to preview payout amounts) — only admins can change it."""
 
+    required_resource = Resource.SETTINGS
+
     def get_permissions(self):
         if self.request.method == 'PATCH':
-            return [IsAdminUser()]
+            return [HasResourceAccess()]
         return [IsAuthenticated()]
 
     @extend_schema(summary='Get current platform settings', responses={200: PlatformSettingsSerializer})
