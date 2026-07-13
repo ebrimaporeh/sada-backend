@@ -1,7 +1,7 @@
 import os
 from celery import Celery
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'settings.development')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'settings.production')
 
 app = Celery('sada')
 app.config_from_object('django.conf:settings', namespace='CELERY')
