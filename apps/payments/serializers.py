@@ -47,7 +47,7 @@ class PayoutSerializer(serializers.ModelSerializer):
 class PlatformSettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model = PlatformSettings
-        fields = ['platform_fee_percent']
+        fields = ['platform_fee_percent', 'card_payments_enabled']
 
     def validate_platform_fee_percent(self, value):
         if value < 0 or value > 100:

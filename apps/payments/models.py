@@ -96,6 +96,14 @@ class PlatformSettings(BaseModel):
         max_digits=5, decimal_places=2, default=Decimal('1.00'),
         help_text='Percentage the platform takes from each campaign payout.',
     )
+    # Off by default — ModemPay's Payment Intents API silently accepts
+    # payment_methods=["card"] but their hosted checkout doesn't actually
+    # render a card option yet (confirmed not live as of 2026-07-14). Keep
+    # this off until ModemPay confirms card processing is enabled for real.
+    card_payments_enabled = models.BooleanField(
+        default=False,
+        help_text='Whether donors can pay by Visa/Mastercard via ModemPay.',
+    )
 
     class Meta:
         verbose_name = 'Platform Settings'

@@ -12,10 +12,12 @@ class Donation(BaseModel):
 
     class Provider(models.TextChoices):
         # ModemPay is the payment gateway, not itself a provider — these are
-        # the underlying networks it processes payments through. Visa/
-        # Mastercard/ModemPay Bank are planned but not live yet.
+        # the underlying networks/methods it processes payments through.
         WAVE = 'wave', 'Wave'
         APS = 'aps', 'APS Wallet'
+        # Gated behind PlatformSettings.card_payments_enabled — see the note
+        # on that field for why it defaults off.
+        CARD = 'card', 'Card'
 
     campaign = models.ForeignKey(
         'campaigns.Campaign',
@@ -33,7 +35,7 @@ class Donation(BaseModel):
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     currency = models.CharField(max_length=3, default='GMD')
     provider = models.CharField(max_length=20, choices=Provider.choices, default=Provider.WAVE)
-    phone = models.CharField(max_length=20)
+    phone = models.CharField(max_length=20, blank=True, help_text='Not required for card payments.')
     payment_reference = models.CharField(max_length=200, unique=True, null=True, blank=True)
     provider_reference = models.CharField(max_length=200, blank=True)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
