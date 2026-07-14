@@ -25,7 +25,7 @@ def create_donation(donor, validated_data):
     checkout URL the frontend must redirect the donor to — None if the intent
     could not be created (donation is left FAILED in that case).
 
-    The campaign row lock only covers the goal-capacity check + donation
+    The campaign row lock only covers the deadline/status check + donation
     creation; it's released before the ModemPay HTTP call so one donor's
     request to a provider can't block every other donor to the same campaign.
     Confirmation (and the actual Campaign.raised/donors_count increment)
@@ -50,27 +50,14 @@ def create_donation(donor, validated_data):
         if campaign.deadline and campaign.deadline < timezone.now().date():
             raise ValidationError('This campaign has ended and is no longer accepting donations.')
 
-        # Goal check — prevent raised (already-confirmed) + still-pending
-        # donations from exceeding the goal. Pending donations aren't yet
-        # credited to `raised`, so they have to be counted separately here to
-        # stop overselling while several checkouts are in flight at once.
-        pending_total = campaign.donations.filter(status=Donation.Status.PENDING).aggregate(
-            total=Sum('amount')
-        )['total'] or Decimal('0')
-        remaining = (campaign.goal - campaign.raised - pending_total).quantize(Decimal('0.01'))
-        if remaining <= 0:
-            raise ValidationError('This campaign has already reached its funding goal.')
+        # Campaigns can be overfunded — reaching (or passing) the goal doesn't
+        # close donations, it just pushes progress past 100%. Only an active
+        # deadline/status gates whether a campaign can still receive funds.
 
         # No platform fee on donations — donors only pay whatever ModemPay
         # itself charges them directly; the full amount is credited to the
         # campaign. (The platform fee is taken on payout, not donation.)
         amount = Decimal(str(validated_data['amount']))
-
-        if amount > remaining:
-            raise ValidationError(
-                f'Donation of D{amount} would exceed the campaign goal. '
-                f'Maximum you can donate is D{remaining}.'
-            )
 
         donation = Donation.objects.create(
             campaign=campaign,
