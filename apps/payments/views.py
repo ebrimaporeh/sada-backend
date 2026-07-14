@@ -33,15 +33,17 @@ class MyCampaignPayoutListView(APIView):
 
 
 class PlatformSettingsView(APIView):
-    """Any authenticated user can read the current platform fee (campaign
-    owners need it to preview payout amounts) — only admins can change it."""
+    """Anyone can read platform settings (anonymous/guest donors need
+    card_payments_enabled to know whether to show that option, campaign
+    owners need the fee to preview payout amounts) — only admins can change
+    them. Nothing in this payload is sensitive."""
 
     required_resource = Resource.SETTINGS
 
     def get_permissions(self):
         if self.request.method == 'PATCH':
             return [HasResourceAccess()]
-        return [IsAuthenticated()]
+        return [AllowAny()]
 
     @extend_schema(summary='Get current platform settings', responses={200: PlatformSettingsSerializer})
     def get(self, request):
