@@ -28,7 +28,6 @@ class DonationSerializer(serializers.ModelSerializer):
 
 class DonationCreateSerializer(serializers.ModelSerializer):
     campaign_id = serializers.UUIDField(write_only=True)
-    phone = serializers.CharField(required=False, allow_blank=True)
 
     class Meta:
         model = Donation
@@ -45,22 +44,10 @@ class DonationCreateSerializer(serializers.ModelSerializer):
         return value
 
     def validate_phone(self, value):
-        if not value:
-            return value
         digits = value.replace('+', '').replace(' ', '')
         if not digits.isdigit():
             raise serializers.ValidationError('Invalid phone number.')
         return value
-
-    def validate(self, data):
-        from apps.payments.models import PlatformSettings
-
-        if data.get('provider') == Donation.Provider.CARD:
-            if not PlatformSettings.get_solo().card_payments_enabled:
-                raise serializers.ValidationError({'provider': 'Card payments are not currently available.'})
-        elif not data.get('phone'):
-            raise serializers.ValidationError({'phone': 'Phone number is required for this payment method.'})
-        return data
 
 
 class AdminDonationSerializer(serializers.ModelSerializer):

@@ -31,19 +31,14 @@ def create_payment_intent(donation, return_url='', cancel_url=''):
         'currency': donation.currency or 'GMD',
         'title': f'Donation to {donation.campaign.title}',
         'customer_name': donation.donor_display,
+        'customer_phone': donation.phone,
         # This is how we match the async webhook back to this donation —
         # authoritative, unlike guessing from the provider's own id fields.
         'metadata': {'donation_reference': donation.payment_reference},
     }
-    if donation.phone:
-        params['customer_phone'] = donation.phone
     if donation.provider in DIRECT_CHARGE_NETWORKS:
         params['network'] = donation.provider
         params['account_number'] = _local_phone(donation.phone)
-    elif donation.provider == 'card':
-        # No network/account_number prefill for card — ModemPay's own
-        # checkout collects the card details directly.
-        params['payment_methods'] = ['card']
     # ModemPay rejects non-public callback_urls outright ("Must be a valid
     # URL"), so localhost would break every donation attempt in local dev.
     # Only override it when a real public BACKEND_URL is configured; leave it
