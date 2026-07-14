@@ -11,6 +11,7 @@ django-filter==24.3
 django-rest-passwordreset==1.4.1
 djangorestframework==3.15.2
 djangorestframework-simplejwt==5.3.1
+django-anymail==11.1
 drf-spectacular==0.27.2
 drf-spectacular-sidecar==2024.7.1
 gunicorn==23.0.0

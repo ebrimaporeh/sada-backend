@@ -196,6 +196,12 @@ EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@yourapp.com')
 
+# Railway (and most PaaS hosts) block outbound SMTP entirely, so production
+# sends over Resend's HTTPS API instead — see settings/production.py.
+ANYMAIL = {
+    'RESEND_API_KEY': config('RESEND_API_KEY', default=''),
+}
+
 # ─── Celery ──────────────────────────────────────────────────────────────────
 # Emails (and any other background work) run through Celery so a slow SMTP
 # server never blocks the request that triggered the send.
