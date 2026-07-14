@@ -178,9 +178,21 @@ class CampaignDetailView(APIView):
     @extend_schema(summary='Get campaign detail by slug', responses={200: CampaignDetailSerializer})
     def get(self, request, slug):
         campaign = campaign_service.get_campaign_by_slug(slug)
-        campaign_service.increment_views(campaign)
         serializer = CampaignDetailSerializer(campaign, context={'request': request})
         return campaign_service.success_response({'campaign': serializer.data})
+
+
+class CampaignRecordViewView(APIView):
+    """Explicit view-tracking beacon — fired by the frontend only when the
+    public campaign detail page is actually shown, not by every fetch of
+    campaign data (donate/donate-success pages reuse the same GET above
+    without inflating the count)."""
+    permission_classes = [AllowAny]
+
+    @extend_schema(summary='Record a view of a campaign', responses={200: None})
+    def post(self, request, slug):
+        campaign_service.record_view(slug)
+        return campaign_service.success_response(None, message='View recorded.')
 
 
 class CampaignCreateView(APIView):

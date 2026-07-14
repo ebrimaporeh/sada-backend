@@ -82,9 +82,26 @@ def get_campaign_by_slug(slug):
     )
 
 
-def increment_views(campaign):
+def record_view(slug):
+    """Increment views_count for a publicly-visible campaign by slug.
+
+    Called explicitly by the frontend when the public campaign detail page
+    is actually viewed — kept separate from CampaignDetailView's GET so
+    other pages that happen to reuse the same campaign-fetch hook (donate,
+    donate-success) don't inflate the count as a side effect of fetching data.
+    Silently no-ops for an unknown/non-public slug rather than raising, since
+    a dropped view-tracking beacon shouldn't surface as a user-facing error.
+    """
     from apps.campaigns.models import Campaign
-    Campaign.objects.filter(pk=campaign.pk).update(views_count=models.F('views_count') + 1)
+    Campaign.objects.filter(
+        slug=slug,
+        status__in=[
+            Campaign.Status.ACTIVE,
+            Campaign.Status.APPROVED,
+            Campaign.Status.COMPLETED,
+            Campaign.Status.PENDING,
+        ],
+    ).update(views_count=models.F('views_count') + 1)
 
 
 def get_owner_campaigns(user):
