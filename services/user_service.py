@@ -1,4 +1,5 @@
 from django.core.exceptions import ValidationError, PermissionDenied
+from django.db import transaction
 from django.db.models import Count, Sum, Q
 from django.shortcuts import get_object_or_404
 from apps.users.models import User
@@ -29,12 +30,28 @@ def get_user_stats() -> dict:
     return {'total_users': User.objects.count()}
 
 
+ORGANIZATION_PROFILE_FIELDS = {
+    'organization_name', 'organization_type', 'contact_person_name',
+    'phone_2', 'recovery_email_1', 'recovery_email_2',
+}
+
+
+@transaction.atomic
 def create_user(email: str, password: str, **kwargs) -> User:
     if User.objects.filter(email=email.lower()).exists():
         raise ValidationError('A user with this email already exists.')
+
+    # These belong to the Organization profile, not the User model itself.
+    org_data = {f: kwargs.pop(f) for f in list(kwargs) if f in ORGANIZATION_PROFILE_FIELDS}
+
     user = User(email=email.lower(), **kwargs)
     user.set_password(password)
     user.save()
+
+    if user.account_type == User.AccountType.ORGANIZATION:
+        from apps.users.models import Organization
+        Organization.objects.create(user=user, **org_data)
+
     return user
 
 

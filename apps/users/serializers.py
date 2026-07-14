@@ -1,5 +1,25 @@
 from rest_framework import serializers
-from .models import User, IdentityVerification
+from .models import User, IdentityVerification, Organization
+
+
+class OrganizationSerializer(serializers.ModelSerializer):
+    """Read-only for now — organization_name/organization_type are tied to
+    what was (or will be) verified, so editing them post-registration is
+    deliberately out of scope until the verification flow exists."""
+    logo = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Organization
+        fields = [
+            'organization_name', 'organization_type', 'contact_person_name',
+            'phone_2', 'recovery_email_1', 'recovery_email_2', 'logo',
+        ]
+
+    def get_logo(self, obj):
+        request = self.context.get('request')
+        if obj.logo and request:
+            return request.build_absolute_uri(obj.logo.url)
+        return None
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -8,12 +28,13 @@ class UserSerializer(serializers.ModelSerializer):
     is_google_linked = serializers.ReadOnlyField()
     avatar = serializers.SerializerMethodField()
     has_usable_password = serializers.SerializerMethodField()
+    organization = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = [
             'id', 'email', 'first_name', 'last_name', 'full_name',
-            'role', 'avatar', 'phone', 'bio', 'region',
+            'role', 'account_type', 'organization', 'avatar', 'phone', 'bio', 'region',
             'default_payment_provider', 'default_payment_phone',
             'email_verified', 'is_verified', 'is_moderator', 'created_at',
             'show_total_raised',
@@ -21,7 +42,7 @@ class UserSerializer(serializers.ModelSerializer):
             'notify_goal_reached', 'notify_new_comment', 'notify_new_update', 'notify_marketing',
             'has_usable_password', 'is_google_linked',
         ]
-        read_only_fields = ['id', 'email', 'role', 'email_verified', 'is_verified', 'created_at']
+        read_only_fields = ['id', 'email', 'role', 'account_type', 'email_verified', 'is_verified', 'created_at']
 
     def get_avatar(self, obj):
         request = self.context.get('request')
@@ -31,6 +52,12 @@ class UserSerializer(serializers.ModelSerializer):
 
     def get_has_usable_password(self, obj):
         return obj.has_usable_password()
+
+    def get_organization(self, obj):
+        org = getattr(obj, 'organization', None)
+        if org is None:
+            return None
+        return OrganizationSerializer(org, context=self.context).data
 
 
 class UserUpdateSerializer(serializers.ModelSerializer):

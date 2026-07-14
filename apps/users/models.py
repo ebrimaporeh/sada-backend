@@ -31,6 +31,14 @@ class User(AbstractBaseUser, PermissionsMixin):
         MODERATOR = 'moderator', 'Moderator'
         FINANCE_OFFICER = 'finance_officer', 'Finance Officer'
 
+    class AccountType(models.TextChoices):
+        # Orthogonal to `role` (which is about permissions) -- this is about
+        # who the account represents. An organization account is still just
+        # a User row (Campaign.owner is a single, non-polymorphic FK), with
+        # an attached Organization profile for the org-specific fields.
+        INDIVIDUAL = 'individual', 'Individual'
+        ORGANIZATION = 'organization', 'Organization'
+
     class Region(models.TextChoices):
         BANJUL = 'banjul', 'Banjul'
         KANIFING = 'kanifing', 'Kanifing'
@@ -52,6 +60,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     first_name = models.CharField(max_length=150, blank=True)
     last_name = models.CharField(max_length=150, blank=True)
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.USER)
+    account_type = models.CharField(max_length=20, choices=AccountType.choices, default=AccountType.INDIVIDUAL)
     avatar = models.ImageField(upload_to='avatars/', null=True, blank=True, validators=[validate_image_size])
     phone = models.CharField(max_length=20, blank=True)
     bio = models.TextField(blank=True)
@@ -103,7 +112,15 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     @property
     def full_name(self):
+        if self.account_type == self.AccountType.ORGANIZATION:
+            org = getattr(self, 'organization', None)
+            if org and org.organization_name:
+                return org.organization_name
         return f'{self.first_name} {self.last_name}'.strip() or self.email
+
+    @property
+    def is_organization(self):
+        return self.account_type == self.AccountType.ORGANIZATION
 
     @property
     def is_admin(self):
@@ -155,6 +172,82 @@ class IdentityVerification(BaseModel):
         ordering = ['-created_at']
         verbose_name = 'Identity Verification'
         verbose_name_plural = 'Identity Verifications'
+
+    def __str__(self):
+        return f'{self.user.email} — {self.status}'
+
+
+class Organization(BaseModel):
+    """Org-specific profile data for a User with account_type=organization.
+    1:1 rather than folded into User directly, since these fields are
+    meaningless for individual accounts."""
+    class OrgType(models.TextChoices):
+        RELIGIOUS = 'religious', 'Religious Organization'
+        STUDENT_UNION = 'student_union', 'Student Union'
+        COMMUNITY = 'community', 'Community-Based Organization'
+        NATIONAL_AGENCY = 'national_agency', 'National Agency'
+        MEDIA = 'media', 'Media Organization'
+        OTHER = 'other', 'Other'
+
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='organization')
+    organization_name = models.CharField(max_length=200)
+    organization_type = models.CharField(max_length=20, choices=OrgType.choices)
+    contact_person_name = models.CharField(max_length=200)
+    # User.phone is the organization's primary number; this is the required
+    # second one.
+    phone_2 = models.CharField(max_length=20)
+    # Optional — used for full account recovery (password reset) and CC'd
+    # on withdrawal/payout notifications, in addition to User.email.
+    recovery_email_1 = models.EmailField(blank=True)
+    recovery_email_2 = models.EmailField(blank=True)
+    logo = models.ImageField(upload_to='organizations/', null=True, blank=True, validators=[validate_image_size])
+
+    class Meta:
+        verbose_name = 'Organization'
+        verbose_name_plural = 'Organizations'
+
+    def __str__(self):
+        return self.organization_name
+
+
+class OrganizationVerification(BaseModel):
+    """An organization's submission of contact-person ID + registration
+    proof for manual admin review — the organization analog of
+    IdentityVerification, with the same is_verified-flips-on-approve
+    invariant (see verification_service)."""
+    class IdType(models.TextChoices):
+        NATIONAL_ID = 'national_id', 'National ID Card'
+        PASSPORT = 'passport', 'Passport'
+        DRIVERS_LICENSE = 'drivers_license', "Driver's License"
+
+    class Status(models.TextChoices):
+        PENDING = 'pending', 'Pending Review'
+        APPROVED = 'approved', 'Approved'
+        REJECTED = 'rejected', 'Rejected'
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='organization_verification_requests')
+    # Contact person's government ID — same shape as IdentityVerification.
+    contact_id_type = models.CharField(max_length=20, choices=IdType.choices)
+    contact_id_number = models.CharField(max_length=50)
+    contact_id_photo_front = models.ImageField(upload_to='org_verifications/', validators=[validate_image_size])
+    contact_id_photo_back = models.ImageField(upload_to='org_verifications/', null=True, blank=True, validators=[validate_image_size])
+    # Proof the organization is real — a registration certificate, government
+    # letter, etc.
+    registration_document = models.ImageField(upload_to='org_verifications/', validators=[validate_image_size])
+    # A photo of the organization (premises, event, logo) — copied onto
+    # Organization.logo on approval.
+    organization_photo = models.ImageField(upload_to='org_verifications/', validators=[validate_image_size])
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    rejection_reason = models.TextField(blank=True)
+    reviewed_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='reviewed_organization_verifications',
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Organization Verification'
+        verbose_name_plural = 'Organization Verifications'
 
     def __str__(self):
         return f'{self.user.email} — {self.status}'
