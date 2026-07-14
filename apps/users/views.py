@@ -1,9 +1,9 @@
 from rest_framework import generics, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.parsers import MultiPartParser, FormParser
-from drf_spectacular.utils import extend_schema, extend_schema_view
+from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter
 
 from permissions.base import HasResourceAccess
 from permissions.roles import Resource
@@ -11,7 +11,7 @@ from pagination.base import StandardResultsPagination
 from services import user_service, verification_service
 from .serializers import (
     UserSerializer, UserUpdateSerializer, AdminUserSerializer, AdminUserCreateSerializer,
-    IdentityVerificationSerializer, IdentityVerificationCreateSerializer,
+    IdentityVerificationSerializer, IdentityVerificationCreateSerializer, PublicCampaignerSerializer,
 )
 
 
@@ -29,6 +29,40 @@ class MeView(generics.RetrieveUpdateAPIView):
 
     def perform_update(self, serializer):
         user_service.update_user(self.request.user, **serializer.validated_data)
+
+
+@extend_schema(
+    tags=['Users'],
+    summary='List public campaigner profiles',
+    parameters=[
+        OpenApiParameter('region', str, description='Filter by region'),
+        OpenApiParameter('search', str, description='Search by name'),
+    ],
+    responses={200: PublicCampaignerSerializer(many=True)},
+)
+class PublicCampaignerListView(generics.ListAPIView):
+    """Anyone with at least one public, non-anonymous campaign — the
+    browsable directory. No auth required, nothing sensitive returned."""
+    serializer_class = PublicCampaignerSerializer
+    permission_classes = [AllowAny]
+    pagination_class = StandardResultsPagination
+
+    def get_queryset(self):
+        filters = {
+            'region': self.request.query_params.get('region'),
+            'search': self.request.query_params.get('search'),
+        }
+        return user_service.get_public_campaigners(filters)
+
+
+@extend_schema(tags=['Users'], summary='Get a public campaigner profile', responses={200: PublicCampaignerSerializer})
+class PublicCampaignerDetailView(generics.RetrieveAPIView):
+    serializer_class = PublicCampaignerSerializer
+    permission_classes = [AllowAny]
+    lookup_url_kwarg = 'id'
+
+    def get_object(self):
+        return user_service.get_public_campaigner(self.kwargs['id'])
 
 
 @extend_schema(tags=['Users'], summary='[Admin] List regular (non-staff) users')

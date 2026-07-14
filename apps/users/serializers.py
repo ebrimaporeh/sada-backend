@@ -80,6 +80,33 @@ class AdminUserCreateSerializer(serializers.ModelSerializer):
         return value
 
 
+class PublicCampaignerSerializer(serializers.ModelSerializer):
+    """A campaign owner's public profile — deliberately minimal. Never add
+    email, phone, role, payment fields, or anything from IdentityVerification
+    here; is_verified is the only verification-related field ever exposed
+    publicly (just the badge, never the underlying ID submission)."""
+    full_name = serializers.ReadOnlyField()
+    avatar = serializers.SerializerMethodField()
+    campaign_count = serializers.IntegerField(read_only=True)
+    total_raised = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = [
+            'id', 'full_name', 'avatar', 'bio', 'region',
+            'is_verified', 'campaign_count', 'total_raised', 'created_at',
+        ]
+
+    def get_avatar(self, obj):
+        request = self.context.get('request')
+        if obj.avatar and request:
+            return request.build_absolute_uri(obj.avatar.url)
+        return None
+
+    def get_total_raised(self, obj):
+        return obj.total_raised or 0
+
+
 class IdentityVerificationCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = IdentityVerification

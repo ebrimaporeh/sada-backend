@@ -4,6 +4,9 @@ from . import views
 urlpatterns = [
     path('me/', views.MeView.as_view(), name='user-me'),
     path('stats/', views.UserStatsView.as_view(), name='user-stats'),
+    # Public routes — must come before the generic <uuid:pk>/ catch-all below.
+    path('campaigners/', views.PublicCampaignerListView.as_view(), name='public-campaigner-list'),
+    path('campaigners/<uuid:id>/', views.PublicCampaignerDetailView.as_view(), name='public-campaigner-detail'),
     path('verification/', views.IdentityVerificationSubmitView.as_view(), name='verification-submit'),
     path('verification/me/', views.MyVerificationView.as_view(), name='verification-me'),
     path('admin/verifications/', views.AdminVerificationListView.as_view(), name='admin-verification-list'),

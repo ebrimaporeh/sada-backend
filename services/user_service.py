@@ -1,4 +1,6 @@
 from django.core.exceptions import ValidationError, PermissionDenied
+from django.db.models import Count, Sum, Q
+from django.shortcuts import get_object_or_404
 from apps.users.models import User
 
 
@@ -153,3 +155,32 @@ def activate_user(user: User, requesting_user: User) -> None:
         raise PermissionDenied('Only admins can activate users.')
     user.is_active = True
     user.save(update_fields=['is_active'])
+
+
+def _public_campaigner_base_queryset():
+    """A "campaigner" is derived, not a formal role — any user with at least
+    one campaign that's actually publicly visible and not anonymous. Mirrors
+    the statuses campaign_service.get_campaign_by_slug() treats as public,
+    minus PENDING (not yet approved, so not a real public track record)."""
+    from apps.campaigns.models import Campaign
+    public_statuses = [Campaign.Status.ACTIVE, Campaign.Status.APPROVED, Campaign.Status.COMPLETED]
+    is_public_campaign = Q(campaigns__status__in=public_statuses, campaigns__is_anonymous=False)
+    return User.objects.filter(is_public_campaign).distinct().annotate(
+        campaign_count=Count('campaigns', filter=is_public_campaign, distinct=True),
+        total_raised=Sum('campaigns__raised', filter=is_public_campaign),
+    )
+
+
+def get_public_campaigners(filters=None):
+    qs = _public_campaigner_base_queryset()
+    if filters:
+        if filters.get('region'):
+            qs = qs.filter(region=filters['region'])
+        if filters.get('search'):
+            q = filters['search']
+            qs = qs.filter(Q(first_name__icontains=q) | Q(last_name__icontains=q))
+    return qs.order_by('-campaign_count', '-created_at')
+
+
+def get_public_campaigner(user_id):
+    return get_object_or_404(_public_campaigner_base_queryset(), pk=user_id)

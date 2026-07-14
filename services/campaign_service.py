@@ -43,6 +43,11 @@ def get_public_campaigns(filters=None):
             )
         if filters.get('urgent'):
             qs = qs.filter(is_urgent=True)
+        if filters.get('owner'):
+            # is_anonymous=False here too — an anonymous campaign must never
+            # be reachable via its owner's id, or that defeats the whole
+            # point of the campaign's own anonymity setting.
+            qs = qs.filter(owner_id=filters['owner'], is_anonymous=False)
 
     return qs.order_by('-is_featured', '-created_at')
 

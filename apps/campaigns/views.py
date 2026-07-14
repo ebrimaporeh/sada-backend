@@ -143,6 +143,7 @@ class CampaignListView(APIView):
             OpenApiParameter('region', str, description='Filter by region'),
             OpenApiParameter('search', str, description='Search term'),
             OpenApiParameter('urgent', bool, description='Filter urgent only'),
+            OpenApiParameter('owner', str, description='Filter by owner id (a campaigner\'s public profile)'),
         ],
         responses={200: CampaignListSerializer(many=True)},
     )
@@ -152,6 +153,7 @@ class CampaignListView(APIView):
             'region': request.query_params.get('region'),
             'search': request.query_params.get('search'),
             'urgent': request.query_params.get('urgent') == 'true',
+            'owner': request.query_params.get('owner'),
         }
         campaigns = campaign_service.get_public_campaigns(filters)
         paginator = StandardResultsPagination()

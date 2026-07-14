@@ -79,6 +79,7 @@ class CampaignUpdateSerializer(serializers.ModelSerializer):
 class CampaignListSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
     category_slug = serializers.CharField(source='category.slug', read_only=True)
+    owner_id = serializers.SerializerMethodField()
     owner_name = serializers.SerializerMethodField()
     owner_is_verified = serializers.SerializerMethodField()
     progress_percent = serializers.ReadOnlyField()
@@ -90,8 +91,13 @@ class CampaignListSerializer(serializers.ModelSerializer):
             'id', 'title', 'slug', 'short_description', 'cover_image_url',
             'goal', 'raised', 'currency', 'donors_count', 'progress_percent',
             'deadline', 'status', 'region', 'is_urgent', 'is_featured',
-            'category_name', 'category_slug', 'owner_name', 'owner_is_verified', 'created_at',
+            'category_name', 'category_slug', 'owner_id', 'owner_name', 'owner_is_verified', 'created_at',
         ]
+
+    def get_owner_id(self, obj):
+        if obj.is_anonymous:
+            return None
+        return str(obj.owner_id)
 
     def get_owner_name(self, obj):
         if obj.is_anonymous:
@@ -114,6 +120,7 @@ class CampaignDetailSerializer(serializers.ModelSerializer):
     category = CategorySerializer(read_only=True)
     images = CampaignImageSerializer(many=True, read_only=True)
     updates = CampaignUpdateSerializer(many=True, read_only=True)
+    owner_id = serializers.SerializerMethodField()
     owner_name = serializers.SerializerMethodField()
     owner_is_verified = serializers.SerializerMethodField()
     progress_percent = serializers.ReadOnlyField()
@@ -129,10 +136,15 @@ class CampaignDetailSerializer(serializers.ModelSerializer):
             'progress_percent', 'deadline', 'status', 'region',
             'beneficiary', 'beneficiary_relationship',
             'is_urgent', 'is_featured', 'is_anonymous',
-            'category', 'images', 'updates', 'owner_name', 'owner_is_verified',
+            'category', 'images', 'updates', 'owner_id', 'owner_name', 'owner_is_verified',
             'total_withdrawn', 'available_balance',
             'approved_at', 'created_at', 'updated_at',
         ]
+
+    def get_owner_id(self, obj):
+        if obj.is_anonymous:
+            return None
+        return str(obj.owner_id)
 
     def get_owner_name(self, obj):
         if obj.is_anonymous:
