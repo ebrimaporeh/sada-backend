@@ -12,6 +12,12 @@ def get_client():
     return ModemPay(api_key=settings.MODEMPAY_SECRET_KEY)
 
 
+# Networks ModemPay's Direct Charge accepts on payment intents (prefills the
+# customer's network + number in checkout instead of making them re-pick/
+# re-enter what SADA's own donation form already collected).
+DIRECT_CHARGE_NETWORKS = {'wave', 'afrimoney', 'qmoney', 'aps'}
+
+
 def create_payment_intent(donation, return_url='', cancel_url=''):
     """Create a ModemPay Payment Intent for a donation.
 
@@ -30,6 +36,9 @@ def create_payment_intent(donation, return_url='', cancel_url=''):
         # authoritative, unlike guessing from the provider's own id fields.
         'metadata': {'donation_reference': donation.payment_reference},
     }
+    if donation.provider in DIRECT_CHARGE_NETWORKS:
+        params['network'] = donation.provider
+        params['account_number'] = _local_phone(donation.phone)
     # ModemPay rejects non-public callback_urls outright ("Must be a valid
     # URL"), so localhost would break every donation attempt in local dev.
     # Only override it when a real public BACKEND_URL is configured; leave it
