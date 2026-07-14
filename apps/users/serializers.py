@@ -5,7 +5,9 @@ from .models import User, IdentityVerification
 class UserSerializer(serializers.ModelSerializer):
     full_name = serializers.ReadOnlyField()
     is_moderator = serializers.ReadOnlyField()
+    is_google_linked = serializers.ReadOnlyField()
     avatar = serializers.SerializerMethodField()
+    has_usable_password = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -16,6 +18,7 @@ class UserSerializer(serializers.ModelSerializer):
             'email_verified', 'is_verified', 'is_moderator', 'created_at',
             'notify_donations_received', 'notify_campaign_approved', 'notify_campaign_rejected',
             'notify_goal_reached', 'notify_new_comment', 'notify_new_update', 'notify_marketing',
+            'has_usable_password', 'is_google_linked',
         ]
         read_only_fields = ['id', 'email', 'role', 'email_verified', 'is_verified', 'created_at']
 
@@ -24,6 +27,9 @@ class UserSerializer(serializers.ModelSerializer):
         if obj.avatar and request:
             return request.build_absolute_uri(obj.avatar.url)
         return None
+
+    def get_has_usable_password(self, obj):
+        return obj.has_usable_password()
 
 
 class UserUpdateSerializer(serializers.ModelSerializer):

@@ -64,6 +64,11 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_staff = models.BooleanField(default=False)
     email_verified = models.BooleanField(default=False)
     is_verified = models.BooleanField(default=False)
+    # Google's unique, stable subject identifier for this account — set on
+    # Google sign-in/link, null for accounts that have never used Google.
+    # Distinct from email match: lets an account keep working with Google
+    # even if the user later changes their email on either side.
+    google_sub = models.CharField(max_length=255, null=True, blank=True, unique=True)
 
     # Notification settings
     notify_donations_received = models.BooleanField(default=True)
@@ -105,6 +110,10 @@ class User(AbstractBaseUser, PermissionsMixin):
     @property
     def is_moderator(self):
         return self.role in (self.Role.MODERATOR, self.Role.ADMIN)
+
+    @property
+    def is_google_linked(self):
+        return bool(self.google_sub)
 
 
 class IdentityVerification(BaseModel):

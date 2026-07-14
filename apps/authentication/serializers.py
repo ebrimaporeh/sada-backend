@@ -37,6 +37,16 @@ class ChangePasswordSerializer(serializers.Serializer):
         return data
 
 
+class SetPasswordSerializer(serializers.Serializer):
+    new_password = serializers.CharField(write_only=True, validators=[validate_password])
+    new_password_confirm = serializers.CharField(write_only=True)
+
+    def validate(self, data):
+        if data['new_password'] != data.pop('new_password_confirm'):
+            raise serializers.ValidationError({'new_password_confirm': 'Passwords do not match.'})
+        return data
+
+
 class TokenResponseSerializer(serializers.Serializer):
     access = serializers.CharField()
     refresh = serializers.CharField()

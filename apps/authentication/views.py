@@ -8,10 +8,13 @@ from rest_framework_simplejwt.exceptions import TokenError
 from drf_spectacular.utils import extend_schema
 
 from services import auth_service
-from services.google_oauth_service import verify_google_token, get_or_create_google_user
+from services.google_oauth_service import verify_google_token, get_or_create_google_user, link_google_account
 from apps.users.serializers import UserSerializer
 from throttling.base import LoginThrottle, RegisterThrottle, ResendVerificationThrottle
-from .serializers import RegisterSerializer, LoginSerializer, ChangePasswordSerializer, GoogleOAuthSerializer
+from .serializers import (
+    RegisterSerializer, LoginSerializer, ChangePasswordSerializer, GoogleOAuthSerializer,
+    SetPasswordSerializer,
+)
 
 
 @extend_schema(tags=['Authentication'])
@@ -93,6 +96,20 @@ class ChangePasswordView(APIView):
 
 
 @extend_schema(tags=['Authentication'])
+class SetPasswordView(APIView):
+    """For accounts with no usable password yet (Google-only signups) —
+    see ChangePasswordView for accounts that already have one."""
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(request=SetPasswordSerializer)
+    def post(self, request):
+        serializer = SetPasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        auth_service.set_password(user=request.user, new_password=serializer.validated_data['new_password'])
+        return Response({'success': True, 'message': 'Password set successfully.'})
+
+
+@extend_schema(tags=['Authentication'])
 class VerifyEmailView(APIView):
     permission_classes = [AllowAny]
 
@@ -151,3 +168,21 @@ class GoogleOAuthView(APIView):
                 'tokens': tokens,
             },
         }, status=status.HTTP_200_OK)
+
+
+@extend_schema(tags=['Authentication'])
+class GoogleLinkView(APIView):
+    """Explicitly attach a Google account to the current (already logged-in)
+    user, e.g. a 'Connect Google' button in account settings."""
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(request=GoogleOAuthSerializer, responses={200: UserSerializer})
+    def post(self, request):
+        serializer = GoogleOAuthSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = link_google_account(request.user, serializer.validated_data['id_token'])
+        return Response({
+            'success': True,
+            'message': 'Google account connected successfully.',
+            'data': {'user': UserSerializer(user, context={'request': request}).data},
+        })

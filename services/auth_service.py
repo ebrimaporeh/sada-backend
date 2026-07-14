@@ -56,6 +56,18 @@ def change_password(user: User, old_password: str, new_password: str) -> None:
     send_password_changed_email_task.delay(str(user.id))
 
 
+def set_password(user: User, new_password: str) -> None:
+    """For accounts with no usable password yet (Google-only signups) —
+    unlike change_password, doesn't require an old password to check."""
+    from emails.tasks import send_password_changed_email_task
+
+    if user.has_usable_password():
+        raise ValidationError('Your account already has a password. Use change password instead.')
+    user.set_password(new_password)
+    user.save(update_fields=['password'])
+    send_password_changed_email_task.delay(str(user.id))
+
+
 def verify_email(token: str) -> User:
     try:
         user_id = signing.loads(token, salt=EMAIL_VERIFICATION_SALT, max_age=EMAIL_VERIFICATION_MAX_AGE)

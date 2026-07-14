@@ -8,7 +8,9 @@ urlpatterns = [
     path('logout/', views.LogoutView.as_view(), name='auth-logout'),
     path('refresh/', TokenRefreshView.as_view(), name='auth-token-refresh'),
     path('change-password/', views.ChangePasswordView.as_view(), name='auth-change-password'),
+    path('set-password/', views.SetPasswordView.as_view(), name='auth-set-password'),
     path('verify-email/', views.VerifyEmailView.as_view(), name='auth-verify-email'),
     path('resend-verification/', views.ResendVerificationEmailView.as_view(), name='auth-resend-verification'),
     path('google/', views.GoogleOAuthView.as_view(), name='auth-google'),
+    path('google/link/', views.GoogleLinkView.as_view(), name='auth-google-link'),
 ]

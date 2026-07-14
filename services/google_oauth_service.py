@@ -65,6 +65,8 @@ def get_or_create_google_user(google_data: dict) -> User:
     if not email:
         raise ValidationError('Email not provided by Google.')
 
+    google_sub = google_data.get('google_sub')
+
     # Get or create user
     user, created = User.objects.get_or_create(
         email=email,
@@ -75,12 +77,48 @@ def get_or_create_google_user(google_data: dict) -> User:
             # is_verified is identity (government ID) verification — a
             # separate manual process regardless of signup method. Google
             # proves email ownership only, not who someone actually is.
+            'google_sub': google_sub,
         }
     )
+
+    if created:
+        # Otherwise this is left as '', which has_usable_password() treats
+        # as a usable (empty) password rather than "no password set".
+        user.set_unusable_password()
+        user.save(update_fields=['password'])
+    elif google_sub and user.google_sub != google_sub:
+        # An existing email/password account signing in via Google for the
+        # first time — link it the same way an explicit "Connect Google"
+        # action would.
+        user.google_sub = google_sub
+        user.save(update_fields=['google_sub'])
 
     # Update last login
     from django.utils import timezone
     user.last_login = timezone.now()
     user.save(update_fields=['last_login'])
 
+    return user
+
+
+def link_google_account(user: User, id_token_str: str) -> User:
+    """
+    Attach a Google account to an already-authenticated user, e.g. from a
+    "Connect Google" button in account settings.
+
+    Raises:
+        ValidationError: If the token's email doesn't match the user's own
+            email, or if that Google account is already linked elsewhere.
+    """
+    google_data = verify_google_token(id_token_str)
+    google_email = (google_data.get('email') or '').lower()
+    if google_email != user.email.lower():
+        raise ValidationError("That Google account's email doesn't match your account email.")
+
+    google_sub = google_data.get('google_sub')
+    if User.objects.filter(google_sub=google_sub).exclude(pk=user.pk).exists():
+        raise ValidationError('That Google account is already linked to another user.')
+
+    user.google_sub = google_sub
+    user.save(update_fields=['google_sub'])
     return user
