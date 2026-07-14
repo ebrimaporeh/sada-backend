@@ -1,3 +1,4 @@
+from decimal import Decimal
 from rest_framework import serializers
 from .models import Payment, Payout, PlatformSettings
 
@@ -32,13 +33,26 @@ class PayoutCreateSerializer(serializers.ModelSerializer):
         return value
 
 
+class PayoutFeePreviewSerializer(serializers.Serializer):
+    amount = serializers.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal('0.01'))
+    provider = serializers.CharField()
+
+    def validate_provider(self, value):
+        from services.modempay_service import SUPPORTED_PAYOUT_NETWORKS
+        if value not in SUPPORTED_PAYOUT_NETWORKS:
+            raise serializers.ValidationError(
+                f'Withdrawals are only supported via {" or ".join(sorted(SUPPORTED_PAYOUT_NETWORKS))} at this time.'
+            )
+        return value
+
+
 class PayoutSerializer(serializers.ModelSerializer):
     campaign_title = serializers.CharField(source='campaign.title', read_only=True)
 
     class Meta:
         model = Payout
         fields = [
-            'id', 'campaign_title', 'amount', 'fee', 'net_amount', 'currency',
+            'id', 'campaign_title', 'amount', 'fee', 'provider_fee', 'net_amount', 'currency',
             'provider', 'phone', 'reference', 'status', 'notes',
             'processed_at', 'created_at',
         ]

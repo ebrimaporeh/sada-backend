@@ -19,10 +19,47 @@ def error_response(message, errors=None, status_code=status.HTTP_400_BAD_REQUEST
     return Response({'success': False, 'message': message, 'errors': errors or {}}, status=status_code)
 
 
+def _compute_payout_fees(amount, provider):
+    """Shared by request_payout and the fee-preview endpoint, so the preview
+    a campaign owner sees always matches what actually gets charged.
+
+    Two distinct fees, deducted in order: SADA's own platform_fee_percent
+    first, then ModemPay's real transfer fee (network/amount-dependent,
+    queried live) on what's left. Returns (platform_fee, provider_fee,
+    pre_provider_net, net) or (None, None, None, None) if the provider fee
+    couldn't be determined right now (real money -- don't guess).
+    """
+    from apps.payments.models import PlatformSettings
+
+    fee_rate = PlatformSettings.get_fee_rate()
+    platform_fee = (amount * fee_rate).quantize(Decimal('0.01'))
+    pre_provider_net = (amount - platform_fee).quantize(Decimal('0.01'))
+
+    provider_fee = modempay_service.check_transfer_fee(pre_provider_net, provider)
+    if provider_fee is None:
+        return None, None, None, None
+
+    net = (pre_provider_net - provider_fee).quantize(Decimal('0.01'))
+    return platform_fee, provider_fee, pre_provider_net, net
+
+
+def preview_payout_fees(amount, provider):
+    """For the withdrawal form's live fee preview, before the owner submits."""
+    platform_fee, provider_fee, _, net = _compute_payout_fees(amount, provider)
+    if platform_fee is None:
+        return None
+    return {
+        'amount': amount,
+        'platform_fee': platform_fee,
+        'provider_fee': provider_fee,
+        'net_amount': net,
+    }
+
+
 @transaction.atomic
 def request_payout(user, validated_data):
     from apps.campaigns.models import Campaign
-    from apps.payments.models import Payout, PlatformSettings
+    from apps.payments.models import Payout
     from apps.notifications.models import Notification
 
     campaign_id = validated_data.pop('campaign_id')
@@ -51,19 +88,27 @@ def request_payout(user, validated_data):
             f'Requested amount D{amount} exceeds available balance D{available}.'
         )
 
-    fee_rate = PlatformSettings.get_fee_rate()
-    fee = (amount * fee_rate).quantize(Decimal('0.01'))
-    net = (amount - fee).quantize(Decimal('0.01'))
+    provider = validated_data.get('provider', 'wave')
+    fee, provider_fee, pre_provider_net, net = _compute_payout_fees(amount, provider)
+    if fee is None:
+        raise ValidationError('Could not verify the payout network fee right now. Please try again shortly.')
+    if net <= 0:
+        raise ValidationError('Withdrawal amount is too small to cover fees.')
 
     # Our own ledger (campaign.raised) can show funds as available before
     # ModemPay has actually settled them into the pooled payout_balance
     # wallet real disbursements draw from — check that directly so a
     # shortfall fails cleanly here instead of after creating a Payout row.
+    # ModemPay charges its transfer fee ON TOP of the transfer amount, out
+    # of this same pooled balance (confirmed against real transfer
+    # responses: balance_before - balance_after == amount + fee, the
+    # beneficiary receives the full transfer amount) — so what actually
+    # leaves payout_balance is net + provider_fee, i.e. pre_provider_net.
     balance = modempay_service.get_balance()
     if balance is None:
         raise ValidationError('Could not verify payout balance right now. Please try again shortly.')
     payout_balance = Decimal(str(balance.get('payout_balance', 0)))
-    if net > payout_balance:
+    if pre_provider_net > payout_balance:
         raise ValidationError(
             'Withdrawal is on hold — funds are still settling with our payment provider. '
             'Please try again shortly or contact support if this persists.'
@@ -76,6 +121,7 @@ def request_payout(user, validated_data):
         requested_by=user,
         amount=amount,
         fee=fee,
+        provider_fee=provider_fee,
         net_amount=net,
         reference=reference,
         status=Payout.Status.PROCESSING,

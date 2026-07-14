@@ -6,7 +6,9 @@ from drf_spectacular.utils import extend_schema
 from permissions.base import HasResourceAccess
 from permissions.roles import Resource
 from .models import PlatformSettings
-from .serializers import PayoutCreateSerializer, PayoutSerializer, PlatformSettingsSerializer
+from .serializers import (
+    PayoutCreateSerializer, PayoutSerializer, PayoutFeePreviewSerializer, PlatformSettingsSerializer,
+)
 import services.payment_service as payment_service
 
 
@@ -20,6 +22,24 @@ class PayoutRequestView(APIView):
         payout = payment_service.request_payout(request.user, serializer.validated_data)
         out = PayoutSerializer(payout)
         return payment_service.success_response({'payout': out.data}, status_code=status.HTTP_201_CREATED)
+
+
+class PayoutFeePreviewView(APIView):
+    """Live fee breakdown for the withdrawal form, before the owner
+    submits — uses the exact same calculation request_payout does, so the
+    preview never drifts from what's actually charged."""
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(summary='Preview payout fees for an amount/provider', responses={200: None})
+    def get(self, request):
+        serializer = PayoutFeePreviewSerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        preview = payment_service.preview_payout_fees(
+            serializer.validated_data['amount'], serializer.validated_data['provider'],
+        )
+        if preview is None:
+            return payment_service.error_response('Could not calculate fees right now. Please try again shortly.')
+        return payment_service.success_response(preview)
 
 
 class MyCampaignPayoutListView(APIView):

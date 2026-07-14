@@ -1,4 +1,5 @@
 import logging
+from decimal import Decimal
 from functools import lru_cache
 from django.conf import settings
 from modempay import ModemPay
@@ -119,12 +120,35 @@ def verify_and_parse_webhook(payload, signature, secret=None):
 SUPPORTED_PAYOUT_NETWORKS = {'wave'}
 
 
+def check_transfer_fee(amount, network, currency='GMD'):
+    """Query ModemPay's real transfer fee for this amount/network via
+    /v1/transfers/fees, so the campaign owner is charged the network's
+    actual cost instead of us guessing a flat percentage.
+
+    Returns the fee as a Decimal, or None if it couldn't be determined —
+    callers should treat that as a hard stop (real money moving) rather
+    than falling back to a guessed value.
+    """
+    if getattr(settings, 'DEMO_MODE', False):
+        # No real ModemPay account to query in demo mode.
+        return (Decimal(str(amount)) * Decimal('0.01')).quantize(Decimal('0.01'))
+    try:
+        result = get_client().transfers.fee(params={
+            'amount': int(amount), 'currency': currency, 'network': network,
+        })
+        return Decimal(str(result.get('fee', 0)))
+    except ModemPayError as e:
+        logger.error('ModemPay check_transfer_fee failed: %s (status_code=%s)', e, getattr(e, 'status_code', None))
+        return None
+
+
 def request_disbursement(reference, net_amount, phone, provider, beneficiary_name, currency='GMD'):
     """Trigger a payout transfer of `net_amount` to a mobile money number.
 
-    `net_amount` is the platform-fee-already-deducted amount the caller
-    computed (via PlatformSettings.get_fee_rate()) — this function doesn't
-    recompute the fee itself, so there's one source of truth for the rate.
+    `net_amount` is the amount the beneficiary actually receives — the
+    caller has already deducted both the platform fee and ModemPay's own
+    transfer fee (via check_transfer_fee) from the requested amount, so
+    this function doesn't recompute either.
 
     Returns None on failure/error (including an unsupported network — caller
     should really validate this before creating the Payout row, but we guard

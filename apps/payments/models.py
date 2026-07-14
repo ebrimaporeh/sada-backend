@@ -67,7 +67,13 @@ class Payout(BaseModel):
         related_name='payouts',
     )
     amount = models.DecimalField(max_digits=12, decimal_places=2)
+    # Two distinct fees, deliberately kept separate: `fee` is SADA's own cut
+    # (PlatformSettings.platform_fee_percent, admin-configurable revenue),
+    # `provider_fee` is ModemPay/the mobile money network's real transfer
+    # cost (queried per-payout via modempay_service.check_transfer_fee since
+    # it varies by network/amount). net_amount = amount - fee - provider_fee.
     fee = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    provider_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     net_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     currency = models.CharField(max_length=3, default='GMD')
     provider = models.CharField(max_length=20, choices=Provider.choices)
