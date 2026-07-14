@@ -70,6 +70,12 @@ class User(AbstractBaseUser, PermissionsMixin):
     # even if the user later changes their email on either side.
     google_sub = models.CharField(max_length=255, null=True, blank=True, unique=True)
 
+    # Public campaigner profile preferences
+    show_total_raised = models.BooleanField(
+        default=True,
+        help_text='Whether total funds raised is shown on your public campaigner profile.',
+    )
+
     # Notification settings
     notify_donations_received = models.BooleanField(default=True)
     notify_campaign_approved = models.BooleanField(default=True)

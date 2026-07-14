@@ -16,6 +16,7 @@ class UserSerializer(serializers.ModelSerializer):
             'role', 'avatar', 'phone', 'bio', 'region',
             'default_payment_provider', 'default_payment_phone',
             'email_verified', 'is_verified', 'is_moderator', 'created_at',
+            'show_total_raised',
             'notify_donations_received', 'notify_campaign_approved', 'notify_campaign_rejected',
             'notify_goal_reached', 'notify_new_comment', 'notify_new_update', 'notify_marketing',
             'has_usable_password', 'is_google_linked',
@@ -37,7 +38,7 @@ class UserUpdateSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'first_name', 'last_name', 'phone', 'bio', 'region', 'avatar',
-            'default_payment_provider', 'default_payment_phone',
+            'default_payment_provider', 'default_payment_phone', 'show_total_raised',
             'notify_donations_received', 'notify_campaign_approved', 'notify_campaign_rejected',
             'notify_goal_reached', 'notify_new_comment', 'notify_new_update', 'notify_marketing',
         ]
@@ -104,6 +105,8 @@ class PublicCampaignerSerializer(serializers.ModelSerializer):
         return None
 
     def get_total_raised(self, obj):
+        if not obj.show_total_raised:
+            return None
         return obj.total_raised or 0
 
 

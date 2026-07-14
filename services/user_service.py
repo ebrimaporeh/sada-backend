@@ -77,7 +77,7 @@ def admin_create_user(email: str, role: str, requesting_user: User, first_name: 
 def update_user(user: User, **data) -> User:
     allowed_fields = {
         'first_name', 'last_name', 'phone', 'bio', 'region', 'avatar',
-        'default_payment_provider', 'default_payment_phone',
+        'default_payment_provider', 'default_payment_phone', 'show_total_raised',
         'notify_donations_received', 'notify_campaign_approved',
         'notify_campaign_rejected', 'notify_goal_reached',
         'notify_new_comment', 'notify_new_update', 'notify_marketing',
