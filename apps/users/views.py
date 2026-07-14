@@ -12,6 +12,7 @@ from services import user_service, verification_service
 from .serializers import (
     UserSerializer, UserUpdateSerializer, AdminUserSerializer, AdminUserCreateSerializer,
     IdentityVerificationSerializer, IdentityVerificationCreateSerializer, PublicCampaignerSerializer,
+    OrganizationVerificationSerializer, OrganizationVerificationCreateSerializer,
 )
 
 
@@ -197,4 +198,62 @@ class AdminVerificationActionView(APIView):
         else:
             return Response({'success': False, 'message': f'Unknown action "{action}".'}, status=status.HTTP_400_BAD_REQUEST)
         out = IdentityVerificationSerializer(verification, context={'request': request})
+        return Response({'success': True, 'message': message, 'data': {'verification': out.data}})
+
+
+@extend_schema(tags=['Verification'], summary='Submit organization verification (contact ID + registration docs)')
+class OrganizationVerificationSubmitView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        serializer = OrganizationVerificationCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        verification = verification_service.submit_organization_verification(request.user, **serializer.validated_data)
+        out = OrganizationVerificationSerializer(verification, context={'request': request})
+        return Response(
+            {'success': True, 'message': 'Verification request submitted. We’ll review it soon.', 'data': {'verification': out.data}},
+            status=status.HTTP_201_CREATED,
+        )
+
+
+@extend_schema(tags=['Verification'], summary="Get your organization's latest verification request")
+class MyOrganizationVerificationView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        verification = verification_service.get_latest_organization_verification(request.user)
+        data = OrganizationVerificationSerializer(verification, context={'request': request}).data if verification else None
+        return Response({'success': True, 'data': {'verification': data}})
+
+
+@extend_schema(tags=['Verification'], summary='[Admin] List all organization verification requests')
+class AdminOrganizationVerificationListView(generics.ListAPIView):
+    serializer_class = OrganizationVerificationSerializer
+    permission_classes = [HasResourceAccess]
+    required_resource = Resource.VERIFICATIONS
+    pagination_class = StandardResultsPagination
+
+    def get_queryset(self):
+        return verification_service.get_all_organization_verifications(
+            status=self.request.query_params.get('status'),
+            user_id=self.request.query_params.get('user_id'),
+        )
+
+
+@extend_schema(tags=['Verification'], summary='[Admin] Approve or reject an organization verification request')
+class AdminOrganizationVerificationActionView(APIView):
+    permission_classes = [HasResourceAccess]
+    required_resource = Resource.VERIFICATIONS
+
+    def post(self, request, pk, action):
+        if action == 'approve':
+            verification = verification_service.approve_organization_verification(pk, request.user)
+            message = 'Verification approved.'
+        elif action == 'reject':
+            verification = verification_service.reject_organization_verification(pk, request.user, request.data.get('reason', ''))
+            message = 'Verification rejected.'
+        else:
+            return Response({'success': False, 'message': f'Unknown action "{action}".'}, status=status.HTTP_400_BAD_REQUEST)
+        out = OrganizationVerificationSerializer(verification, context={'request': request})
         return Response({'success': True, 'message': message, 'data': {'verification': out.data}})

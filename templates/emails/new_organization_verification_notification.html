@@ -1,0 +1,17 @@
+{% extends "emails/base.html" %}
+{% block subject %}New Organization Verification Submitted{% endblock %}
+{% block content %}
+<h2 style="margin: 0 0 4px; color: #18181b; font-size: 20px;">A new organization verification needs review</h2>
+<p>Hi {{ moderator_name }},</p>
+<p><strong>{{ submitter_name }}</strong> just submitted organization verification documents for review.</p>
+
+<div class="card">
+  <div class="row"><span class="label">Organization</span><span class="value">{{ submitter_name }}</span></div>
+  <div class="row"><span class="label">Email</span><span class="value">{{ submitter_email }}</span></div>
+  <div class="row"><span class="label">Type</span><span class="value">{{ org_type_label }}</span></div>
+</div>
+
+<a href="{{ frontend_url }}/admin/verifications" class="btn">Review Verifications</a>
+
+<p class="muted">You're receiving this because you have verification-review access on {{ site_name }}.</p>
+{% endblock %}

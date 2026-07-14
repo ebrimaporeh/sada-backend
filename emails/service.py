@@ -142,6 +142,32 @@ class EmailService:
             },
         )
 
+    def send_organization_verification_reviewed_email(self, user, verification) -> bool:
+        approved = verification.status == 'approved'
+        return self._send(
+            to=user.email,
+            subject=f'Your {settings.SITE_NAME} organization verification was {"approved" if approved else "rejected"}',
+            template='emails/organization_verification_reviewed.html',
+            context={
+                'user': user,
+                'approved': approved,
+                'rejection_reason': verification.rejection_reason,
+            },
+        )
+
+    def send_new_organization_verification_notification_email(self, moderator, verification) -> bool:
+        return self._send(
+            to=moderator.email,
+            subject=f'New organization verification from {verification.user.full_name or verification.user.email}',
+            template='emails/new_organization_verification_notification.html',
+            context={
+                'moderator_name': moderator.full_name or moderator.email,
+                'submitter_name': verification.user.full_name or verification.user.email,
+                'submitter_email': verification.user.email,
+                'org_type_label': verification.user.organization.get_organization_type_display(),
+            },
+        )
+
     def send_payout_update_email(self, owner, payout) -> bool:
         subject_by_status = {
             'completed': f'Your withdrawal of D{payout.net_amount} has arrived',

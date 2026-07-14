@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, IdentityVerification, Organization
+from .models import User, IdentityVerification, Organization, OrganizationVerification
 
 
 class OrganizationSerializer(serializers.ModelSerializer):
@@ -178,3 +178,59 @@ class IdentityVerificationSerializer(serializers.ModelSerializer):
         if obj.id_photo_back and request:
             return request.build_absolute_uri(obj.id_photo_back.url)
         return None
+
+
+class OrganizationVerificationCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OrganizationVerification
+        fields = [
+            'contact_id_type', 'contact_id_number', 'contact_id_photo_front', 'contact_id_photo_back',
+            'registration_document', 'organization_photo',
+        ]
+
+    def validate(self, data):
+        if data.get('contact_id_type') != OrganizationVerification.IdType.PASSPORT and not data.get('contact_id_photo_back'):
+            raise serializers.ValidationError({'contact_id_photo_back': 'Back photo is required for this ID type.'})
+        return data
+
+
+class OrganizationVerificationSerializer(serializers.ModelSerializer):
+    user_id = serializers.CharField(source='user.id', read_only=True)
+    user_name = serializers.CharField(source='user.full_name', read_only=True)
+    user_email = serializers.CharField(source='user.email', read_only=True)
+    organization_type = serializers.CharField(source='user.organization.organization_type', read_only=True)
+    reviewed_by_name = serializers.SerializerMethodField()
+    contact_id_photo_front = serializers.SerializerMethodField()
+    contact_id_photo_back = serializers.SerializerMethodField()
+    registration_document = serializers.SerializerMethodField()
+    organization_photo = serializers.SerializerMethodField()
+
+    class Meta:
+        model = OrganizationVerification
+        fields = [
+            'id', 'user_id', 'user_name', 'user_email', 'organization_type',
+            'contact_id_type', 'contact_id_number', 'contact_id_photo_front', 'contact_id_photo_back',
+            'registration_document', 'organization_photo',
+            'status', 'rejection_reason', 'reviewed_by_name', 'reviewed_at', 'created_at',
+        ]
+
+    def get_reviewed_by_name(self, obj):
+        return obj.reviewed_by.full_name if obj.reviewed_by else None
+
+    def _absolute_url(self, field):
+        request = self.context.get('request')
+        if field and request:
+            return request.build_absolute_uri(field.url)
+        return None
+
+    def get_contact_id_photo_front(self, obj):
+        return self._absolute_url(obj.contact_id_photo_front)
+
+    def get_contact_id_photo_back(self, obj):
+        return self._absolute_url(obj.contact_id_photo_back)
+
+    def get_registration_document(self, obj):
+        return self._absolute_url(obj.registration_document)
+
+    def get_organization_photo(self, obj):
+        return self._absolute_url(obj.organization_photo)

@@ -158,3 +158,32 @@ def send_new_verification_notification_task(self, verification_id):
     for moderator in _get_moderation_staff():
         if not email_service.send_new_verification_notification_email(moderator, verification):
             logger.error('Failed to notify %s about verification %s', moderator.email, verification_id)
+
+
+@shared_task(**RETRY_KWARGS)
+def send_organization_verification_reviewed_email_task(self, verification_id):
+    from apps.users.models import OrganizationVerification
+    from emails.service import email_service
+    try:
+        verification = OrganizationVerification.objects.select_related('user').get(pk=verification_id)
+    except OrganizationVerification.DoesNotExist:
+        logger.warning('send_organization_verification_reviewed_email_task: verification %s not found', verification_id)
+        return
+    _retry_on_failure(
+        self, email_service.send_organization_verification_reviewed_email(verification.user, verification),
+        f'organization verification reviewed email for verification {verification_id}',
+    )
+
+
+@shared_task(bind=True)
+def send_new_organization_verification_notification_task(self, verification_id):
+    from apps.users.models import OrganizationVerification
+    from emails.service import email_service
+    try:
+        verification = OrganizationVerification.objects.select_related('user', 'user__organization').get(pk=verification_id)
+    except OrganizationVerification.DoesNotExist:
+        logger.warning('send_new_organization_verification_notification_task: verification %s not found', verification_id)
+        return
+    for moderator in _get_moderation_staff():
+        if not email_service.send_new_organization_verification_notification_email(moderator, verification):
+            logger.error('Failed to notify %s about organization verification %s', moderator.email, verification_id)
