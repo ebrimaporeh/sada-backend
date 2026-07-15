@@ -50,3 +50,8 @@ class ReportCreateThrottle(_DevBypassAnonThrottle):
 class ResendVerificationThrottle(_DevBypassAnonThrottle):
     scope = 'resend_verification'
     rate = '5/hour'
+
+
+class PasswordResetRequestThrottle(_DevBypassAnonThrottle):
+    scope = 'password_reset_request'
+    rate = '5/hour'

@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 class EmailService:
-    def _send(self, to: str, subject: str, template: str, context: dict) -> bool:
+    def _send(self, to: str, subject: str, template: str, context: dict, cc: list = None) -> bool:
         try:
             context = {'site_name': settings.SITE_NAME, 'frontend_url': settings.FRONTEND_URL, **context}
             html_content = render_to_string(template, context)
@@ -17,6 +17,7 @@ class EmailService:
                 body=strip_tags(html_content),
                 from_email=settings.DEFAULT_FROM_EMAIL,
                 to=[to],
+                cc=cc or None,
             )
             msg.attach_alternative(html_content, 'text/html')
             msg.send()
@@ -33,9 +34,12 @@ class EmailService:
             context={'user': user},
         )
 
-    def send_password_reset_email(self, user, reset_url: str) -> bool:
+    def send_password_reset_email(self, user, reset_url: str, to_email: str = None) -> bool:
+        # to_email overrides where the email goes (not user.email) for an
+        # organization resetting via a recovery email — the whole point of a
+        # recovery address is to work even when the primary inbox is down.
         return self._send(
-            to=user.email,
+            to=to_email or user.email,
             subject=f'Reset your {settings.SITE_NAME} password',
             template='emails/password_reset.html',
             context={'user': user, 'reset_url': reset_url},
@@ -175,8 +179,13 @@ class EmailService:
             'pending': f'Your withdrawal of D{payout.net_amount} is on hold',
             'failed': f'Your withdrawal of D{payout.net_amount} could not be completed',
         }
+        # Organizations' recovery emails are CC'd on withdrawal updates too —
+        # this is real money moving, so every registered contact should see it.
+        org = getattr(owner, 'organization', None)
+        cc = [e for e in [getattr(org, 'recovery_email_1', ''), getattr(org, 'recovery_email_2', '')] if e] if org else []
         return self._send(
             to=owner.email,
+            cc=cc,
             subject=subject_by_status.get(payout.status, f'Withdrawal update: {payout.campaign.title}'),
             template='emails/payout_update.html',
             context={

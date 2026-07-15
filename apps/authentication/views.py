@@ -10,10 +10,10 @@ from drf_spectacular.utils import extend_schema
 from services import auth_service
 from services.google_oauth_service import verify_google_token, get_or_create_google_user, link_google_account
 from apps.users.serializers import UserSerializer
-from throttling.base import LoginThrottle, RegisterThrottle, ResendVerificationThrottle
+from throttling.base import LoginThrottle, RegisterThrottle, ResendVerificationThrottle, PasswordResetRequestThrottle
 from .serializers import (
     RegisterSerializer, LoginSerializer, ChangePasswordSerializer, GoogleOAuthSerializer,
-    SetPasswordSerializer,
+    SetPasswordSerializer, RequestPasswordResetSerializer,
 )
 
 
@@ -107,6 +107,22 @@ class SetPasswordView(APIView):
         serializer.is_valid(raise_exception=True)
         auth_service.set_password(user=request.user, new_password=serializer.validated_data['new_password'])
         return Response({'success': True, 'message': 'Password set successfully.'})
+
+
+@extend_schema(tags=['Authentication'])
+class RequestPasswordResetView(APIView):
+    """Shadows django_rest_passwordreset's own request-token endpoint at the
+    same URL (see apps/authentication/urls.py) so an organization's recovery
+    emails work here too, with zero change for individual accounts."""
+    permission_classes = [AllowAny]
+    throttle_classes = [PasswordResetRequestThrottle]
+
+    @extend_schema(request=RequestPasswordResetSerializer)
+    def post(self, request):
+        serializer = RequestPasswordResetSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        auth_service.request_password_reset(serializer.validated_data['email'])
+        return Response({'status': 'OK'})
 
 
 @extend_schema(tags=['Authentication'])

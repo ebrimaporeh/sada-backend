@@ -75,6 +75,10 @@ class SetPasswordSerializer(serializers.Serializer):
         return data
 
 
+class RequestPasswordResetSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+
 class TokenResponseSerializer(serializers.Serializer):
     access = serializers.CharField()
     refresh = serializers.CharField()

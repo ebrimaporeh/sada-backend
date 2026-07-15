@@ -2,6 +2,7 @@ from django.contrib.auth import authenticate
 from django.core import signing
 from django.core.exceptions import ValidationError, PermissionDenied
 from django.conf import settings
+from django.db.models import Q
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.users.models import User
@@ -97,3 +98,44 @@ def resend_verification_email(email: str) -> None:
     if user.email_verified:
         return
     send_verification_email_task.delay(str(user.id), generate_email_verification_url(user))
+
+
+def request_password_reset(email: str) -> None:
+    """Drop-in replacement for django-rest-passwordreset's own
+    ResetPasswordRequestToken view (see apps/authentication/urls.py for how
+    this shadows it at the same URL) — resolves `email` against the
+    account's own login email OR, for an organization, either recovery
+    email, and sends the reset link to whichever address was actually
+    submitted. That's the whole point of a recovery email: it has to work
+    even when the primary inbox is inaccessible, so the link can't always
+    go to user.email.
+
+    Raises the same "couldn't find an account" error as the package default
+    (DJANGO_REST_PASSWORDRESET_NO_INFORMATION_LEAKAGE is unset) to keep
+    existing behavior/UX identical for individual accounts.
+    """
+    from django_rest_passwordreset.models import ResetPasswordToken
+    from emails.tasks import send_password_reset_email_task
+
+    email = email.strip().lower()
+    not_found_message = "We couldn't find an account associated with that email. Please try a different e-mail address."
+
+    try:
+        user = User.objects.get(email__iexact=email)
+        send_to = user.email
+    except User.DoesNotExist:
+        from apps.users.models import Organization
+        org = Organization.objects.filter(
+            Q(recovery_email_1__iexact=email) | Q(recovery_email_2__iexact=email)
+        ).select_related('user').first()
+        if org is None:
+            raise ValidationError(not_found_message)
+        user = org.user
+        send_to = email
+
+    if not user.eligible_for_reset():
+        raise ValidationError(not_found_message)
+
+    token = user.password_reset_tokens.first() or ResetPasswordToken.objects.create(user=user)
+    reset_url = f'{settings.FRONTEND_URL.rstrip("/")}/reset-password?token={token.key}'
+    send_password_reset_email_task.delay(str(user.id), reset_url, send_to)

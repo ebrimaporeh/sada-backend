@@ -26,7 +26,7 @@ def send_welcome_email_task(self, user_id):
 
 
 @shared_task(**RETRY_KWARGS)
-def send_password_reset_email_task(self, user_id, reset_url):
+def send_password_reset_email_task(self, user_id, reset_url, to_email=None):
     from apps.users.models import User
     from emails.service import email_service
     try:
@@ -34,7 +34,10 @@ def send_password_reset_email_task(self, user_id, reset_url):
     except User.DoesNotExist:
         logger.warning('send_password_reset_email_task: user %s not found', user_id)
         return
-    _retry_on_failure(self, email_service.send_password_reset_email(user, reset_url), f'password reset email to user {user_id}')
+    _retry_on_failure(
+        self, email_service.send_password_reset_email(user, reset_url, to_email),
+        f'password reset email to user {user_id}',
+    )
 
 
 @shared_task(**RETRY_KWARGS)
