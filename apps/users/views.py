@@ -8,11 +8,12 @@ from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiPara
 from permissions.base import HasResourceAccess
 from permissions.roles import Resource
 from pagination.base import StandardResultsPagination
-from services import user_service, verification_service
+from services import user_service, verification_service, organization_change_service
 from .serializers import (
     UserSerializer, UserUpdateSerializer, AdminUserSerializer, AdminUserCreateSerializer,
     IdentityVerificationSerializer, IdentityVerificationCreateSerializer, PublicCampaignerSerializer,
     OrganizationVerificationSerializer, OrganizationVerificationCreateSerializer,
+    OrganizationChangeRequestSerializer, OrganizationChangeRequestCreateSerializer,
 )
 
 
@@ -266,3 +267,63 @@ class AdminOrganizationVerificationActionView(APIView):
             return Response({'success': False, 'message': f'Unknown action "{action}".'}, status=status.HTTP_400_BAD_REQUEST)
         out = OrganizationVerificationSerializer(verification, context={'request': request})
         return Response({'success': True, 'message': message, 'data': {'verification': out.data}})
+
+
+@extend_schema(tags=['Verification'], summary='Request a change to a recovery-critical organization field')
+class OrganizationChangeRequestSubmitView(APIView):
+    """Phone/phone_2/recovery emails are never editable directly — see
+    OrganizationChangeRequest's docstring for why. This queues a proposed
+    change for admin approval instead of applying it immediately."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = OrganizationChangeRequestCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        change_request = organization_change_service.submit_change_request(request.user, **serializer.validated_data)
+        out = OrganizationChangeRequestSerializer(change_request)
+        return Response(
+            {'success': True, 'message': 'Change request submitted. We’ll review it soon.', 'data': {'change_request': out.data}},
+            status=status.HTTP_201_CREATED,
+        )
+
+
+@extend_schema(tags=['Verification'], summary="Get your organization's change requests")
+class MyOrganizationChangeRequestsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        requests = organization_change_service.get_my_change_requests(request.user)
+        data = OrganizationChangeRequestSerializer(requests, many=True).data
+        return Response({'success': True, 'data': {'change_requests': data}})
+
+
+@extend_schema(tags=['Verification'], summary='[Admin] List all organization change requests')
+class AdminOrganizationChangeRequestListView(generics.ListAPIView):
+    serializer_class = OrganizationChangeRequestSerializer
+    permission_classes = [HasResourceAccess]
+    required_resource = Resource.VERIFICATIONS
+    pagination_class = StandardResultsPagination
+
+    def get_queryset(self):
+        return organization_change_service.get_all_change_requests(
+            status=self.request.query_params.get('status'),
+            user_id=self.request.query_params.get('user_id'),
+        )
+
+
+@extend_schema(tags=['Verification'], summary='[Admin] Approve or reject an organization change request')
+class AdminOrganizationChangeRequestActionView(APIView):
+    permission_classes = [HasResourceAccess]
+    required_resource = Resource.VERIFICATIONS
+
+    def post(self, request, pk, action):
+        if action == 'approve':
+            change_request = organization_change_service.approve_change_request(pk, request.user)
+            message = 'Change request approved.'
+        elif action == 'reject':
+            change_request = organization_change_service.reject_change_request(pk, request.user, request.data.get('reason', ''))
+            message = 'Change request rejected.'
+        else:
+            return Response({'success': False, 'message': f'Unknown action "{action}".'}, status=status.HTTP_400_BAD_REQUEST)
+        out = OrganizationChangeRequestSerializer(change_request)
+        return Response({'success': True, 'message': message, 'data': {'change_request': out.data}})

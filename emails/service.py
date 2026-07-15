@@ -172,6 +172,36 @@ class EmailService:
             },
         )
 
+    def send_new_organization_change_request_notification_email(self, moderator, change_request) -> bool:
+        return self._send(
+            to=moderator.email,
+            subject=f'New change request from {change_request.user.full_name or change_request.user.email}',
+            template='emails/new_organization_change_request_notification.html',
+            context={
+                'moderator_name': moderator.full_name or moderator.email,
+                'submitter_name': change_request.user.full_name or change_request.user.email,
+                'submitter_email': change_request.user.email,
+                'field_label': change_request.get_field_name_display(),
+                'current_value': change_request.current_value,
+                'proposed_value': change_request.proposed_value,
+            },
+        )
+
+    def send_organization_change_request_reviewed_email(self, user, change_request) -> bool:
+        approved = change_request.status == 'approved'
+        return self._send(
+            to=user.email,
+            subject=f'Your {settings.SITE_NAME} {change_request.get_field_name_display()} change request was {"approved" if approved else "rejected"}',
+            template='emails/organization_change_request_reviewed.html',
+            context={
+                'user': user,
+                'approved': approved,
+                'field_label': change_request.get_field_name_display(),
+                'proposed_value': change_request.proposed_value,
+                'rejection_reason': change_request.rejection_reason,
+            },
+        )
+
     def send_payout_update_email(self, owner, payout) -> bool:
         subject_by_status = {
             'completed': f'Your withdrawal of D{payout.net_amount} has arrived',

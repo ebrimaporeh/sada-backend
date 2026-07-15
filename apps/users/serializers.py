@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, IdentityVerification, Organization, OrganizationVerification
+from .models import User, IdentityVerification, Organization, OrganizationVerification, OrganizationChangeRequest
 
 
 class OrganizationSerializer(serializers.ModelSerializer):
@@ -252,3 +252,47 @@ class OrganizationVerificationSerializer(serializers.ModelSerializer):
 
     def get_organization_photo(self, obj):
         return self._absolute_url(obj.organization_photo)
+
+
+class OrganizationChangeRequestCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OrganizationChangeRequest
+        fields = ['field_name', 'proposed_value']
+
+    def validate(self, data):
+        value = data.get('proposed_value', '').strip()
+        if not value:
+            raise serializers.ValidationError({'proposed_value': 'This field is required.'})
+
+        field_name = data.get('field_name')
+        if field_name in (OrganizationChangeRequest.Field.PHONE, OrganizationChangeRequest.Field.PHONE_2):
+            digits = value.replace('+', '').replace(' ', '')
+            if not digits.isdigit():
+                raise serializers.ValidationError({'proposed_value': 'Invalid phone number.'})
+        else:
+            try:
+                serializers.EmailField().run_validation(value)
+            except serializers.ValidationError:
+                raise serializers.ValidationError({'proposed_value': 'Invalid email address.'})
+
+        data['proposed_value'] = value
+        return data
+
+
+class OrganizationChangeRequestSerializer(serializers.ModelSerializer):
+    user_id = serializers.CharField(source='user.id', read_only=True)
+    user_name = serializers.CharField(source='user.full_name', read_only=True)
+    user_email = serializers.CharField(source='user.email', read_only=True)
+    field_label = serializers.CharField(source='get_field_name_display', read_only=True)
+    reviewed_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = OrganizationChangeRequest
+        fields = [
+            'id', 'user_id', 'user_name', 'user_email',
+            'field_name', 'field_label', 'current_value', 'proposed_value',
+            'status', 'rejection_reason', 'reviewed_by_name', 'reviewed_at', 'created_at',
+        ]
+
+    def get_reviewed_by_name(self, obj):
+        return obj.reviewed_by.full_name if obj.reviewed_by else None

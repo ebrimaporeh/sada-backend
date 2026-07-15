@@ -1,0 +1,21 @@
+{% extends "emails/base.html" %}
+{% block subject %}New Organization Change Request Submitted{% endblock %}
+{% block content %}
+<h2 style="margin: 0 0 4px; color: #18181b; font-size: 20px;">An account-recovery field change needs review</h2>
+<p>Hi {{ moderator_name }},</p>
+<p><strong>{{ submitter_name }}</strong> requested a change to their {{ field_label }}.</p>
+
+<div class="card">
+  <div class="row"><span class="label">Organization</span><span class="value">{{ submitter_name }}</span></div>
+  <div class="row"><span class="label">Email</span><span class="value">{{ submitter_email }}</span></div>
+  <div class="row"><span class="label">Field</span><span class="value">{{ field_label }}</span></div>
+  <div class="row"><span class="label">Current value</span><span class="value">{{ current_value|default:"—" }}</span></div>
+  <div class="row"><span class="label">Proposed value</span><span class="value">{{ proposed_value }}</span></div>
+</div>
+
+<p>This field is used for account recovery and withdrawal notifications, so it requires manual approval before it changes.</p>
+
+<a href="{{ frontend_url }}/admin/verifications" class="btn">Review Change Requests</a>
+
+<p class="muted">You're receiving this because you have verification-review access on {{ site_name }}.</p>
+{% endblock %}

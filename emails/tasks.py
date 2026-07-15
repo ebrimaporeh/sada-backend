@@ -190,3 +190,32 @@ def send_new_organization_verification_notification_task(self, verification_id):
     for moderator in _get_moderation_staff():
         if not email_service.send_new_organization_verification_notification_email(moderator, verification):
             logger.error('Failed to notify %s about organization verification %s', moderator.email, verification_id)
+
+
+@shared_task(**RETRY_KWARGS)
+def send_organization_change_request_reviewed_email_task(self, request_id):
+    from apps.users.models import OrganizationChangeRequest
+    from emails.service import email_service
+    try:
+        change_request = OrganizationChangeRequest.objects.select_related('user').get(pk=request_id)
+    except OrganizationChangeRequest.DoesNotExist:
+        logger.warning('send_organization_change_request_reviewed_email_task: request %s not found', request_id)
+        return
+    _retry_on_failure(
+        self, email_service.send_organization_change_request_reviewed_email(change_request.user, change_request),
+        f'organization change request reviewed email for request {request_id}',
+    )
+
+
+@shared_task(bind=True)
+def send_new_organization_change_request_notification_task(self, request_id):
+    from apps.users.models import OrganizationChangeRequest
+    from emails.service import email_service
+    try:
+        change_request = OrganizationChangeRequest.objects.select_related('user', 'user__organization').get(pk=request_id)
+    except OrganizationChangeRequest.DoesNotExist:
+        logger.warning('send_new_organization_change_request_notification_task: request %s not found', request_id)
+        return
+    for moderator in _get_moderation_staff():
+        if not email_service.send_new_organization_change_request_notification_email(moderator, change_request):
+            logger.error('Failed to notify %s about organization change request %s', moderator.email, request_id)

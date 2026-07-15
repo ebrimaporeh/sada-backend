@@ -251,3 +251,46 @@ class OrganizationVerification(BaseModel):
 
     def __str__(self):
         return f'{self.user.email} — {self.status}'
+
+
+class OrganizationChangeRequest(BaseModel):
+    """An organization's request to change one of its account-recovery-
+    critical fields (primary/second phone, either recovery email).
+
+    These fields are never editable directly — a single compromised or
+    careless member could otherwise quietly redirect account recovery and
+    withdrawal notifications to themselves. Each request targets exactly one
+    field and needs its own separate admin approval before the real
+    User/Organization field is touched (see organization_change_service).
+    """
+    class Field(models.TextChoices):
+        PHONE = 'phone', 'Primary Phone Number'
+        PHONE_2 = 'phone_2', 'Second Phone Number'
+        RECOVERY_EMAIL_1 = 'recovery_email_1', 'Recovery Email 1'
+        RECOVERY_EMAIL_2 = 'recovery_email_2', 'Recovery Email 2'
+
+    class Status(models.TextChoices):
+        PENDING = 'pending', 'Pending Review'
+        APPROVED = 'approved', 'Approved'
+        REJECTED = 'rejected', 'Rejected'
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='organization_change_requests')
+    field_name = models.CharField(max_length=20, choices=Field.choices)
+    # Snapshot of the value at request time, for the admin to compare
+    # against — not re-read live, since it could change before review.
+    current_value = models.CharField(max_length=255, blank=True)
+    proposed_value = models.CharField(max_length=255)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    rejection_reason = models.TextField(blank=True)
+    reviewed_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='reviewed_organization_change_requests',
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Organization Change Request'
+        verbose_name_plural = 'Organization Change Requests'
+
+    def __str__(self):
+        return f'{self.user.email} — {self.field_name} — {self.status}'

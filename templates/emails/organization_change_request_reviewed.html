@@ -1,0 +1,31 @@
+{% extends "emails/base.html" %}
+
+{% block subject %}Your {{ field_label }} change request was {% if approved %}approved{% else %}rejected{% endif %}{% endblock %}
+
+{% block content %}
+<h2 style="margin: 0 0 4px; color: #18181b; font-size: 20px;">{{ field_label }} change {% if approved %}approved{% else %}update{% endif %}</h2>
+<p>Hi {{ user.full_name }},</p>
+
+<p>
+  <span class="badge {% if approved %}badge-success{% else %}badge-danger{% endif %}">
+    {% if approved %}Approved{% else %}Not approved{% endif %}
+  </span>
+</p>
+
+{% if approved %}
+<p>Your request to change your {{ field_label }} to <strong>{{ proposed_value }}</strong> has been approved and is now in effect.</p>
+{% else %}
+<p>We weren't able to approve your request to change your {{ field_label }} to {{ proposed_value }}.</p>
+{% if rejection_reason %}
+<div class="card">
+  <p class="label" style="margin: 0 0 4px;">Reason</p>
+  <p style="margin: 0;">{{ rejection_reason }}</p>
+</div>
+{% endif %}
+<p>Your {{ field_label }} has not been changed. You're welcome to submit a new request.</p>
+{% endif %}
+
+<a href="{{ frontend_url }}/profile" class="btn">View Profile</a>
+
+<p class="muted">If you didn't request this change, please contact support immediately.</p>
+{% endblock %}
