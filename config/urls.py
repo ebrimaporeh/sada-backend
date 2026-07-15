@@ -17,6 +17,7 @@ urlpatterns = [
     path('api/v1/campaigns/', include('apps.campaigns.urls')),
     path('api/v1/donations/', include('apps.donations.urls')),
     path('api/v1/payments/', include('apps.payments.urls')),
+    path('api/v1/settings/', include('apps.common.urls')),
     path('api/v1/notifications/', include('apps.notifications.urls')),
     path('api/v1/analytics/', include('apps.analytics.urls')),
 

@@ -168,7 +168,7 @@ REST_FRAMEWORK = {
 # ─── API Docs ────────────────────────────────────────────────────────────────
 
 SPECTACULAR_SETTINGS = {
-    'TITLE': config('SITE_NAME', default='My App') + ' API',
+    'TITLE': config('SITE_NAME', default='Dolelma') + ' API',
     'DESCRIPTION': config('SITE_DESCRIPTION', default='API Documentation'),
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
@@ -245,7 +245,7 @@ USE_TZ = True
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-SITE_NAME = config('SITE_NAME', default='SADA')
+SITE_NAME = config('SITE_NAME', default='Dolelma')
 SITE_DESCRIPTION = config('SITE_DESCRIPTION', default='Crowdfunding for The Gambia')
 CONTACT_EMAIL = config('CONTACT_EMAIL', default='support@yourapp.com')
 FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:5173')

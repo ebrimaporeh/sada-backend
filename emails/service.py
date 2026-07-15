@@ -8,9 +8,13 @@ logger = logging.getLogger(__name__)
 
 
 class EmailService:
+    def _site_name(self) -> str:
+        from apps.common.models import SiteSettings
+        return SiteSettings.get_solo().site_name
+
     def _send(self, to: str, subject: str, template: str, context: dict, cc: list = None) -> bool:
         try:
-            context = {'site_name': settings.SITE_NAME, 'frontend_url': settings.FRONTEND_URL, **context}
+            context = {'site_name': self._site_name(), 'frontend_url': settings.FRONTEND_URL, **context}
             html_content = render_to_string(template, context)
             msg = EmailMultiAlternatives(
                 subject=subject,
@@ -29,7 +33,7 @@ class EmailService:
     def send_welcome_email(self, user) -> bool:
         return self._send(
             to=user.email,
-            subject=f'Welcome to {settings.SITE_NAME}!',
+            subject=f'Welcome to {self._site_name()}!',
             template='emails/welcome.html',
             context={'user': user},
         )
@@ -40,7 +44,7 @@ class EmailService:
         # recovery address is to work even when the primary inbox is down.
         return self._send(
             to=to_email or user.email,
-            subject=f'Reset your {settings.SITE_NAME} password',
+            subject=f'Reset your {self._site_name()} password',
             template='emails/password_reset.html',
             context={'user': user, 'reset_url': reset_url},
         )
@@ -48,7 +52,7 @@ class EmailService:
     def send_password_changed_email(self, user) -> bool:
         return self._send(
             to=user.email,
-            subject=f'Your {settings.SITE_NAME} password was changed',
+            subject=f'Your {self._site_name()} password was changed',
             template='emails/password_changed.html',
             context={'user': user},
         )
@@ -56,7 +60,7 @@ class EmailService:
     def send_verification_email(self, user, verification_url: str) -> bool:
         return self._send(
             to=user.email,
-            subject=f'Verify your {settings.SITE_NAME} email',
+            subject=f'Verify your {self._site_name()} email',
             template='emails/verification.html',
             context={'user': user, 'verification_url': verification_url},
         )
@@ -110,7 +114,7 @@ class EmailService:
         approved = verification.status == 'approved'
         return self._send(
             to=user.email,
-            subject=f'Your {settings.SITE_NAME} identity verification was {"approved" if approved else "rejected"}',
+            subject=f'Your {self._site_name()} identity verification was {"approved" if approved else "rejected"}',
             template='emails/verification_reviewed.html',
             context={
                 'user': user,
@@ -150,7 +154,7 @@ class EmailService:
         approved = verification.status == 'approved'
         return self._send(
             to=user.email,
-            subject=f'Your {settings.SITE_NAME} organization verification was {"approved" if approved else "rejected"}',
+            subject=f'Your {self._site_name()} organization verification was {"approved" if approved else "rejected"}',
             template='emails/organization_verification_reviewed.html',
             context={
                 'user': user,
@@ -191,7 +195,7 @@ class EmailService:
         approved = change_request.status == 'approved'
         return self._send(
             to=user.email,
-            subject=f'Your {settings.SITE_NAME} {change_request.get_field_name_display()} change request was {"approved" if approved else "rejected"}',
+            subject=f'Your {self._site_name()} {change_request.get_field_name_display()} change request was {"approved" if approved else "rejected"}',
             template='emails/organization_change_request_reviewed.html',
             context={
                 'user': user,
