@@ -23,12 +23,12 @@ class SiteSettingsView(APIView):
     @extend_schema(summary='Get current site branding settings', responses={200: SiteSettingsSerializer})
     def get(self, request):
         site_settings = common_service.get_site_settings()
-        return common_service.success_response(SiteSettingsSerializer(site_settings).data)
+        return common_service.success_response(SiteSettingsSerializer(site_settings, context={'request': request}).data)
 
     @extend_schema(summary='[Admin] Update site branding settings', request=SiteSettingsSerializer)
     def patch(self, request):
         site_settings = common_service.get_site_settings()
-        serializer = SiteSettingsSerializer(site_settings, data=request.data, partial=True)
+        serializer = SiteSettingsSerializer(site_settings, data=request.data, partial=True, context={'request': request})
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return common_service.success_response(serializer.data, message='Site settings updated.')
