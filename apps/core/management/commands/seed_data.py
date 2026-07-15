@@ -594,6 +594,40 @@ The course is completely free for students. All they need is the determination t
                 is_urgent=False, is_featured=False,
                 approved_at=timezone.now() - timedelta(days=56),
             ),
+            dict(
+                slug='bakau-mosque-water-system',
+                owner=U.get('bakau.mosque@example.gm'),
+                category=cats.get('religious'),
+                title='New Wudu (Ablution) Water System for Bakau Mosque',
+                short_description="Bakau Central Mosque's water system is failing. Help us install a reliable new system for daily prayers.",
+                story="""Bakau Central Mosque serves hundreds of worshippers daily, but our ablution water system — installed over 20 years ago — is now failing regularly, leaving worshippers without water for wudu ahead of prayers.
+
+This campaign will fund a full replacement: new piping, storage tanks, and taps across the mosque's ablution area, sized for daily demand during Friday prayers and Ramadan.
+
+All funds are managed transparently by the mosque committee, with receipts published to the community.""",
+                goal=Decimal('180000.00'), raised=Decimal('64000.00'), donors_count=97,
+                deadline=today + timedelta(days=90), status=Campaign.Status.ACTIVE,
+                region='kanifing', beneficiary='Bakau Central Mosque', beneficiary_relationship='Religious Institution',
+                is_urgent=False, is_featured=False,
+                approved_at=timezone.now() - timedelta(days=40),
+            ),
+            dict(
+                slug='utg-su-graduation-fund',
+                owner=U.get('utgsu@example.gm'),
+                category=cats.get('education'),
+                title="UTG Students' Union Graduation Support Fund",
+                short_description='Help cover graduation fees and regalia for final-year UTG students who cannot afford them.',
+                story="""Every year, a number of final-year students at the University of The Gambia are unable to complete their graduation requirements — regalia hire, graduation fees, and transcript costs — due to financial hardship.
+
+The UTG Students' Union is raising funds to support these students directly, so financial hardship never stands between a student and their graduation ceremony.
+
+Funds are disbursed by the Students' Union executive committee based on verified need, with full transparency to the student body.""",
+                goal=Decimal('120000.00'), raised=Decimal('38500.00'), donors_count=64,
+                deadline=today + timedelta(days=75), status=Campaign.Status.ACTIVE,
+                region='brikama', beneficiary='UTG Final-Year Students', beneficiary_relationship='Students',
+                is_urgent=False, is_featured=False,
+                approved_at=timezone.now() - timedelta(days=30),
+            ),
         ]
 
         created = {}

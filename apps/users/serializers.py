@@ -110,10 +110,13 @@ class AdminUserCreateSerializer(serializers.ModelSerializer):
 
 class PublicCampaignerSerializer(serializers.ModelSerializer):
     """A campaign owner's public profile — deliberately minimal. Never add
-    email, phone, role, payment fields, or anything from IdentityVerification
-    here; is_verified is the only verification-related field ever exposed
-    publicly (just the badge, never the underlying ID submission)."""
+    email, phone, role, payment fields, or anything from IdentityVerification/
+    OrganizationVerification here; is_verified is the only verification-
+    related field ever exposed publicly (just the badge, never the
+    underlying ID/registration-document submission)."""
     full_name = serializers.ReadOnlyField()
+    account_type = serializers.ReadOnlyField()
+    organization_type = serializers.SerializerMethodField()
     avatar = serializers.SerializerMethodField()
     campaign_count = serializers.IntegerField(read_only=True)
     total_raised = serializers.SerializerMethodField()
@@ -121,14 +124,22 @@ class PublicCampaignerSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
-            'id', 'full_name', 'avatar', 'bio', 'region',
+            'id', 'full_name', 'account_type', 'organization_type', 'avatar', 'bio', 'region',
             'is_verified', 'campaign_count', 'total_raised', 'created_at',
         ]
 
+    def get_organization_type(self, obj):
+        org = getattr(obj, 'organization', None)
+        return org.organization_type if org else None
+
     def get_avatar(self, obj):
         request = self.context.get('request')
-        if obj.avatar and request:
-            return request.build_absolute_uri(obj.avatar.url)
+        # Organizations upload a logo (via Organization.logo, set on
+        # verification approval) rather than the generic User.avatar —
+        # fall back to it so a campaigner card isn't just blank/initials.
+        image = obj.avatar or getattr(getattr(obj, 'organization', None), 'logo', None)
+        if image and request:
+            return request.build_absolute_uri(image.url)
         return None
 
     def get_total_raised(self, obj):
