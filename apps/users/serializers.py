@@ -74,25 +74,32 @@ class UserUpdateSerializer(serializers.ModelSerializer):
 class AdminUserSerializer(serializers.ModelSerializer):
     full_name = serializers.ReadOnlyField()
     avatar = serializers.SerializerMethodField()
+    organization = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = [
             'id', 'email', 'first_name', 'last_name', 'full_name',
-            'role', 'avatar', 'phone', 'bio', 'region',
+            'role', 'account_type', 'organization', 'avatar', 'phone', 'bio', 'region',
             'default_payment_provider', 'default_payment_phone',
             'is_active', 'email_verified', 'is_verified',
             'notify_donations_received', 'notify_campaign_approved', 'notify_campaign_rejected',
             'notify_goal_reached', 'notify_new_comment', 'notify_new_update', 'notify_marketing',
             'created_at', 'updated_at',
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'account_type', 'created_at', 'updated_at']
 
     def get_avatar(self, obj):
         request = self.context.get('request')
         if obj.avatar and request:
             return request.build_absolute_uri(obj.avatar.url)
         return None
+
+    def get_organization(self, obj):
+        org = getattr(obj, 'organization', None)
+        if org is None:
+            return None
+        return OrganizationSerializer(org, context=self.context).data
 
 
 class AdminUserCreateSerializer(serializers.ModelSerializer):

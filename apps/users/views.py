@@ -66,14 +66,23 @@ class PublicCampaignerDetailView(generics.RetrieveAPIView):
         return user_service.get_public_campaigner(self.kwargs['id'])
 
 
-@extend_schema(tags=['Users'], summary='[Admin] List regular (non-staff) users')
+@extend_schema(
+    tags=['Users'],
+    summary='[Admin] List regular (non-staff) users',
+    parameters=[OpenApiParameter('account_type', str, description='Filter by individual or organization')],
+)
 class UserListView(generics.ListAPIView):
     serializer_class = AdminUserSerializer
     permission_classes = [HasResourceAccess]
     required_resource = Resource.USERS
+    pagination_class = StandardResultsPagination
 
     def get_queryset(self):
-        return user_service.get_regular_users()
+        filters = {}
+        account_type = self.request.query_params.get('account_type')
+        if account_type:
+            filters['account_type'] = account_type
+        return user_service.get_regular_users(filters)
 
 
 @extend_schema(tags=['Users'], summary='[Admin] List staff (admin/moderator/finance officer)')
