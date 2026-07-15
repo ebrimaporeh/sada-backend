@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from services.logo_processing import process_logo_image
 from .models import SiteSettings
 
 
@@ -11,3 +12,9 @@ class SiteSettingsSerializer(serializers.ModelSerializer):
         if not value.strip():
             raise serializers.ValidationError('Site name cannot be blank.')
         return value.strip()
+
+    def validate_logo(self, value):
+        return process_logo_image(value, transparent_padding=True)
+
+    def validate_logo_with_background(self, value):
+        return process_logo_image(value, transparent_padding=False)
