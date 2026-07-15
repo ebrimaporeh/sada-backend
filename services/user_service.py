@@ -189,6 +189,9 @@ def _public_campaigner_base_queryset():
 
 
 def get_public_campaigners(filters=None):
+    from apps.campaigns.models import Campaign
+    from services import campaigner_ranking
+
     qs = _public_campaigner_base_queryset()
     if filters:
         if filters.get('region'):
@@ -196,7 +199,10 @@ def get_public_campaigners(filters=None):
         if filters.get('search'):
             q = filters['search']
             qs = qs.filter(Q(first_name__icontains=q) | Q(last_name__icontains=q))
-    return qs.order_by('-campaign_count', '-created_at')
+
+    public_statuses = [Campaign.Status.ACTIVE, Campaign.Status.APPROVED, Campaign.Status.COMPLETED]
+    qs = campaigner_ranking.annotate_activity(qs, public_statuses)
+    return campaigner_ranking.order_by_activity(qs)
 
 
 def get_public_campaigner(user_id):
