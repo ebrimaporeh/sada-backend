@@ -205,7 +205,13 @@ if SUPABASE_STORAGE_BUCKET:
     AWS_S3_ADDRESSING_STYLE = config('SUPABASE_STORAGE_ADDRESSING_STYLE', default='path')
     AWS_QUERYSTRING_AUTH = config('SUPABASE_STORAGE_QUERYSTRING_AUTH', default=False, cast=bool)
     AWS_DEFAULT_ACL = None
-    AWS_S3_FILE_OVERWRITE = False
+    # Django's default (False) calls HeadObject before every save to check
+    # for a name collision and auto-rename — Supabase's storage access keys
+    # aren't granted that permission, so it fails with a 403 before the
+    # actual upload ever happens. Not needed anyway: every upload_paths.py
+    # function already includes a microsecond timestamp, so collisions
+    # can't realistically occur.
+    AWS_S3_FILE_OVERWRITE = True
 
     # Uploads go through the S3-compatible endpoint above, but Supabase serves
     # public reads from a different path on the main project domain — set

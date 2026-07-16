@@ -33,6 +33,16 @@ class MeView(generics.RetrieveUpdateAPIView):
         user_service.update_user(self.request.user, **serializer.validated_data)
 
 
+@extend_schema(tags=['Users'], summary='Upload my avatar', responses={200: UserSerializer})
+class MyAvatarUploadView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = user_service.upload_avatar(request.user, request.FILES.get('avatar'))
+        serializer = UserSerializer(user, context={'request': request})
+        return Response({'success': True, 'message': 'Avatar updated.', 'data': serializer.data})
+
+
 @extend_schema(
     tags=['Users'],
     summary='List public campaigner profiles',

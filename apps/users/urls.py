@@ -3,6 +3,7 @@ from . import views
 
 urlpatterns = [
     path('me/', views.MeView.as_view(), name='user-me'),
+    path('me/avatar/', views.MyAvatarUploadView.as_view(), name='user-me-avatar'),
     path('stats/', views.UserStatsView.as_view(), name='user-stats'),
     # Public routes — must come before the generic <uuid:pk>/ catch-all below.
     path('campaigners/', views.PublicCampaignerListView.as_view(), name='public-campaigner-list'),

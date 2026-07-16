@@ -61,10 +61,12 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class UserUpdateSerializer(serializers.ModelSerializer):
+    # Avatar uploads instantly through its own endpoint (POST /users/me/avatar/)
+    # rather than riding along with text-field edits — see MyAvatarUploadView.
     class Meta:
         model = User
         fields = [
-            'first_name', 'last_name', 'phone', 'bio', 'region', 'avatar',
+            'first_name', 'last_name', 'phone', 'bio', 'region',
             'default_payment_provider', 'default_payment_phone', 'show_total_raised',
             'notify_donations_received', 'notify_campaign_approved', 'notify_campaign_rejected',
             'notify_goal_reached', 'notify_new_comment', 'notify_new_update', 'notify_marketing',

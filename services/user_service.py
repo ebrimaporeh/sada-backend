@@ -93,7 +93,7 @@ def admin_create_user(email: str, role: str, requesting_user: User, first_name: 
 
 def update_user(user: User, **data) -> User:
     allowed_fields = {
-        'first_name', 'last_name', 'phone', 'bio', 'region', 'avatar',
+        'first_name', 'last_name', 'phone', 'bio', 'region',
         'default_payment_provider', 'default_payment_phone', 'show_total_raised',
         'notify_donations_received', 'notify_campaign_approved',
         'notify_campaign_rejected', 'notify_goal_reached',
@@ -107,6 +107,14 @@ def update_user(user: User, **data) -> User:
             update_fields.append(field)
     if update_fields:
         user.save(update_fields=update_fields)
+    return user
+
+
+def upload_avatar(user: User, image_file) -> User:
+    if not image_file:
+        raise ValueError('No image provided.')
+    user.avatar = image_file
+    user.save(update_fields=['avatar'])
     return user
 
 
