@@ -119,6 +119,21 @@ def upload_avatar(user: User, image_file) -> User:
     return user
 
 
+def upload_organization_logo(user: User, image_file):
+    """Admin-only direct logo set — bypasses the normal path (copied from
+    OrganizationVerification.organization_photo on approval) for cases like
+    fixing/seeding an org's branding without a full re-verification cycle."""
+    if not user.is_organization or not hasattr(user, 'organization'):
+        raise ValidationError('This user does not have an organization profile.')
+    if not image_file:
+        raise ValueError('No image provided.')
+    from services.image_compression import process_image
+    org = user.organization
+    org.logo = process_image(image_file, profile='avatar')
+    org.save(update_fields=['logo'])
+    return org
+
+
 def admin_update_user(user: User, requesting_user: User, **data) -> User:
     if user.id == requesting_user.id and 'is_active' in data and not data['is_active']:
         raise ValidationError('You cannot deactivate your own account.')

@@ -1,3 +1,4 @@
+from django.shortcuts import get_object_or_404
 from rest_framework import generics, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -9,6 +10,7 @@ from permissions.base import HasResourceAccess
 from permissions.roles import Resource
 from pagination.base import StandardResultsPagination
 from services import user_service, verification_service, organization_change_service
+from .models import User
 from .serializers import (
     UserSerializer, UserUpdateSerializer, AdminUserSerializer, AdminUserCreateSerializer,
     IdentityVerificationSerializer, IdentityVerificationCreateSerializer, PublicCampaignerSerializer,
@@ -41,6 +43,30 @@ class MyAvatarUploadView(APIView):
         user = user_service.upload_avatar(request.user, request.FILES.get('avatar'))
         serializer = UserSerializer(user, context={'request': request})
         return Response({'success': True, 'message': 'Avatar updated.', 'data': serializer.data})
+
+
+@extend_schema(tags=['Users'], summary='[Admin] Upload any user\'s avatar', responses={200: AdminUserSerializer})
+class AdminUserAvatarUploadView(APIView):
+    permission_classes = [HasResourceAccess]
+    required_resource = Resource.USERS
+
+    def post(self, request, pk):
+        target = get_object_or_404(User, pk=pk)
+        user = user_service.upload_avatar(target, request.FILES.get('avatar'))
+        serializer = AdminUserSerializer(user, context={'request': request})
+        return Response({'success': True, 'message': 'Avatar updated.', 'data': serializer.data})
+
+
+@extend_schema(tags=['Users'], summary="[Admin] Upload any organization's logo", responses={200: AdminUserSerializer})
+class AdminOrganizationLogoUploadView(APIView):
+    permission_classes = [HasResourceAccess]
+    required_resource = Resource.USERS
+
+    def post(self, request, pk):
+        target = get_object_or_404(User, pk=pk)
+        user_service.upload_organization_logo(target, request.FILES.get('logo'))
+        serializer = AdminUserSerializer(target, context={'request': request})
+        return Response({'success': True, 'message': 'Organization logo updated.', 'data': serializer.data})
 
 
 @extend_schema(
