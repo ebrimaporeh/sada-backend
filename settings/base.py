@@ -197,12 +197,16 @@ SUPABASE_STORAGE_BUCKET = config('SUPABASE_STORAGE_BUCKET', default='')
 if SUPABASE_STORAGE_BUCKET:
     DEFAULT_FILE_STORAGE = 'storages.backends.s3.S3Storage'
 
-    AWS_STORAGE_BUCKET_NAME = SUPABASE_STORAGE_BUCKET
-    AWS_S3_ENDPOINT_URL = config('SUPABASE_STORAGE_ENDPOINT')
-    AWS_S3_REGION_NAME = config('SUPABASE_STORAGE_REGION', default='eu-west-1')
-    AWS_ACCESS_KEY_ID = config('SUPABASE_STORAGE_ACCESS_KEY_ID')
-    AWS_SECRET_ACCESS_KEY = config('SUPABASE_STORAGE_SECRET_ACCESS_KEY')
-    AWS_S3_ADDRESSING_STYLE = config('SUPABASE_STORAGE_ADDRESSING_STYLE', default='path')
+    # .strip() everything credential/signing-related — a stray trailing
+    # space or newline from copy-pasting into an env var UI is invisible
+    # but gets included in the SigV4 signature, producing a
+    # SignatureDoesNotMatch that looks exactly like a wrong key.
+    AWS_STORAGE_BUCKET_NAME = SUPABASE_STORAGE_BUCKET.strip()
+    AWS_S3_ENDPOINT_URL = config('SUPABASE_STORAGE_ENDPOINT').strip()
+    AWS_S3_REGION_NAME = config('SUPABASE_STORAGE_REGION', default='eu-west-1').strip()
+    AWS_ACCESS_KEY_ID = config('SUPABASE_STORAGE_ACCESS_KEY_ID').strip()
+    AWS_SECRET_ACCESS_KEY = config('SUPABASE_STORAGE_SECRET_ACCESS_KEY').strip()
+    AWS_S3_ADDRESSING_STYLE = config('SUPABASE_STORAGE_ADDRESSING_STYLE', default='path').strip()
     AWS_QUERYSTRING_AUTH = config('SUPABASE_STORAGE_QUERYSTRING_AUTH', default=False, cast=bool)
     AWS_DEFAULT_ACL = None
     # Django's default (False) calls HeadObject before every save to check
