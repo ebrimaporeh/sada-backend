@@ -221,7 +221,7 @@ if SUPABASE_STORAGE_BUCKET:
     # public reads from a different path on the main project domain — set
     # this as the custom domain so file .url() calls resolve to that instead
     # of the S3 endpoint (which isn't the public-read URL).
-    _supabase_url = config('SUPABASE_URL', default='').replace('https://', '').replace('http://', '')
+    _supabase_url = config('SUPABASE_URL', default='').strip().replace('https://', '').replace('http://', '')
     if _supabase_url:
         AWS_S3_CUSTOM_DOMAIN = f'{_supabase_url}/storage/v1/object/public/{AWS_STORAGE_BUCKET_NAME}'
 
