@@ -9,7 +9,7 @@ class ZakatSettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model = ZakatSettings
         fields = [
-            'nisab_basis', 'nisab_gold_grams', 'nisab_silver_grams',
+            'nisab_gold_grams', 'nisab_silver_grams',
             'gold_price_per_gram', 'silver_price_per_gram',
             'zakat_percentage', 'minimum_amount_override', 'nisab_amount',
         ]

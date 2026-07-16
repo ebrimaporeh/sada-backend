@@ -10,17 +10,13 @@ class ZakatSettings(BaseModel):
     classically defined as the value of a fixed weight of gold or silver,
     not a flat currency figure — metal prices move, so the GMD-equivalent
     threshold has to be computed from a weight + a price the admin keeps
-    up to date, rather than hardcoded. Silver is the default basis: it's
-    the lower of the two thresholds, and the majority of contemporary
-    scholars favor it precisely because it brings more people into the
-    obligation (and therefore more relief to recipients) than the much
-    higher gold nisab would.
+    up to date, rather than hardcoded. There's no admin toggle for which
+    metal governs — `nisab_amount` always uses whichever of the two is
+    lower (falling back to the other if one price isn't set yet), since
+    the majority of contemporary scholars favor the lower threshold
+    precisely because it brings more people into the obligation, and
+    therefore more relief to recipients.
     """
-    class NisabBasis(models.TextChoices):
-        GOLD = 'gold', 'Gold'
-        SILVER = 'silver', 'Silver'
-
-    nisab_basis = models.CharField(max_length=10, choices=NisabBasis.choices, default=NisabBasis.SILVER)
 
     # Classical weights (87.48g gold / 612.36g silver) — editable per
     # settings-driven convention, but admins should only touch these if
@@ -59,6 +55,7 @@ class ZakatSettings(BaseModel):
     def nisab_amount(self) -> Decimal:
         if self.minimum_amount_override is not None:
             return self.minimum_amount_override
-        if self.nisab_basis == self.NisabBasis.GOLD:
-            return self.nisab_gold_grams * self.gold_price_per_gram
-        return self.nisab_silver_grams * self.silver_price_per_gram
+        gold_nisab = self.nisab_gold_grams * self.gold_price_per_gram
+        silver_nisab = self.nisab_silver_grams * self.silver_price_per_gram
+        candidates = [amount for amount in (gold_nisab, silver_nisab) if amount > 0]
+        return min(candidates) if candidates else Decimal('0')
