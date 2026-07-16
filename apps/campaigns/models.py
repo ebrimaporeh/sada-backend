@@ -3,6 +3,9 @@ from django.utils.text import slugify
 from django.conf import settings
 from apps.core.models import BaseModel
 from apps.core.validators import validate_image_size
+from utils.upload_paths import (
+    category_image_path, campaign_cover_image_path, campaign_gallery_image_path, campaign_update_image_path,
+)
 
 
 class Category(BaseModel):
@@ -10,7 +13,7 @@ class Category(BaseModel):
     slug = models.SlugField(max_length=120, unique=True)
     description = models.TextField(blank=True)
     icon = models.CharField(max_length=50, blank=True)
-    image = models.ImageField(upload_to='categories/', null=True, blank=True, validators=[validate_image_size])
+    image = models.ImageField(upload_to=category_image_path, null=True, blank=True, validators=[validate_image_size])
     is_active = models.BooleanField(default=True)
 
     class Meta:
@@ -76,7 +79,7 @@ class Campaign(BaseModel):
     is_urgent = models.BooleanField(default=False)
     is_featured = models.BooleanField(default=False)
     is_anonymous = models.BooleanField(default=False)
-    cover_image = models.ImageField(upload_to='campaigns/covers/', null=True, blank=True, validators=[validate_image_size])
+    cover_image = models.ImageField(upload_to=campaign_cover_image_path, null=True, blank=True, validators=[validate_image_size])
     rejection_reason = models.TextField(blank=True)
     approved_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
@@ -117,7 +120,7 @@ class Campaign(BaseModel):
 
 class CampaignImage(BaseModel):
     campaign = models.ForeignKey(Campaign, on_delete=models.CASCADE, related_name='images')
-    image = models.ImageField(upload_to='campaigns/gallery/', validators=[validate_image_size])
+    image = models.ImageField(upload_to=campaign_gallery_image_path, validators=[validate_image_size])
     order = models.PositiveSmallIntegerField(default=0)
     is_cover = models.BooleanField(default=False)
 
@@ -144,7 +147,7 @@ class CampaignUpdate(BaseModel):
 
 class CampaignUpdateImage(BaseModel):
     update = models.ForeignKey(CampaignUpdate, on_delete=models.CASCADE, related_name='images')
-    image = models.ImageField(upload_to='campaign_updates/', validators=[validate_image_size])
+    image = models.ImageField(upload_to=campaign_update_image_path, validators=[validate_image_size])
     order = models.PositiveSmallIntegerField(default=0)
 
     class Meta:

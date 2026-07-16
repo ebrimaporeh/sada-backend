@@ -1,6 +1,7 @@
 from django.db import models
 from apps.core.models import BaseModel
 from apps.core.validators import validate_image_size
+from utils.upload_paths import site_logo_path, site_logo_with_background_path
 
 
 class SiteSettings(BaseModel):
@@ -14,11 +15,11 @@ class SiteSettings(BaseModel):
     site_name = models.CharField(max_length=100, default='Dolelma')
     site_description = models.CharField(max_length=255, blank=True, default='Crowdfunding for The Gambia')
     logo = models.ImageField(
-        upload_to='branding/', null=True, blank=True, validators=[validate_image_size],
+        upload_to=site_logo_path, null=True, blank=True, validators=[validate_image_size],
         help_text='Transparent logo, used on light and dark surfaces (nav, footer).',
     )
     logo_with_background = models.ImageField(
-        upload_to='branding/', null=True, blank=True, validators=[validate_image_size],
+        upload_to=site_logo_with_background_path, null=True, blank=True, validators=[validate_image_size],
         help_text='Logo on its own solid background, used where a transparent logo needs backing (e.g. social sharing).',
     )
 

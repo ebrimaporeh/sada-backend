@@ -187,6 +187,34 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+# ─── Media storage (Supabase Storage, S3-compatible) ────────────────────────
+# Falls back to local disk (above) when SUPABASE_STORAGE_BUCKET isn't set —
+# e.g. running tests, or before a Supabase project exists. Railway's
+# filesystem is ephemeral (wiped on every deploy/restart), so anything
+# meant to run there needs uploads to live somewhere persistent instead.
+SUPABASE_STORAGE_BUCKET = config('SUPABASE_STORAGE_BUCKET', default='')
+
+if SUPABASE_STORAGE_BUCKET:
+    DEFAULT_FILE_STORAGE = 'storages.backends.s3.S3Storage'
+
+    AWS_STORAGE_BUCKET_NAME = SUPABASE_STORAGE_BUCKET
+    AWS_S3_ENDPOINT_URL = config('SUPABASE_STORAGE_ENDPOINT')
+    AWS_S3_REGION_NAME = config('SUPABASE_STORAGE_REGION', default='eu-west-1')
+    AWS_ACCESS_KEY_ID = config('SUPABASE_STORAGE_ACCESS_KEY_ID')
+    AWS_SECRET_ACCESS_KEY = config('SUPABASE_STORAGE_SECRET_ACCESS_KEY')
+    AWS_S3_ADDRESSING_STYLE = config('SUPABASE_STORAGE_ADDRESSING_STYLE', default='path')
+    AWS_QUERYSTRING_AUTH = config('SUPABASE_STORAGE_QUERYSTRING_AUTH', default=False, cast=bool)
+    AWS_DEFAULT_ACL = None
+    AWS_S3_FILE_OVERWRITE = False
+
+    # Uploads go through the S3-compatible endpoint above, but Supabase serves
+    # public reads from a different path on the main project domain — set
+    # this as the custom domain so file .url() calls resolve to that instead
+    # of the S3 endpoint (which isn't the public-read URL).
+    _supabase_url = config('SUPABASE_URL', default='').replace('https://', '').replace('http://', '')
+    if _supabase_url:
+        AWS_S3_CUSTOM_DOMAIN = f'{_supabase_url}/storage/v1/object/public/{AWS_STORAGE_BUCKET_NAME}'
+
 # ─── Email ───────────────────────────────────────────────────────────────────
 
 EMAIL_BACKEND = config('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')

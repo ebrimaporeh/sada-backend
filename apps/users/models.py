@@ -3,6 +3,11 @@ from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseU
 from django.db import models
 from apps.core.models import BaseModel
 from apps.core.validators import validate_image_size
+from utils.upload_paths import (
+    user_avatar_path, identity_photo_front_path, identity_photo_back_path,
+    organization_logo_path, organization_contact_id_front_path, organization_contact_id_back_path,
+    organization_registration_document_path, organization_photo_path,
+)
 
 
 class UserManager(BaseUserManager):
@@ -61,7 +66,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     last_name = models.CharField(max_length=150, blank=True)
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.USER)
     account_type = models.CharField(max_length=20, choices=AccountType.choices, default=AccountType.INDIVIDUAL)
-    avatar = models.ImageField(upload_to='avatars/', null=True, blank=True, validators=[validate_image_size])
+    avatar = models.ImageField(upload_to=user_avatar_path, null=True, blank=True, validators=[validate_image_size])
     phone = models.CharField(max_length=20, blank=True)
     bio = models.TextField(blank=True)
     region = models.CharField(max_length=20, choices=Region.choices, blank=True)
@@ -159,8 +164,8 @@ class IdentityVerification(BaseModel):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='verification_requests')
     id_type = models.CharField(max_length=20, choices=IdType.choices)
     id_number = models.CharField(max_length=50)
-    id_photo_front = models.ImageField(upload_to='verifications/', validators=[validate_image_size])
-    id_photo_back = models.ImageField(upload_to='verifications/', null=True, blank=True, validators=[validate_image_size])
+    id_photo_front = models.ImageField(upload_to=identity_photo_front_path, validators=[validate_image_size])
+    id_photo_back = models.ImageField(upload_to=identity_photo_back_path, null=True, blank=True, validators=[validate_image_size])
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
     rejection_reason = models.TextField(blank=True)
     reviewed_by = models.ForeignKey(
@@ -200,7 +205,7 @@ class Organization(BaseModel):
     # on withdrawal/payout notifications, in addition to User.email.
     recovery_email_1 = models.EmailField(blank=True)
     recovery_email_2 = models.EmailField(blank=True)
-    logo = models.ImageField(upload_to='organizations/', null=True, blank=True, validators=[validate_image_size])
+    logo = models.ImageField(upload_to=organization_logo_path, null=True, blank=True, validators=[validate_image_size])
 
     class Meta:
         verbose_name = 'Organization'
@@ -229,14 +234,14 @@ class OrganizationVerification(BaseModel):
     # Contact person's government ID — same shape as IdentityVerification.
     contact_id_type = models.CharField(max_length=20, choices=IdType.choices)
     contact_id_number = models.CharField(max_length=50)
-    contact_id_photo_front = models.ImageField(upload_to='org_verifications/', validators=[validate_image_size])
-    contact_id_photo_back = models.ImageField(upload_to='org_verifications/', null=True, blank=True, validators=[validate_image_size])
+    contact_id_photo_front = models.ImageField(upload_to=organization_contact_id_front_path, validators=[validate_image_size])
+    contact_id_photo_back = models.ImageField(upload_to=organization_contact_id_back_path, null=True, blank=True, validators=[validate_image_size])
     # Proof the organization is real — a registration certificate, government
     # letter, etc.
-    registration_document = models.ImageField(upload_to='org_verifications/', validators=[validate_image_size])
+    registration_document = models.ImageField(upload_to=organization_registration_document_path, validators=[validate_image_size])
     # A photo of the organization (premises, event, logo) — copied onto
     # Organization.logo on approval.
-    organization_photo = models.ImageField(upload_to='org_verifications/', validators=[validate_image_size])
+    organization_photo = models.ImageField(upload_to=organization_photo_path, validators=[validate_image_size])
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
     rejection_reason = models.TextField(blank=True)
     reviewed_by = models.ForeignKey(
