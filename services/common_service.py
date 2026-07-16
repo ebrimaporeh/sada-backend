@@ -13,3 +13,8 @@ def error_response(message, errors=None, status_code=status.HTTP_400_BAD_REQUEST
 def get_site_settings():
     from apps.common.models import SiteSettings
     return SiteSettings.get_solo()
+
+
+def get_legal_content():
+    from apps.common.models import LegalContent
+    return LegalContent.get_solo()

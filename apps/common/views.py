@@ -4,7 +4,7 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from drf_spectacular.utils import extend_schema
 from permissions.base import HasResourceAccess
 from permissions.roles import Resource
-from .serializers import SiteSettingsSerializer
+from .serializers import SiteSettingsSerializer, LegalContentSerializer
 import services.common_service as common_service
 
 
@@ -32,3 +32,28 @@ class SiteSettingsView(APIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return common_service.success_response(serializer.data, message='Site settings updated.')
+
+
+class LegalContentView(APIView):
+    """Public read so the Help/Trust & Safety/Privacy/Terms pages can
+    render their markdown for anyone; only admins can edit it."""
+
+    required_resource = Resource.SETTINGS
+
+    def get_permissions(self):
+        if self.request.method == 'PATCH':
+            return [HasResourceAccess()]
+        return [AllowAny()]
+
+    @extend_schema(summary='Get legal/help page markdown content', responses={200: LegalContentSerializer})
+    def get(self, request):
+        content = common_service.get_legal_content()
+        return common_service.success_response(LegalContentSerializer(content).data)
+
+    @extend_schema(summary='[Admin] Update legal/help page markdown content', request=LegalContentSerializer)
+    def patch(self, request):
+        content = common_service.get_legal_content()
+        serializer = LegalContentSerializer(content, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return common_service.success_response(serializer.data, message='Content updated.')

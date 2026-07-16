@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from services.logo_processing import process_logo_image
-from .models import SiteSettings
+from .models import SiteSettings, LegalContent
 
 
 class SiteSettingsSerializer(serializers.ModelSerializer):
@@ -18,3 +18,9 @@ class SiteSettingsSerializer(serializers.ModelSerializer):
 
     def validate_logo_with_background(self, value):
         return process_logo_image(value, transparent_padding=False)
+
+
+class LegalContentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LegalContent
+        fields = ['help_content', 'trust_safety_content', 'privacy_content', 'terms_content']
