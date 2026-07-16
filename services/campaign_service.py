@@ -166,7 +166,8 @@ def delete_campaign(campaign):
 def upload_cover(campaign, image_file):
     if not image_file:
         raise ValueError('No image provided.')
-    campaign.cover_image = image_file
+    from services.image_compression import process_image
+    campaign.cover_image = process_image(image_file, profile='campaign_cover')
     campaign.save(update_fields=['cover_image'])
     return campaign
 
@@ -174,14 +175,16 @@ def upload_cover(campaign, image_file):
 def update_campaign_media(campaign, cover_file=None, gallery_files=None):
     from apps.campaigns.models import Campaign, CampaignImage
     from django.db.models import Max
+    from services.image_compression import process_image
 
     if cover_file:
-        campaign.cover_image = cover_file
+        compressed_cover = process_image(cover_file, profile='campaign_cover')
+        campaign.cover_image = compressed_cover
         campaign.save(update_fields=['cover_image'])
         campaign.images.filter(is_cover=True).delete()
         CampaignImage.objects.create(
             campaign=campaign,
-            image=cover_file,
+            image=compressed_cover,
             order=0,
             is_cover=True,
         )
@@ -193,7 +196,7 @@ def update_campaign_media(campaign, cover_file=None, gallery_files=None):
         for i, f in enumerate(gallery_files, start=1):
             CampaignImage.objects.create(
                 campaign=campaign,
-                image=f,
+                image=process_image(f, profile='campaign_gallery'),
                 order=max_order + i,
                 is_cover=False,
             )
@@ -217,6 +220,7 @@ def delete_campaign_image(user, slug, image_id):
 
 def add_campaign_update(campaign, user, title, content, images=None):
     from apps.campaigns.models import CampaignUpdate, CampaignUpdateImage
+    from services.image_compression import process_image
     update = CampaignUpdate.objects.create(
         campaign=campaign,
         posted_by=user,
@@ -228,7 +232,7 @@ def add_campaign_update(campaign, user, title, content, images=None):
         for idx, image in enumerate(images):
             CampaignUpdateImage.objects.create(
                 update=update,
-                image=image,
+                image=process_image(image, profile='campaign_update'),
                 order=idx,
             )
 
@@ -239,6 +243,7 @@ def add_campaign_update(campaign, user, title, content, images=None):
 def update_campaign_update(campaign, update_id, user, title=None, content=None, images=None, images_to_remove=None):
     from apps.campaigns.models import CampaignUpdate, CampaignUpdateImage
     from django.shortcuts import get_object_or_404
+    from services.image_compression import process_image
     update = get_object_or_404(CampaignUpdate, id=update_id, campaign=campaign)
     if update.posted_by != user:
         raise PermissionError('You can only edit your own updates.')
@@ -257,7 +262,7 @@ def update_campaign_update(campaign, update_id, user, title=None, content=None, 
         for idx, image in enumerate(images):
             CampaignUpdateImage.objects.create(
                 update=update,
-                image=image,
+                image=process_image(image, profile='campaign_update'),
                 order=current_max_order + idx + 1,
             )
 

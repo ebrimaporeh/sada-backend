@@ -125,8 +125,8 @@ class AdminCategoryImageUploadView(APIView):
         if 'image' not in request.FILES:
             return campaign_service.error_response('Image file is required', status_code=status.HTTP_400_BAD_REQUEST)
 
-        image_file = request.FILES['image']
-        category.image = image_file
+        from services.image_compression import process_image
+        category.image = process_image(request.FILES['image'], profile='category')
         category.save()
 
         serializer = CategorySerializer(category, context={'request': request})

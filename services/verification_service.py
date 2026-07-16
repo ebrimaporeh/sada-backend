@@ -11,12 +11,13 @@ def submit_verification(user: User, id_type: str, id_number: str, id_photo_front
     if user.verification_requests.filter(status=IdentityVerification.Status.PENDING).exists():
         raise ValidationError('You already have a pending verification request.')
 
+    from services.image_compression import process_image
     verification = IdentityVerification.objects.create(
         user=user,
         id_type=id_type,
         id_number=id_number,
-        id_photo_front=id_photo_front,
-        id_photo_back=id_photo_back,
+        id_photo_front=process_image(id_photo_front, profile='document'),
+        id_photo_back=process_image(id_photo_back, profile='document') if id_photo_back else None,
     )
 
     from emails.tasks import send_new_verification_notification_task
@@ -122,14 +123,15 @@ def submit_organization_verification(
     if user.organization_verification_requests.filter(status=OrganizationVerification.Status.PENDING).exists():
         raise ValidationError('You already have a pending verification request.')
 
+    from services.image_compression import process_image
     verification = OrganizationVerification.objects.create(
         user=user,
         contact_id_type=contact_id_type,
         contact_id_number=contact_id_number,
-        contact_id_photo_front=contact_id_photo_front,
-        contact_id_photo_back=contact_id_photo_back,
-        registration_document=registration_document,
-        organization_photo=organization_photo,
+        contact_id_photo_front=process_image(contact_id_photo_front, profile='document'),
+        contact_id_photo_back=process_image(contact_id_photo_back, profile='document') if contact_id_photo_back else None,
+        registration_document=process_image(registration_document, profile='document'),
+        organization_photo=process_image(organization_photo, profile='document'),
     )
 
     from emails.tasks import send_new_organization_verification_notification_task

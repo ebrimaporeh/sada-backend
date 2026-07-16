@@ -10,9 +10,9 @@ unpredictable amount of built-in whitespace.
 
 This trims each upload to its actual artwork's bounding box, adds a
 small consistent margin back, caps it at one standard max size, and
-always re-encodes as PNG — so every uploaded logo behaves the same in
-the header/footer/sidebar regardless of what canvas size or file type
-it arrived in.
+always re-encodes as WebP (still fully supports the transparency this
+needs) — so every uploaded logo behaves the same in the header/footer/
+sidebar regardless of what canvas size or file type it arrived in.
 """
 import io
 from PIL import Image, ImageChops
@@ -56,7 +56,7 @@ def _detect_bbox_and_background(image: Image.Image):
 
 def process_logo_image(uploaded_file, transparent_padding: bool) -> ContentFile:
     """Trims padding, re-pads consistently, resizes to the standard max
-    size, and re-encodes as PNG.
+    size, and re-encodes as WebP.
 
     `transparent_padding=True` for the logo meant to sit on arbitrary
     surfaces (padding becomes transparent); `False` for the logo meant to
@@ -77,5 +77,5 @@ def process_logo_image(uploaded_file, transparent_padding: bool) -> ContentFile:
         canvas = canvas.resize((round(canvas.width * scale), round(canvas.height * scale)), Image.LANCZOS)
 
     buffer = io.BytesIO()
-    canvas.save(buffer, format='PNG')
-    return ContentFile(buffer.getvalue(), name='logo.png')
+    canvas.save(buffer, format='WEBP', quality=95, method=6)
+    return ContentFile(buffer.getvalue(), name='logo.webp')

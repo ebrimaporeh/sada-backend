@@ -113,7 +113,8 @@ def update_user(user: User, **data) -> User:
 def upload_avatar(user: User, image_file) -> User:
     if not image_file:
         raise ValueError('No image provided.')
-    user.avatar = image_file
+    from services.image_compression import process_image
+    user.avatar = process_image(image_file, profile='avatar')
     user.save(update_fields=['avatar'])
     return user
 
