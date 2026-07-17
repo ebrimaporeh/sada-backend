@@ -32,6 +32,12 @@ class Donation(BaseModel):
     donor_name = models.CharField(max_length=300, blank=True, help_text='Name for unauthenticated donors')
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     currency = models.CharField(max_length=3, default='GMD')
+    # Which gateway processed this donation (modempay, stripe, ...) — separate
+    # from `provider`, which is the payment *method* within that gateway
+    # (wave/aps for modempay, card for stripe). No `choices=` here deliberately:
+    # gateways are registered in services/gateways/registry.py, not as a fixed
+    # enum, so adding one shouldn't require a migration on this field.
+    gateway = models.CharField(max_length=20, default='modempay')
     provider = models.CharField(max_length=20, choices=Provider.choices, default=Provider.WAVE)
     phone = models.CharField(max_length=20)
     payment_reference = models.CharField(max_length=200, unique=True, null=True, blank=True)

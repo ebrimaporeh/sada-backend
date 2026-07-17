@@ -8,7 +8,8 @@ from django.shortcuts import get_object_or_404
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.exceptions import ValidationError
-from services import modempay_service
+from services.gateways.registry import get_gateway
+from services.gateways.base import GatewayEventType
 
 
 def success_response(data, message='Success.', status_code=status.HTTP_200_OK):
@@ -35,7 +36,10 @@ def _compute_payout_fees(amount, provider):
     platform_fee = (amount * fee_rate).quantize(Decimal('0.01'))
     pre_provider_net = (amount - platform_fee).quantize(Decimal('0.01'))
 
-    provider_fee = modempay_service.check_transfer_fee(pre_provider_net, provider)
+    # Payouts are modempay-only for now — Stripe (card donations) has no
+    # payout API to a Gambian mobile-money wallet, so there's nothing to
+    # select here yet.
+    provider_fee = get_gateway('modempay').check_transfer_fee(pre_provider_net, provider)
     if provider_fee is None:
         return None, None, None, None
 
@@ -104,7 +108,7 @@ def request_payout(user, validated_data):
     # responses: balance_before - balance_after == amount + fee, the
     # beneficiary receives the full transfer amount) — so what actually
     # leaves payout_balance is net + provider_fee, i.e. pre_provider_net.
-    balance = modempay_service.get_balance()
+    balance = get_gateway('modempay').get_balance()
     if balance is None:
         raise ValidationError('Could not verify payout balance right now. Please try again shortly.')
     payout_balance = Decimal(str(balance.get('payout_balance', 0)))
@@ -131,11 +135,11 @@ def request_payout(user, validated_data):
     # Trigger disbursement — this is async in practice; a "completed" result
     # here (or from DEMO_MODE) is a real terminal state, otherwise ModemPay
     # confirms for real later via the transfer.succeeded/failed webhook.
-    result = modempay_service.request_disbursement(
+    result = get_gateway('modempay').request_disbursement(
         reference=reference,
         net_amount=net,
         phone=validated_data.get('phone', ''),
-        provider=validated_data.get('provider', 'wave'),
+        method=validated_data.get('provider', 'wave'),
         beneficiary_name=user.full_name,
     )
 
@@ -190,39 +194,31 @@ def handle_modempay_webhook(payload, signature):
     acknowledged, not treated as errors) — False only for an invalid
     signature or a referenced donation/payout we can't find.
     """
-    event = modempay_service.verify_and_parse_webhook(payload, signature)
+    event = get_gateway('modempay').verify_webhook(payload, signature)
     if event is None:
         return False
 
-    event_type = event.get('event')
-    data = event.get('payload') or {}
-    metadata = data.get('metadata') or {}
-    provider_ref = data.get('id', '')
-
-    if event_type == 'charge.succeeded':
+    if event.type == GatewayEventType.DONATION_SUCCEEDED:
         from services.donation_service import confirm_donation_by_reference
-        reference = metadata.get('donation_reference')
-        if not reference:
+        if not event.donation_reference:
             return False
-        donation = confirm_donation_by_reference(reference, provider_ref)
+        donation = confirm_donation_by_reference(event.donation_reference, event.provider_reference)
         return donation is not None
 
-    if event_type in ('charge.failed', 'charge.cancelled'):
+    if event.type == GatewayEventType.DONATION_FAILED:
         from services.donation_service import fail_donation_by_reference
-        reference = metadata.get('donation_reference')
-        return bool(reference) and fail_donation_by_reference(reference)
+        return bool(event.donation_reference) and fail_donation_by_reference(event.donation_reference)
 
-    if event_type == 'transfer.succeeded':
+    if event.type == GatewayEventType.PAYOUT_SUCCEEDED:
         from apps.payments.models import Payout
         from emails.tasks import send_payout_update_email_task
-        reference = metadata.get('payout_reference')
         try:
-            payout = Payout.objects.get(reference=reference)
+            payout = Payout.objects.get(reference=event.payout_reference)
         except Payout.DoesNotExist:
             return False
         was_already_completed = payout.status == Payout.Status.COMPLETED
         payout.status = Payout.Status.COMPLETED
-        payout.provider_reference = provider_ref
+        payout.provider_reference = event.provider_reference
         payout.processed_at = timezone.now()
         payout.save()
         # Only email on the transition — the initial request already sent one
@@ -232,12 +228,11 @@ def handle_modempay_webhook(payload, signature):
             send_payout_update_email_task.delay(str(payout.id))
         return True
 
-    if event_type in ('transfer.failed', 'transfer.reversed'):
+    if event.type == GatewayEventType.PAYOUT_FAILED:
         from apps.payments.models import Payout
         from emails.tasks import send_payout_update_email_task
-        reference = metadata.get('payout_reference')
         try:
-            payout = Payout.objects.get(reference=reference)
+            payout = Payout.objects.get(reference=event.payout_reference)
         except Payout.DoesNotExist:
             return False
         was_already_failed = payout.status == Payout.Status.FAILED
@@ -247,6 +242,6 @@ def handle_modempay_webhook(payload, signature):
             send_payout_update_email_task.delay(str(payout.id))
         return True
 
-    # Unhandled event types (customer.*, payment_intent.*, charge.created, ...)
-    # — acknowledge receipt, nothing for us to do.
+    # GatewayEventType.UNHANDLED (customer.*, payment_intent.*, charge.created,
+    # ...) — acknowledge receipt, nothing for us to do.
     return True

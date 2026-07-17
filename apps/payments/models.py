@@ -50,8 +50,10 @@ class Payout(BaseModel):
     class Provider(models.TextChoices):
         # Model-level choices mirror what ModemPay processes generally;
         # which of these are actually payable-out right now is enforced
-        # separately by modempay_service.SUPPORTED_PAYOUT_NETWORKS (wave-only
-        # today — ModemPay's payout docs don't list aps as a transfer network).
+        # separately by get_gateway('modempay').supported_payout_methods
+        # (wave-only today — ModemPay's payout docs don't list aps as a
+        # transfer network). Payouts are modempay-only, full stop — no other
+        # gateway can disburse to a Gambian mobile-money wallet.
         WAVE = 'wave', 'Wave'
         APS = 'aps', 'APS Wallet'
 
@@ -70,8 +72,8 @@ class Payout(BaseModel):
     # Two distinct fees, deliberately kept separate: `fee` is SADA's own cut
     # (PlatformSettings.platform_fee_percent, admin-configurable revenue),
     # `provider_fee` is ModemPay/the mobile money network's real transfer
-    # cost (queried per-payout via modempay_service.check_transfer_fee since
-    # it varies by network/amount). net_amount = amount - fee - provider_fee.
+    # cost (queried per-payout via get_gateway('modempay').check_transfer_fee
+    # since it varies by network/amount). net_amount = amount - fee - provider_fee.
     fee = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     provider_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     net_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)

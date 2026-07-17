@@ -301,3 +301,16 @@ MODEMPAY_PUBLIC_KEY = config('MODEMPAY_PUBLIC_API_KEY', default='')
 MODEMPAY_WEBHOOK_SECRET = config('MODEMPAY_WEBHOOK_SECRET', default='')
 MODEMPAY_MERCHANT_ID = config('MODEMPAY_MERCHANT_ID', default='')
 DEMO_MODE = config('DEMO_MODE', default=True, cast=bool)
+
+# ─── Payment gateways ────────────────────────────────────────────────────────
+# services/gateways/registry.py looks up a gateway's config here by code —
+# enabling/disabling a gateway is a settings change, not a call-site change.
+# ModemPay's own credentials stay in the MODEMPAY_* vars above, read directly
+# by services/modempay_service.py as before; this dict only carries what the
+# registry itself needs (enabled, demo_mode).
+PAYMENT_GATEWAYS = {
+    'modempay': {
+        'enabled': config('MODEMPAY_ENABLED', default=True, cast=bool),
+        'demo_mode': DEMO_MODE,
+    },
+}

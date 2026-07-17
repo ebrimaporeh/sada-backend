@@ -72,27 +72,28 @@ def create_donation(donor, validated_data):
 
 
 def _initiate_payment(donation):
-    """Create the ModemPay payment intent for a donation. Returns the hosted
-    payment_link, or None (and marks the donation FAILED) if it couldn't be created."""
+    """Create the payment intent for a donation via its gateway. Returns the
+    hosted payment_link, or None (and marks the donation FAILED) if it
+    couldn't be created."""
     from django.conf import settings
-    from services import modempay_service
+    from services.gateways.registry import get_gateway
 
     frontend_url = getattr(settings, 'FRONTEND_URL', '').rstrip('/')
     slug = donation.campaign.slug
     return_url = f'{frontend_url}/donate/{slug}/success?ref={donation.payment_reference}&amount={donation.amount}'
     cancel_url = f'{frontend_url}/donate/{slug}'
 
-    result = modempay_service.create_payment_intent(donation, return_url=return_url, cancel_url=cancel_url)
+    gateway = get_gateway(donation.gateway)
+    intent = gateway.create_payment_intent(donation, return_url=return_url, cancel_url=cancel_url)
 
-    if not result or not result.get('status'):
+    if intent is None:
         donation.status = donation.Status.FAILED
         donation.save(update_fields=['status'])
         return None
 
-    data = result.get('data', {})
-    donation.provider_reference = data.get('intent_secret', '')
+    donation.provider_reference = intent.provider_reference
     donation.save(update_fields=['provider_reference'])
-    return data.get('payment_link')
+    return intent.payment_link
 
 
 @transaction.atomic
@@ -208,7 +209,7 @@ def reconcile_donation_by_reference(reference):
     updated) donation, or None if the reference doesn't exist.
     """
     from apps.donations.models import Donation
-    from services import modempay_service
+    from services.gateways.registry import get_gateway
 
     try:
         donation = Donation.objects.get(payment_reference=reference)
@@ -218,7 +219,8 @@ def reconcile_donation_by_reference(reference):
     if donation.status != Donation.Status.PENDING or not donation.provider_reference:
         return donation
 
-    intent = modempay_service.retrieve_payment_intent(donation.provider_reference)
+    gateway = get_gateway(donation.gateway)
+    intent = gateway.retrieve_payment_intent(donation.provider_reference)
     if not intent:
         return donation
 

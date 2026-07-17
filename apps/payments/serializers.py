@@ -22,13 +22,15 @@ class PayoutCreateSerializer(serializers.ModelSerializer):
         return value
 
     def validate_provider(self, value):
-        # ModemPay's mobile-money payout API only supports these two
-        # networks — Payout.Provider has more choices for historical reasons
-        # (shared with Donation/Payment), but only these can actually be paid out.
-        from services.modempay_service import SUPPORTED_PAYOUT_NETWORKS
-        if value not in SUPPORTED_PAYOUT_NETWORKS:
+        # Payouts are modempay-only (Stripe/card donations have no payout
+        # path to a Gambian mobile-money wallet) — Payout.Provider has more
+        # choices for historical reasons (shared with Donation/Payment), but
+        # only modempay's supported networks can actually be paid out.
+        from services.gateways.registry import get_gateway
+        supported = get_gateway('modempay').supported_payout_methods
+        if value not in supported:
             raise serializers.ValidationError(
-                f'Withdrawals are only supported via {" or ".join(sorted(SUPPORTED_PAYOUT_NETWORKS))} at this time.'
+                f'Withdrawals are only supported via {" or ".join(sorted(supported))} at this time.'
             )
         return value
 
@@ -38,10 +40,11 @@ class PayoutFeePreviewSerializer(serializers.Serializer):
     provider = serializers.CharField()
 
     def validate_provider(self, value):
-        from services.modempay_service import SUPPORTED_PAYOUT_NETWORKS
-        if value not in SUPPORTED_PAYOUT_NETWORKS:
+        from services.gateways.registry import get_gateway
+        supported = get_gateway('modempay').supported_payout_methods
+        if value not in supported:
             raise serializers.ValidationError(
-                f'Withdrawals are only supported via {" or ".join(sorted(SUPPORTED_PAYOUT_NETWORKS))} at this time.'
+                f'Withdrawals are only supported via {" or ".join(sorted(supported))} at this time.'
             )
         return value
 
