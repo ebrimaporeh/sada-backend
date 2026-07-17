@@ -7,5 +7,8 @@ urlpatterns = [
     path('payouts/fee-preview/', views.PayoutFeePreviewView.as_view(), name='payout-fee-preview'),
     path('payouts/<slug:slug>/', views.MyCampaignPayoutListView.as_view(), name='campaign-payouts'),
     path('settings/', views.PlatformSettingsView.as_view(), name='platform-settings'),
-    path('webhook/modempay/', views.ModemPayWebhookView.as_view(), name='modempay-webhook'),
+    # Matches the existing /payments/webhook/modempay/ path unchanged (no
+    # dashboard config to update) and resolves any future gateway's webhook
+    # (e.g. /payments/webhook/stripe/) at the same route with no URL change.
+    path('webhook/<str:gateway_code>/', views.GatewayWebhookView.as_view(), name='gateway-webhook'),
 ]

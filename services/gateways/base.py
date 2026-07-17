@@ -53,6 +53,10 @@ class PaymentGateway(ABC):
     """
     code = ''
     supports_payouts = False
+    # The HTTP header a webhook's signature arrives in — gateways don't
+    # agree on a name (ModemPay: x-modem-signature, Stripe: Stripe-Signature),
+    # so the generic webhook view reads this rather than hardcoding one.
+    signature_header = ''
 
     def __init__(self, config):
         self.config = config

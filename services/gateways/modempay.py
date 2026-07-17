@@ -13,6 +13,7 @@ from .base import PaymentGateway, GatewayIntent, GatewayEvent, GatewayEventType
 class ModemPayGateway(PaymentGateway):
     code = 'modempay'
     supports_payouts = True
+    signature_header = 'x-modem-signature'
 
     def create_payment_intent(self, donation, return_url='', cancel_url=''):
         result = modempay_service.create_payment_intent(donation, return_url=return_url, cancel_url=cancel_url)

@@ -185,16 +185,28 @@ def get_campaign_payouts(user, slug):
     return Payout.objects.filter(campaign=campaign).order_by('-created_at')
 
 
-def handle_modempay_webhook(payload, signature):
-    """Verify and process an incoming ModemPay webhook: confirm/fail a donation or payout.
+def handle_webhook(gateway_code, payload, headers):
+    """Verify and process an incoming webhook from any gateway: confirm/fail
+    a donation or payout. Gateway-agnostic — dispatches on the normalized
+    GatewayEvent each gateway's own verify_webhook() produces, never on that
+    gateway's raw event-name vocabulary, so adding a gateway here means
+    adding a class in services/gateways/, not a new branch in this function.
 
-    `payload` is the raw parsed request body (dict); `signature` is the
-    `x-modem-signature` header. Returns True if the signature was valid and
-    the event was handled or safely ignored (unknown event types are
-    acknowledged, not treated as errors) — False only for an invalid
-    signature or a referenced donation/payout we can't find.
+    `payload` is the raw parsed request body (dict); `headers` is the
+    request's header mapping — this function reads whichever header the
+    resolved gateway's signature actually arrives in. Returns True if the
+    signature was valid and the event was handled or safely ignored (unknown
+    event types are acknowledged, not treated as errors) — False for an
+    unknown/disabled gateway code, an invalid signature, or a referenced
+    donation/payout we can't find.
     """
-    event = get_gateway('modempay').verify_webhook(payload, signature)
+    try:
+        gateway = get_gateway(gateway_code)
+    except ValidationError:
+        return False
+
+    signature = headers.get(gateway.signature_header, '') if gateway.signature_header else ''
+    event = gateway.verify_webhook(payload, signature)
     if event is None:
         return False
 

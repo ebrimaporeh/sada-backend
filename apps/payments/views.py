@@ -77,17 +77,20 @@ class PlatformSettingsView(APIView):
         return payment_service.success_response(serializer.data, message='Platform settings updated.')
 
 
-class ModemPayWebhookView(APIView):
+class GatewayWebhookView(APIView):
+    """Generic payment-gateway webhook receiver — /payments/webhook/<gateway_code>/.
+    One view for every gateway; which one is resolved from the URL and
+    handed to payment_service.handle_webhook(), which looks up that
+    gateway's own signature header and event vocabulary via the registry."""
     permission_classes = [AllowAny]
     # Server-to-server traffic authenticated by signature, not by IP-based
     # anon throttling meant for public users — a busy day of donations
-    # shouldn't risk ModemPay's callbacks getting 429'd.
+    # shouldn't risk a gateway's callbacks getting 429'd.
     throttle_classes = []
 
-    @extend_schema(summary='ModemPay payment webhook', exclude=True)
-    def post(self, request):
-        signature = request.headers.get('x-modem-signature', '')
-        result = payment_service.handle_modempay_webhook(request.data, signature)
+    @extend_schema(summary='Payment gateway webhook', exclude=True)
+    def post(self, request, gateway_code):
+        result = payment_service.handle_webhook(gateway_code, request.data, request.headers)
         if result:
             return payment_service.success_response({}, message='Webhook processed.')
         return Response({'error': 'Invalid webhook'}, status=status.HTTP_400_BAD_REQUEST)

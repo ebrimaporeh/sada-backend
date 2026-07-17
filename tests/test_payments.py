@@ -89,7 +89,7 @@ class DonationCreateGatewayTest(APITestCase):
 
 
 class DonationWebhookGatewayTest(APITestCase):
-    """Exercises the full chain: view -> payment_service.handle_modempay_webhook
+    """Exercises the full chain: view -> payment_service.handle_webhook
     -> registry.get_gateway('modempay') -> ModemPayGateway.verify_webhook
     -> _normalize_event -> donation_service, with only the SDK boundary
     (modempay_service.verify_and_parse_webhook) mocked."""
@@ -105,7 +105,7 @@ class DonationWebhookGatewayTest(APITestCase):
             gateway='modempay',
             status=Donation.Status.PENDING,
         )
-        self.url = reverse('modempay-webhook')
+        self.url = reverse('gateway-webhook', kwargs={'gateway_code': 'modempay'})
 
     @patch('services.modempay_service.verify_and_parse_webhook')
     def test_charge_succeeded_confirms_donation_via_gateway_abstraction(self, mock_verify):
@@ -147,6 +147,27 @@ class DonationWebhookGatewayTest(APITestCase):
         response = self.client.post(self.url, {'any': 'payload'}, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
+    def test_literal_modempay_path_still_resolves(self):
+        # The dashboard-registered webhook URL never changes even though the
+        # route is now generic — this pins the exact path, not just the name.
+        self.assertEqual(self.url, '/api/v1/payments/webhook/modempay/')
+
+
+class GatewayWebhookRoutingTest(APITestCase):
+    """The route itself is generic (/payments/webhook/<gateway_code>/) —
+    these don't touch ModemPay at all, just the URL/dispatch layer."""
+
+    def test_unknown_gateway_code_returns_400_not_500(self):
+        url = reverse('gateway-webhook', kwargs={'gateway_code': 'not-a-real-gateway'})
+        response = self.client.post(url, {'any': 'payload'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_disabled_gateway_returns_400(self):
+        url = reverse('gateway-webhook', kwargs={'gateway_code': 'modempay'})
+        with self.settings(PAYMENT_GATEWAYS={'modempay': {'enabled': False, 'demo_mode': True}}):
+            response = self.client.post(url, {'any': 'payload'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
 
 class PayoutWebhookGatewayTest(APITestCase):
     def setUp(self):
@@ -161,7 +182,7 @@ class PayoutWebhookGatewayTest(APITestCase):
             reference='PO-TEST123',
             status=Payout.Status.PROCESSING,
         )
-        self.url = reverse('modempay-webhook')
+        self.url = reverse('gateway-webhook', kwargs={'gateway_code': 'modempay'})
 
     @patch('services.modempay_service.verify_and_parse_webhook')
     def test_transfer_succeeded_completes_payout(self, mock_verify):
