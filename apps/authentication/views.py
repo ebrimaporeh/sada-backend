@@ -171,7 +171,7 @@ class GoogleOAuthView(APIView):
         google_data = verify_google_token(id_token_str)
 
         # Get or create user
-        user = get_or_create_google_user(google_data)
+        user = get_or_create_google_user(google_data, account_type=serializer.validated_data.get('account_type'))
 
         # Generate JWT tokens
         tokens = auth_service._get_tokens_for_user(user)

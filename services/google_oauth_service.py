@@ -48,12 +48,16 @@ def verify_google_token(id_token_str: str) -> dict:
         raise ValidationError(f'Token verification failed: {str(e)}')
 
 
-def get_or_create_google_user(google_data: dict) -> User:
+def get_or_create_google_user(google_data: dict, account_type: str = None) -> User:
     """
     Get or create a user from Google OAuth data.
 
     Args:
         google_data: dict with 'email', 'name', 'google_sub' keys
+        account_type: User.AccountType value — only consulted when this call
+            creates a brand-new user (e.g. from the signup page's
+            account-type toggle); ignored for an existing user, who keeps
+            whatever account_type they already have.
 
     Returns:
         User instance
@@ -66,32 +70,41 @@ def get_or_create_google_user(google_data: dict) -> User:
         raise ValidationError('Email not provided by Google.')
 
     google_sub = google_data.get('google_sub')
+    name_parts = google_data.get('name', '').split()
 
-    # Get or create user
-    user, created = User.objects.get_or_create(
-        email=email,
-        defaults={
-            'first_name': google_data.get('name', '').split()[0],
-            'last_name': ' '.join(google_data.get('name', '').split()[1:]),
-            'email_verified': True,  # Google verifies emails
-            # is_verified is identity (government ID) verification — a
-            # separate manual process regardless of signup method. Google
-            # proves email ownership only, not who someone actually is.
-            'google_sub': google_sub,
-        }
-    )
+    from django.db import transaction
+    with transaction.atomic():
+        user, created = User.objects.get_or_create(
+            email=email,
+            defaults={
+                'first_name': name_parts[0] if name_parts else '',
+                'last_name': ' '.join(name_parts[1:]),
+                'email_verified': True,  # Google verifies emails
+                # is_verified is identity (government ID) verification — a
+                # separate manual process regardless of signup method. Google
+                # proves email ownership only, not who someone actually is.
+                'google_sub': google_sub,
+                'account_type': account_type or User.AccountType.INDIVIDUAL,
+            }
+        )
 
-    if created:
-        # Otherwise this is left as '', which has_usable_password() treats
-        # as a usable (empty) password rather than "no password set".
-        user.set_unusable_password()
-        user.save(update_fields=['password'])
-    elif google_sub and user.google_sub != google_sub:
-        # An existing email/password account signing in via Google for the
-        # first time — link it the same way an explicit "Connect Google"
-        # action would.
-        user.google_sub = google_sub
-        user.save(update_fields=['google_sub'])
+        if created:
+            # Otherwise this is left as '', which has_usable_password() treats
+            # as a usable (empty) password rather than "no password set".
+            user.set_unusable_password()
+            user.save(update_fields=['password'])
+
+            if user.account_type == User.AccountType.ORGANIZATION:
+                # Google gives us no org details at all — every field is
+                # filled in later during onboarding.
+                from apps.users.models import Organization
+                Organization.objects.create(user=user)
+        elif google_sub and user.google_sub != google_sub:
+            # An existing email/password account signing in via Google for the
+            # first time — link it the same way an explicit "Connect Google"
+            # action would.
+            user.google_sub = google_sub
+            user.save(update_fields=['google_sub'])
 
     # Update last login
     from django.utils import timezone
