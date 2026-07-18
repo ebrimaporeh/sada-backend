@@ -12,6 +12,18 @@ from .serializers import (
 import services.payment_service as payment_service
 
 
+class GatewayListView(APIView):
+    """Which payment gateways/methods are currently enabled — the donation
+    and withdrawal forms build their provider picker from this instead of a
+    hardcoded frontend constant, so enabling Stripe (or disabling it) is a
+    backend settings change, not a frontend deploy."""
+    permission_classes = [AllowAny]
+
+    @extend_schema(summary='List enabled payment gateways', responses={200: None})
+    def get(self, request):
+        return payment_service.success_response({'gateways': payment_service.list_enabled_gateways()})
+
+
 class PayoutRequestView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -90,7 +102,10 @@ class GatewayWebhookView(APIView):
 
     @extend_schema(summary='Payment gateway webhook', exclude=True)
     def post(self, request, gateway_code):
-        result = payment_service.handle_webhook(gateway_code, request.data, request.headers)
+        # The raw body, not the DRF-parsed request.data — signature
+        # verification (Stripe's especially) is computed over the exact
+        # bytes sent, which a re-serialized dict isn't guaranteed to match.
+        result = payment_service.handle_webhook(gateway_code, request.body, request.headers)
         if result:
             return payment_service.success_response({}, message='Webhook processed.')
         return Response({'error': 'Invalid webhook'}, status=status.HTTP_400_BAD_REQUEST)

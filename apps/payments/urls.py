@@ -2,6 +2,7 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
+    path('gateways/', views.GatewayListView.as_view(), name='gateway-list'),
     path('payouts/', views.PayoutRequestView.as_view(), name='payout-request'),
     # Must come before the <slug:slug>/ catch-all below, or it'd swallow this.
     path('payouts/fee-preview/', views.PayoutFeePreviewView.as_view(), name='payout-fee-preview'),

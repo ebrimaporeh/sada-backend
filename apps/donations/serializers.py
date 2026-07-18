@@ -16,7 +16,7 @@ class DonationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Donation
         fields = [
-            'id', 'amount', 'currency', 'provider', 'phone', 'status',
+            'id', 'amount', 'currency', 'gateway', 'provider', 'phone', 'status',
             'is_anonymous', 'message', 'fee', 'net_amount',
             'donor_name', 'campaign_title', 'campaign_slug',
             'payment_reference', 'paid_at', 'created_at',
@@ -28,10 +28,13 @@ class DonationSerializer(serializers.ModelSerializer):
 
 class DonationCreateSerializer(serializers.ModelSerializer):
     campaign_id = serializers.UUIDField(write_only=True)
+    # Not model-reflected on purpose: no choices= here, since gateways are
+    # registered in services/gateways/registry.py, not a fixed enum.
+    gateway = serializers.CharField(required=False, default='modempay')
 
     class Meta:
         model = Donation
-        fields = ['campaign_id', 'amount', 'provider', 'phone', 'is_anonymous', 'message', 'donor_name']
+        fields = ['campaign_id', 'amount', 'gateway', 'provider', 'phone', 'is_anonymous', 'message', 'donor_name']
 
     def validate_amount(self, value):
         if value < 5:
@@ -43,11 +46,27 @@ class DonationCreateSerializer(serializers.ModelSerializer):
             )
         return value
 
+    def validate_gateway(self, value):
+        from services.gateways.registry import get_gateway
+        get_gateway(value)  # raises ValidationError if unknown/disabled
+        return value
+
     def validate_phone(self, value):
+        if not value:
+            return value
         digits = value.replace('+', '').replace(' ', '')
         if not digits.isdigit():
             raise serializers.ValidationError('Invalid phone number.')
         return value
+
+    def validate(self, data):
+        from services.gateways.registry import get_gateway
+        gateway = get_gateway(data.get('gateway') or 'modempay')
+        if gateway.default_method:
+            data['provider'] = gateway.default_method
+        if gateway.requires_phone and not data.get('phone'):
+            raise serializers.ValidationError({'phone': 'Phone number is required for this payment method.'})
+        return data
 
 
 class AdminDonationSerializer(serializers.ModelSerializer):
@@ -59,7 +78,7 @@ class AdminDonationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Donation
         fields = [
-            'id', 'amount', 'currency', 'provider', 'phone', 'status',
+            'id', 'amount', 'currency', 'gateway', 'provider', 'phone', 'status',
             'is_anonymous', 'message', 'fee', 'net_amount',
             'donor_name', 'donor_email', 'campaign_title', 'payment_reference',
             'provider_reference', 'paid_at', 'created_at',
@@ -88,6 +107,8 @@ class AdminDonationUpdateSerializer(serializers.ModelSerializer):
         return value
 
     def validate_phone(self, value):
+        if not value:
+            return value
         digits = value.replace('+', '').replace(' ', '')
         if not digits.isdigit():
             raise serializers.ValidationError('Invalid phone number.')

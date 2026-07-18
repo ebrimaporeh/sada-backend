@@ -32,11 +32,32 @@ class ModemPayGateway(PaymentGateway):
     def retrieve_payment_intent(self, provider_reference):
         return modempay_service.retrieve_payment_intent(provider_reference)
 
+    def intent_status(self, intent):
+        # Raw values: initialized/processing/requires_payment_method/
+        # successful/failed/cancelled.
+        raw = (intent or {}).get('status')
+        if raw == 'successful':
+            return 'successful'
+        if raw in ('failed', 'cancelled'):
+            return 'failed'
+        return 'pending'
+
     def verify_webhook(self, payload, signature):
+        # payload is the raw request body (bytes) — pass it through as a
+        # string rather than a re-serialized dict, so the HMAC modempay
+        # computes matches the exact bytes it originally signed.
+        if isinstance(payload, bytes):
+            payload = payload.decode('utf-8')
         event = modempay_service.verify_and_parse_webhook(payload, signature)
         if event is None:
             return None
         return _normalize_event(event)
+
+    @property
+    def supported_donation_methods(self):
+        # wave/aps are the only two Donation.Provider choices ModemPay's
+        # checkout actually offers — card isn't in this set (that's Stripe's).
+        return {'wave', 'aps'}
 
     @property
     def supported_payout_methods(self):

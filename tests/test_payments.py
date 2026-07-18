@@ -46,10 +46,68 @@ class GatewayRegistryTest(APITestCase):
             with self.assertRaises(ValidationError):
                 get_gateway('modempay')
 
-    def test_registry_holds_only_modempay_for_now(self):
-        # Stripe is a later phase — this pins the registry's current
-        # contents so adding it is a visible, deliberate diff.
-        self.assertEqual(set(GATEWAYS.keys()), {'modempay'})
+    def test_registry_holds_modempay_and_stripe(self):
+        # Pins the registry's current contents so adding another gateway
+        # later is a visible, deliberate diff.
+        self.assertEqual(set(GATEWAYS.keys()), {'modempay', 'stripe'})
+
+    def test_stripe_gateway_is_donation_only(self):
+        from services.gateways.stripe_gateway import StripeGateway
+        with self.settings(PAYMENT_GATEWAYS={
+            'modempay': {'enabled': True, 'demo_mode': True},
+            'stripe': {'enabled': True, 'secret_key': 'sk_test', 'webhook_secret': 'whsec_test', 'currency': 'usd'},
+        }):
+            gateway = get_gateway('stripe')
+            self.assertIsInstance(gateway, StripeGateway)
+            self.assertFalse(gateway.supports_payouts)
+            self.assertEqual(gateway.default_currency, 'usd')
+            self.assertEqual(gateway.default_method, 'card')
+            self.assertFalse(gateway.requires_phone)
+
+    def test_stripe_disabled_by_default(self):
+        # STRIPE_ENABLED defaults to False — a fresh deploy without Stripe
+        # env vars configured shouldn't accidentally expose the gateway.
+        with self.settings(PAYMENT_GATEWAYS={'stripe': {'enabled': False}}):
+            with self.assertRaises(ValidationError):
+                get_gateway('stripe')
+
+
+class GatewayListViewTest(APITestCase):
+    """The frontend builds its provider picker from GET /payments/gateways/
+    instead of a hardcoded constant — this pins that contract."""
+
+    def test_lists_only_enabled_gateways(self):
+        with self.settings(PAYMENT_GATEWAYS={'modempay': {'enabled': True, 'demo_mode': True}}):
+            response = self.client.get('/api/v1/payments/gateways/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        gateways = response.data['data']['gateways']
+        self.assertEqual([g['code'] for g in gateways], ['modempay'])
+        modempay = gateways[0]
+        self.assertTrue(modempay['supports_payouts'])
+        self.assertTrue(modempay['requires_phone'])
+        self.assertIsNone(modempay['default_method'])
+        self.assertEqual(set(modempay['donation_methods']), {'wave', 'aps'})
+        self.assertEqual(set(modempay['payout_methods']), {'wave'})
+
+    def test_lists_both_when_stripe_enabled(self):
+        with self.settings(PAYMENT_GATEWAYS={
+            'modempay': {'enabled': True, 'demo_mode': True},
+            'stripe': {'enabled': True, 'secret_key': 'sk_test', 'webhook_secret': 'whsec_test', 'currency': 'usd'},
+        }):
+            response = self.client.get('/api/v1/payments/gateways/')
+        gateways = response.data['data']['gateways']
+        self.assertEqual({g['code'] for g in gateways}, {'modempay', 'stripe'})
+        stripe = next(g for g in gateways if g['code'] == 'stripe')
+        self.assertFalse(stripe['supports_payouts'])
+        self.assertFalse(stripe['requires_phone'])
+        self.assertEqual(stripe['default_method'], 'card')
+        self.assertEqual(stripe['donation_methods'], ['card'])
+        self.assertEqual(stripe['payout_methods'], [])
+
+    def test_no_auth_required(self):
+        # Donors picking a payment method aren't logged in yet.
+        response = self.client.get('/api/v1/payments/gateways/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
 
 class DonationCreateGatewayTest(APITestCase):
@@ -86,6 +144,41 @@ class DonationCreateGatewayTest(APITestCase):
         self.assertIsNone(payment_link)
         donation.refresh_from_db()
         self.assertEqual(donation.status, Donation.Status.FAILED)
+
+    def _stripe_settings(self):
+        return {
+            'modempay': {'enabled': True, 'demo_mode': True},
+            'stripe': {'enabled': True, 'secret_key': 'sk_test', 'webhook_secret': 'whsec_test', 'currency': 'usd'},
+        }
+
+    @patch('services.stripe_service.create_checkout_session')
+    def test_create_donation_via_stripe_gateway_charges_in_stripe_currency(self, mock_create):
+        mock_create.return_value = {'id': 'cs_test_123', 'url': 'https://checkout.stripe.com/pay/cs_test_123'}
+        with self.settings(PAYMENT_GATEWAYS=self._stripe_settings()):
+            donation, payment_link = donation_service.create_donation(None, {
+                'campaign_id': self.campaign.id,
+                'amount': Decimal('25.00'),
+                'gateway': 'stripe',
+                'provider': 'card',
+                'phone': '',
+            })
+        self.assertEqual(donation.gateway, 'stripe')
+        # Server-resolved from the gateway's own config, not the client.
+        self.assertEqual(donation.currency, 'usd')
+        self.assertEqual(payment_link, 'https://checkout.stripe.com/pay/cs_test_123')
+        self.assertEqual(donation.provider_reference, 'cs_test_123')
+        mock_create.assert_called_once()
+
+    def test_create_donation_rejects_disabled_stripe_gateway(self):
+        with self.settings(PAYMENT_GATEWAYS={'stripe': {'enabled': False}}):
+            with self.assertRaises(ValidationError):
+                donation_service.create_donation(None, {
+                    'campaign_id': self.campaign.id,
+                    'amount': Decimal('25.00'),
+                    'gateway': 'stripe',
+                    'provider': 'card',
+                    'phone': '',
+                })
 
 
 class DonationWebhookGatewayTest(APITestCase):
@@ -151,6 +244,209 @@ class DonationWebhookGatewayTest(APITestCase):
         # The dashboard-registered webhook URL never changes even though the
         # route is now generic — this pins the exact path, not just the name.
         self.assertEqual(self.url, '/api/v1/payments/webhook/modempay/')
+
+
+class StripeWebhookGatewayTest(APITestCase):
+    """Mirrors DonationWebhookGatewayTest for the Stripe gateway — exercises
+    the same view -> handle_webhook -> registry -> StripeGateway.verify_webhook
+    -> _normalize_event -> donation_service chain, mocking only the SDK
+    boundary (stripe_service.verify_and_parse_webhook)."""
+
+    def setUp(self):
+        self.campaign = make_campaign()
+        self.donation = Donation.objects.create(
+            campaign=self.campaign,
+            amount=Decimal('25.00'),
+            currency='usd',
+            provider='card',
+            phone='',
+            payment_reference='SD-STRIPE1',
+            gateway='stripe',
+            status=Donation.Status.PENDING,
+        )
+        self.url = reverse('gateway-webhook', kwargs={'gateway_code': 'stripe'})
+        self.stripe_settings = {
+            'modempay': {'enabled': True, 'demo_mode': True},
+            'stripe': {'enabled': True, 'secret_key': 'sk_test', 'webhook_secret': 'whsec_test', 'currency': 'usd'},
+        }
+
+    @patch('services.stripe_service.verify_and_parse_webhook')
+    def test_checkout_session_completed_confirms_donation(self, mock_verify):
+        mock_verify.return_value = {
+            'type': 'checkout.session.completed',
+            'data': {'object': {
+                'id': 'cs_test_123',
+                'payment_status': 'paid',
+                'metadata': {'donation_reference': 'SD-STRIPE1'},
+            }},
+        }
+        with self.settings(PAYMENT_GATEWAYS=self.stripe_settings):
+            response = self.client.post(self.url, {'any': 'payload'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.donation.refresh_from_db()
+        self.campaign.refresh_from_db()
+        self.assertEqual(self.donation.status, Donation.Status.PAID)
+        self.assertEqual(self.donation.provider_reference, 'cs_test_123')
+        self.assertEqual(self.campaign.raised, Decimal('25.00'))
+
+    @patch('services.stripe_service.verify_and_parse_webhook')
+    def test_checkout_session_expired_fails_donation(self, mock_verify):
+        mock_verify.return_value = {
+            'type': 'checkout.session.expired',
+            'data': {'object': {
+                'id': 'cs_test_456',
+                'metadata': {'donation_reference': 'SD-STRIPE1'},
+            }},
+        }
+        with self.settings(PAYMENT_GATEWAYS=self.stripe_settings):
+            response = self.client.post(self.url, {'any': 'payload'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.donation.refresh_from_db()
+        self.assertEqual(self.donation.status, Donation.Status.FAILED)
+
+    @patch('services.stripe_service.verify_and_parse_webhook')
+    def test_invalid_stripe_signature_returns_400(self, mock_verify):
+        mock_verify.return_value = None
+        with self.settings(PAYMENT_GATEWAYS=self.stripe_settings):
+            response = self.client.post(self.url, {'any': 'payload'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @patch('services.stripe_service.verify_and_parse_webhook')
+    def test_unhandled_stripe_event_is_acknowledged(self, mock_verify):
+        mock_verify.return_value = {'type': 'payment_intent.created', 'data': {'object': {}}}
+        with self.settings(PAYMENT_GATEWAYS=self.stripe_settings):
+            response = self.client.post(self.url, {'any': 'payload'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def _real_signed_event(self, secret, event_type, session_object):
+        """Builds a schema-complete Stripe Event payload and signs it with
+        the real v1 HMAC-SHA256 scheme construct_event() verifies — this
+        test doesn't mock stripe_service at all, so it exercises the actual
+        cryptographic check, not just the dispatch logic around it."""
+        import time, hmac, hashlib, json
+        payload = json.dumps({
+            'id': 'evt_test_real',
+            'object': 'event',
+            'api_version': '2026-06-24.dahlia',
+            'created': int(time.time()),
+            'livemode': False,
+            'pending_webhooks': 0,
+            'request': {'id': None, 'idempotency_key': None},
+            'type': event_type,
+            'data': {'object': session_object},
+        }).encode('utf-8')
+        timestamp = int(time.time())
+        signed_payload = f'{timestamp}.'.encode() + payload
+        signature = hmac.new(secret.encode(), signed_payload, hashlib.sha256).hexdigest()
+        return payload, f't={timestamp},v1={signature}'
+
+    def test_real_signature_verification_confirms_donation(self):
+        # No mocking of stripe_service — this is the actual construct_event()
+        # HMAC-SHA256 check running against a self-signed synthetic payload.
+        webhook_secret = 'whsec_real_test_secret'
+        payload, sig_header = self._real_signed_event(webhook_secret, 'checkout.session.completed', {
+            'id': 'cs_test_real_1',
+            'object': 'checkout.session',
+            'payment_status': 'paid',
+            'metadata': {'donation_reference': 'SD-STRIPE1'},
+        })
+        settings_with_secret = {
+            **self.stripe_settings,
+            'stripe': {**self.stripe_settings['stripe'], 'webhook_secret': webhook_secret},
+        }
+        with self.settings(PAYMENT_GATEWAYS=settings_with_secret):
+            response = self.client.post(
+                self.url, data=payload, content_type='application/json',
+                HTTP_STRIPE_SIGNATURE=sig_header,
+            )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.donation.refresh_from_db()
+        self.assertEqual(self.donation.status, Donation.Status.PAID)
+
+    def test_real_signature_verification_rejects_tampered_signature(self):
+        webhook_secret = 'whsec_real_test_secret'
+        payload, _ = self._real_signed_event(webhook_secret, 'checkout.session.completed', {
+            'id': 'cs_test_real_2',
+            'object': 'checkout.session',
+            'payment_status': 'paid',
+            'metadata': {'donation_reference': 'SD-STRIPE1'},
+        })
+        settings_with_secret = {
+            **self.stripe_settings,
+            'stripe': {**self.stripe_settings['stripe'], 'webhook_secret': webhook_secret},
+        }
+        with self.settings(PAYMENT_GATEWAYS=settings_with_secret):
+            response = self.client.post(
+                self.url, data=payload, content_type='application/json',
+                HTTP_STRIPE_SIGNATURE='t=1,v1=deadbeef',
+            )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.donation.refresh_from_db()
+        self.assertEqual(self.donation.status, Donation.Status.PENDING)
+
+
+class ReconcileDonationGatewayTest(APITestCase):
+    """donation_service.reconcile_donation_by_reference is the fallback path
+    (webhook missed/delayed, or unreachable in local dev) — exercises it
+    against both gateways' own status vocabulary via intent_status()."""
+
+    def setUp(self):
+        self.campaign = make_campaign()
+
+    @patch('services.modempay_service.retrieve_payment_intent')
+    def test_reconciles_successful_modempay_intent(self, mock_retrieve):
+        donation = Donation.objects.create(
+            campaign=self.campaign, amount=Decimal('100.00'), provider='wave',
+            phone='+2207000000', payment_reference='SD-RECON1', gateway='modempay',
+            provider_reference='sec_abc', status=Donation.Status.PENDING,
+        )
+        mock_retrieve.return_value = {'status': 'successful', 'id': 'ch_final'}
+        result = donation_service.reconcile_donation_by_reference('SD-RECON1')
+        self.assertEqual(result.status, Donation.Status.PAID)
+        self.assertEqual(result.provider_reference, 'ch_final')
+
+    @patch('services.modempay_service.retrieve_payment_intent')
+    def test_reconciles_failed_modempay_intent(self, mock_retrieve):
+        Donation.objects.create(
+            campaign=self.campaign, amount=Decimal('100.00'), provider='wave',
+            phone='+2207000000', payment_reference='SD-RECON2', gateway='modempay',
+            provider_reference='sec_abc', status=Donation.Status.PENDING,
+        )
+        mock_retrieve.return_value = {'status': 'cancelled', 'id': 'ch_final'}
+        result = donation_service.reconcile_donation_by_reference('SD-RECON2')
+        self.assertEqual(result.status, Donation.Status.FAILED)
+
+    @patch('services.stripe_service.retrieve_checkout_session')
+    def test_reconciles_successful_stripe_intent(self, mock_retrieve):
+        donation = Donation.objects.create(
+            campaign=self.campaign, amount=Decimal('25.00'), currency='usd', provider='card',
+            phone='', payment_reference='SD-RECON3', gateway='stripe',
+            provider_reference='cs_test_1', status=Donation.Status.PENDING,
+        )
+        mock_retrieve.return_value = {'status': 'complete', 'payment_status': 'paid', 'id': 'cs_test_1'}
+        with self.settings(PAYMENT_GATEWAYS={
+            'modempay': {'enabled': True, 'demo_mode': True},
+            'stripe': {'enabled': True, 'secret_key': 'sk_test', 'webhook_secret': 'whsec_test', 'currency': 'usd'},
+        }):
+            result = donation_service.reconcile_donation_by_reference('SD-RECON3')
+        self.assertEqual(result.status, Donation.Status.PAID)
+
+    @patch('services.stripe_service.retrieve_checkout_session')
+    def test_reconciles_expired_stripe_intent(self, mock_retrieve):
+        Donation.objects.create(
+            campaign=self.campaign, amount=Decimal('25.00'), currency='usd', provider='card',
+            phone='', payment_reference='SD-RECON4', gateway='stripe',
+            provider_reference='cs_test_2', status=Donation.Status.PENDING,
+        )
+        mock_retrieve.return_value = {'status': 'expired', 'payment_status': 'unpaid', 'id': 'cs_test_2'}
+        with self.settings(PAYMENT_GATEWAYS={
+            'modempay': {'enabled': True, 'demo_mode': True},
+            'stripe': {'enabled': True, 'secret_key': 'sk_test', 'webhook_secret': 'whsec_test', 'currency': 'usd'},
+        }):
+            result = donation_service.reconcile_donation_by_reference('SD-RECON4')
+        self.assertEqual(result.status, Donation.Status.FAILED)
 
 
 class GatewayWebhookRoutingTest(APITestCase):

@@ -23,7 +23,7 @@ class DonationCreateView(APIView):
         out = DonationSerializer(donation)
         if payment_link is None:
             return donation_service.error_response(
-                'Could not start payment with ModemPay. Please try again.',
+                'Could not start payment. Please try again.',
                 status_code=status.HTTP_502_BAD_GATEWAY,
             )
         return donation_service.success_response(

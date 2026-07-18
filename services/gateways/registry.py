@@ -8,9 +8,11 @@ nothing at any call site changes.
 from django.conf import settings
 from rest_framework.exceptions import ValidationError
 from .modempay import ModemPayGateway
+from .stripe_gateway import StripeGateway
 
 GATEWAYS = {
     'modempay': ModemPayGateway,
+    'stripe': StripeGateway,
 }
 
 _instances = {}

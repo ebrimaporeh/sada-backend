@@ -57,6 +57,22 @@ class PaymentGateway(ABC):
     # agree on a name (ModemPay: x-modem-signature, Stripe: Stripe-Signature),
     # so the generic webhook view reads this rather than hardcoding one.
     signature_header = ''
+    # Whether this gateway needs a phone number to charge (ModemPay's mobile-
+    # money networks do; Stripe's card checkout doesn't) — read by
+    # DonationCreateSerializer so "phone required" isn't hardcoded to one
+    # gateway there either.
+    requires_phone = True
+    # The currency this gateway actually settles in, server-side — not
+    # client-controlled. GMD for ModemPay; Stripe doesn't support GMD as a
+    # settlement currency at all, so a Stripe donation is charged in
+    # whatever PAYMENT_GATEWAYS['stripe']['currency'] is configured to.
+    default_currency = 'GMD'
+    # If a gateway only ever offers one payment method (Stripe: card),
+    # DonationCreateSerializer fills `provider` in with this automatically
+    # instead of trusting the client to pair gateway+provider correctly.
+    # None for gateways with more than one method (ModemPay: wave or aps),
+    # where the donor's choice is meaningful and required.
+    default_method = None
 
     def __init__(self, config):
         self.config = config
@@ -72,9 +88,26 @@ class PaymentGateway(ABC):
         gateway — used to reconcile a donation when a webhook is missed."""
 
     @abstractmethod
+    def intent_status(self, intent) -> str:
+        """Normalize a retrieve_payment_intent() result to one of
+        'successful' / 'failed' / 'pending' — each gateway has its own raw
+        status vocabulary (ModemPay: successful/failed/cancelled/...;
+        Stripe: a status + a separate payment_status), so callers doing
+        reconciliation dispatch on this instead of a gateway-specific string."""
+
+    @abstractmethod
     def verify_webhook(self, payload, signature) -> GatewayEvent | None:
         """Verify an incoming webhook's signature and return a normalized
         GatewayEvent, or None if the signature/payload is invalid."""
+
+    @property
+    def supported_donation_methods(self) -> set:
+        """Payment methods this gateway can charge a donation through
+        (ModemPay: wave/aps; Stripe: card) — read by GatewayListView so the
+        frontend can build its provider picker from actual server config
+        instead of a hand-maintained constant. Defaults to {default_method}
+        for a single-method gateway; override for a multi-method one."""
+        return {self.default_method} if self.default_method else set()
 
     @property
     def supported_payout_methods(self) -> set:

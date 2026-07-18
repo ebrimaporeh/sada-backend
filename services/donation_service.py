@@ -19,22 +19,28 @@ def error_response(message, errors=None, status_code=status.HTTP_400_BAD_REQUEST
 
 
 def create_donation(donor, validated_data):
-    """Create a PENDING donation and start a ModemPay payment intent for it.
+    """Create a PENDING donation and start a payment intent for it with
+    whichever gateway validated_data['gateway'] names (modempay by default).
 
-    Returns (donation, payment_link). payment_link is the ModemPay-hosted
-    checkout URL the frontend must redirect the donor to — None if the intent
-    could not be created (donation is left FAILED in that case).
+    Returns (donation, payment_link). payment_link is the gateway's hosted
+    checkout URL the frontend must redirect the donor to — None if the
+    intent could not be created (donation is left FAILED in that case).
 
     The campaign row lock only covers the deadline/status check + donation
-    creation; it's released before the ModemPay HTTP call so one donor's
+    creation; it's released before the gateway's HTTP call so one donor's
     request to a provider can't block every other donor to the same campaign.
     Confirmation (and the actual Campaign.raised/donors_count increment)
     happens later, asynchronously, via the webhook -> _confirm_donation.
     """
     from apps.donations.models import Donation
     from apps.campaigns.models import Campaign
+    from services.gateways.registry import get_gateway
 
     campaign_id = validated_data.pop('campaign_id')
+    # Raises ValidationError here (before any lock/DB write) for an unknown
+    # or disabled gateway, rather than creating an orphaned PENDING donation
+    # that _initiate_payment would only discover was unpayable afterward.
+    gateway = get_gateway(validated_data.get('gateway') or 'modempay')
 
     with transaction.atomic():
         # Lock the row so concurrent donations can't both pass the goal check
@@ -63,6 +69,10 @@ def create_donation(donor, validated_data):
             campaign=campaign,
             donor=donor,
             fee=Decimal('0'),
+            # Server-resolved, not client-controlled — Stripe doesn't settle
+            # in GMD at all, so its donations are charged in whatever
+            # PAYMENT_GATEWAYS['stripe']['currency'] is configured to.
+            currency=gateway.default_currency,
             payment_reference=f'SD-{uuid.uuid4().hex[:12].upper()}',
             **validated_data,
         )
@@ -200,7 +210,8 @@ def fail_donation_by_reference(reference):
 
 
 def reconcile_donation_by_reference(reference):
-    """Check ModemPay directly for a donation's real status and confirm/fail it if needed.
+    """Check the donation's own gateway directly for its real status and
+    confirm/fail it if needed.
 
     The webhook is the primary confirmation path, but it can't reach a
     localhost backend at all in dev, and could in principle be missed/delayed
@@ -224,10 +235,10 @@ def reconcile_donation_by_reference(reference):
     if not intent:
         return donation
 
-    intent_status = intent.get('status')
-    if intent_status == 'successful':
+    resolved = gateway.intent_status(intent)
+    if resolved == 'successful':
         return confirm_donation_by_reference(reference, intent.get('id', ''))
-    if intent_status in ('failed', 'cancelled'):
+    if resolved == 'failed':
         fail_donation_by_reference(reference)
         donation.refresh_from_db()
 

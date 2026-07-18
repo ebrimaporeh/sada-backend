@@ -20,6 +20,32 @@ def error_response(message, errors=None, status_code=status.HTTP_400_BAD_REQUEST
     return Response({'success': False, 'message': message, 'errors': errors or {}}, status=status_code)
 
 
+def list_enabled_gateways():
+    """Which gateways are actually usable right now, and what each one
+    supports — the frontend calls this instead of hand-maintaining its own
+    copy of "which providers exist," so enabling/disabling a gateway in
+    settings is immediately reflected in the donation/payout UI with no
+    frontend deploy needed."""
+    from django.conf import settings
+    from services.gateways.registry import GATEWAYS
+
+    result = []
+    for code in GATEWAYS:
+        cfg = settings.PAYMENT_GATEWAYS.get(code, {})
+        if not cfg.get('enabled', False):
+            continue
+        gateway = get_gateway(code)
+        result.append({
+            'code': gateway.code,
+            'supports_payouts': gateway.supports_payouts,
+            'requires_phone': gateway.requires_phone,
+            'default_method': gateway.default_method,
+            'donation_methods': sorted(gateway.supported_donation_methods),
+            'payout_methods': sorted(gateway.supported_payout_methods),
+        })
+    return result
+
+
 def _compute_payout_fees(amount, provider):
     """Shared by request_payout and the fee-preview endpoint, so the preview
     a campaign owner sees always matches what actually gets charged.
@@ -192,9 +218,10 @@ def handle_webhook(gateway_code, payload, headers):
     gateway's raw event-name vocabulary, so adding a gateway here means
     adding a class in services/gateways/, not a new branch in this function.
 
-    `payload` is the raw parsed request body (dict); `headers` is the
-    request's header mapping — this function reads whichever header the
-    resolved gateway's signature actually arrives in. Returns True if the
+    `payload` is the raw request body (bytes) — not request.data — since
+    signature verification is computed over the exact bytes a gateway sent;
+    `headers` is the request's header mapping, used to read whichever header
+    the resolved gateway's signature actually arrives in. Returns True if the
     signature was valid and the event was handled or safely ignored (unknown
     event types are acknowledged, not treated as errors) — False for an
     unknown/disabled gateway code, an invalid signature, or a referenced

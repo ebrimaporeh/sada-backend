@@ -11,11 +11,14 @@ class Donation(BaseModel):
         REFUNDED = 'refunded', 'Refunded'
 
     class Provider(models.TextChoices):
-        # ModemPay is the payment gateway, not itself a provider — these are
-        # the underlying networks it processes payments through. Card is not
-        # supported by ModemPay (confirmed 2026-07-14) — mobile money only.
+        # The payment *method* within whichever gateway processed this
+        # donation (see `gateway` below) — wave/aps are ModemPay's mobile-
+        # money networks; card is Stripe's. ModemPay itself doesn't support
+        # card (confirmed 2026-07-14) — ModemPay donations are always
+        # wave/aps, Stripe donations are always card.
         WAVE = 'wave', 'Wave'
         APS = 'aps', 'APS Wallet'
+        CARD = 'card', 'Card'
 
     campaign = models.ForeignKey(
         'campaigns.Campaign',
@@ -39,7 +42,9 @@ class Donation(BaseModel):
     # enum, so adding one shouldn't require a migration on this field.
     gateway = models.CharField(max_length=20, default='modempay')
     provider = models.CharField(max_length=20, choices=Provider.choices, default=Provider.WAVE)
-    phone = models.CharField(max_length=20)
+    # Blank for card/Stripe donations — only ModemPay's mobile-money methods
+    # need a phone number to charge (see PaymentGateway.requires_phone).
+    phone = models.CharField(max_length=20, blank=True)
     payment_reference = models.CharField(max_length=200, unique=True, null=True, blank=True)
     provider_reference = models.CharField(max_length=200, blank=True)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
@@ -54,7 +59,7 @@ class Donation(BaseModel):
         verbose_name_plural = 'Donations'
 
     def __str__(self):
-        return f'{self.amount} GMD to {self.campaign.title}'
+        return f'{self.amount} {self.currency} to {self.campaign.title}'
 
     @property
     def net_amount(self):
