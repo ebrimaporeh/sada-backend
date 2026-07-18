@@ -64,9 +64,25 @@ class PayoutSerializer(serializers.ModelSerializer):
 class PlatformSettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model = PlatformSettings
-        fields = ['platform_fee_percent']
+        fields = [
+            'platform_fee_percent', 'modempay_enabled', 'stripe_enabled',
+            'stripe_settlement_currency', 'gmd_to_settlement_rate',
+        ]
 
     def validate_platform_fee_percent(self, value):
         if value < 0 or value > 100:
             raise serializers.ValidationError('Platform fee must be between 0 and 100.')
+        return value
+
+    def validate_gmd_to_settlement_rate(self, value):
+        if value <= 0:
+            raise serializers.ValidationError('Exchange rate must be positive.')
+        return value
+
+    def validate_stripe_enabled(self, value):
+        from django.conf import settings
+        if value and not settings.PAYMENT_GATEWAYS.get('stripe', {}).get('secret_key'):
+            raise serializers.ValidationError(
+                'Cannot enable Stripe — STRIPE_SECRET_KEY is not configured on this server.'
+            )
         return value

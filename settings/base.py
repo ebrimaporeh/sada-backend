@@ -303,30 +303,30 @@ MODEMPAY_MERCHANT_ID = config('MODEMPAY_MERCHANT_ID', default='')
 DEMO_MODE = config('DEMO_MODE', default=True, cast=bool)
 
 # ─── Stripe ──────────────────────────────────────────────────────────────────
-# Donation-only — see services/gateways/stripe_gateway.py. Stripe doesn't
-# settle in GMD, so donations through this gateway charge in STRIPE_CURRENCY
-# instead (default usd), not the platform's usual GMD.
+# Donation-only — see services/gateways/stripe_gateway.py. Credentials only;
+# whether the gateway is actually offered, and what currency/exchange rate a
+# GMD donation gets converted at, are admin-editable DB fields on
+# PlatformSettings (stripe_enabled, stripe_settlement_currency,
+# gmd_to_settlement_rate) — not env vars, so an admin can change them at
+# runtime without a deploy. See apps/payments/models.py::PlatformSettings.
 STRIPE_SECRET_KEY = config('STRIPE_SECRET_KEY', default='')
 STRIPE_PUBLISHABLE_KEY = config('STRIPE_PUBLISHABLE_KEY', default='')
 STRIPE_WEBHOOK_SECRET = config('STRIPE_WEBHOOK_SECRET', default='')
-STRIPE_CURRENCY = config('STRIPE_CURRENCY', default='usd')
 
 # ─── Payment gateways ────────────────────────────────────────────────────────
-# services/gateways/registry.py looks up a gateway's config here by code —
-# enabling/disabling a gateway is a settings change, not a call-site change.
-# Each gateway's own credentials stay in its own *_SECRET_KEY-style vars
-# above, read directly by its service module as before; this dict is what
-# the registry itself actually needs to resolve and construct a gateway.
+# services/gateways/registry.py looks up a gateway's config here by code for
+# credentials — whether a gateway is *enabled* is a DB-backed PlatformSettings
+# field (registry._is_enabled), not read from this dict at all. Each
+# gateway's own credentials stay in its own *_SECRET_KEY-style vars above,
+# read directly by its service module as before; this dict is what the
+# registry needs to resolve and construct a gateway instance.
 PAYMENT_GATEWAYS = {
     'modempay': {
-        'enabled': config('MODEMPAY_ENABLED', default=True, cast=bool),
         'demo_mode': DEMO_MODE,
     },
     'stripe': {
-        'enabled': config('STRIPE_ENABLED', default=False, cast=bool),
         'secret_key': STRIPE_SECRET_KEY,
         'publishable_key': STRIPE_PUBLISHABLE_KEY,
         'webhook_secret': STRIPE_WEBHOOK_SECRET,
-        'currency': STRIPE_CURRENCY,
     },
 }

@@ -23,26 +23,31 @@ def error_response(message, errors=None, status_code=status.HTTP_400_BAD_REQUEST
 def list_enabled_gateways():
     """Which gateways are actually usable right now, and what each one
     supports — the frontend calls this instead of hand-maintaining its own
-    copy of "which providers exist," so enabling/disabling a gateway in
-    settings is immediately reflected in the donation/payout UI with no
+    copy of "which providers exist," so an admin flipping a gateway on/off
+    in Settings is immediately reflected in the donation/payout UI with no
     frontend deploy needed."""
-    from django.conf import settings
-    from services.gateways.registry import GATEWAYS
+    from services.gateways.registry import GATEWAYS, _is_enabled
 
     result = []
     for code in GATEWAYS:
-        cfg = settings.PAYMENT_GATEWAYS.get(code, {})
-        if not cfg.get('enabled', False):
+        if not _is_enabled(code):
             continue
         gateway = get_gateway(code)
-        result.append({
+        entry = {
             'code': gateway.code,
             'supports_payouts': gateway.supports_payouts,
             'requires_phone': gateway.requires_phone,
             'default_method': gateway.default_method,
             'donation_methods': sorted(gateway.supported_donation_methods),
             'payout_methods': sorted(gateway.supported_payout_methods),
-        })
+        }
+        # Publishable keys are safe to expose client-side by design (that's
+        # the whole point of the public/secret key split) — the frontend
+        # needs Stripe's to initialize its inline card element.
+        publishable_key = getattr(gateway, 'publishable_key', None)
+        if publishable_key:
+            entry['publishable_key'] = publishable_key
+        result.append(entry)
     return result
 
 

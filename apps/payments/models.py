@@ -99,10 +99,40 @@ class PlatformSettings(BaseModel):
     Donations carry no platform-side fee — donors only pay whatever the
     payment provider (ModemPay) itself charges them directly. This fee is
     taken only when a campaign owner withdraws (Payout), not on donation.
+
+    Gateway on/off switches live here (not env vars) so an admin can flip
+    them at runtime — services/gateways/registry.py reads `<code>_enabled`
+    off this row via getattr(), so adding a new gateway later just means
+    adding one more `<code>_enabled` field here, no registry code change.
+    Credentials (API keys/webhook secrets) stay in env vars regardless —
+    those are secrets, not something that belongs in an admin-editable DB row.
     """
     platform_fee_percent = models.DecimalField(
         max_digits=5, decimal_places=2, default=Decimal('1.00'),
         help_text='Percentage the platform takes from each campaign payout.',
+    )
+    modempay_enabled = models.BooleanField(
+        default=True,
+        help_text='Whether donors/campaign owners can use ModemPay (Wave/APS mobile money).',
+    )
+    stripe_enabled = models.BooleanField(
+        default=False,
+        help_text='Whether donors can pay by card via Stripe. Requires Stripe API keys to '
+                   'already be configured in the environment — this switch only controls '
+                   'whether the (already-configured) gateway is offered.',
+    )
+    # Stripe doesn't support GMD as a settlement currency, so a card donation
+    # is actually charged in this currency instead — converted from the
+    # donor's GMD amount using gmd_to_settlement_rate below.
+    stripe_settlement_currency = models.CharField(
+        max_length=3, default='usd',
+        help_text='Currency Stripe actually charges the card in (Stripe does not support GMD).',
+    )
+    gmd_to_settlement_rate = models.DecimalField(
+        max_digits=10, decimal_places=4, default=Decimal('70.0000'),
+        help_text='How many GMD equal 1 unit of the Stripe settlement currency above — '
+                   'e.g. 70 means D70 = 1 unit. Update this to match the real exchange rate; '
+                   'a stale rate over/undercharges every card donation.',
     )
 
     class Meta:

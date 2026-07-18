@@ -12,8 +12,18 @@ from dataclasses import dataclass, field
 
 @dataclass
 class GatewayIntent:
-    """Result of successfully creating a payment intent with a gateway."""
-    payment_link: str
+    """Result of successfully creating a payment intent with a gateway.
+
+    Exactly one of these two "how the donor actually pays" fields is
+    populated, depending on the gateway's flow:
+    - payment_link: a hosted checkout URL to redirect the donor to
+      (ModemPay's mobile-money checkout).
+    - client_secret: confirmed inline, without leaving the page, via that
+      gateway's own JS SDK (Stripe's Elements card field +
+      stripe.confirmCardPayment()).
+    """
+    payment_link: str = ''
+    client_secret: str = ''
     provider_reference: str = ''
     raw: dict = field(default_factory=dict)
 
@@ -21,7 +31,7 @@ class GatewayIntent:
 class GatewayEventType:
     # The vocabulary payment_service.handle_*_webhook() dispatches on —
     # every gateway's verify_webhook() translates its own event names
-    # (ModemPay's "charge.succeeded", Stripe's "checkout.session.completed",
+    # (ModemPay's "charge.succeeded", Stripe's "payment_intent.succeeded",
     # ...) into these, so the dispatch logic never has to know which
     # gateway produced the event.
     DONATION_SUCCEEDED = 'donation_succeeded'
@@ -65,7 +75,8 @@ class PaymentGateway(ABC):
     # The currency this gateway actually settles in, server-side — not
     # client-controlled. GMD for ModemPay; Stripe doesn't support GMD as a
     # settlement currency at all, so a Stripe donation is charged in
-    # whatever PAYMENT_GATEWAYS['stripe']['currency'] is configured to.
+    # whatever PlatformSettings.stripe_settlement_currency an admin has
+    # configured (see StripeGateway.default_currency).
     default_currency = 'GMD'
     # If a gateway only ever offers one payment method (Stripe: card),
     # DonationCreateSerializer fills `provider` in with this automatically
@@ -80,7 +91,11 @@ class PaymentGateway(ABC):
     @abstractmethod
     def create_payment_intent(self, donation, return_url='', cancel_url='') -> GatewayIntent | None:
         """Start a payment for `donation`. Returns None (donation should be
-        marked FAILED by the caller) if the intent could not be created."""
+        marked FAILED by the caller) if the intent could not be created.
+
+        `return_url`/`cancel_url` are only meaningful for a redirect-flow
+        gateway (ModemPay) — a gateway confirmed inline (Stripe) ignores
+        them, since the donor never navigates away."""
 
     @abstractmethod
     def retrieve_payment_intent(self, provider_reference) -> dict | None:
