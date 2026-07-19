@@ -39,6 +39,10 @@ def create_payment_intent(donation, currency, amount_minor):
             api_key=_secret_key(),
             amount=amount_minor,
             currency=currency,
+            # Card only, deliberately — automatic_payment_methods would let
+            # Stripe also offer Link, Cash App Pay, Amazon Pay, etc. (any
+            # method enabled on the dashboard), which is more than this
+            # donation flow wants: a single, minimal card form.
             payment_method_types=['card'],
             description=f'Donation to {donation.campaign.title}',
             receipt_email=donation.donor.email if donation.donor and donation.donor.email else None,
