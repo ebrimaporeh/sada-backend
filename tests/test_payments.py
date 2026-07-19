@@ -138,16 +138,6 @@ class GatewayListViewTest(APITestCase):
         self.assertEqual(stripe['donation_methods'], ['card'])
         self.assertEqual(stripe['payout_methods'], [])
         self.assertEqual(stripe['publishable_key'], 'pk_test')
-        self.assertEqual(stripe['settlement_currency'], 'usd')
-        self.assertIn('gmd_to_settlement_rate', stripe)
-
-    def test_modempay_entry_has_no_settlement_fields(self):
-        # Only Stripe needs currency conversion — modempay charges GMD
-        # directly, so it shouldn't carry these keys at all.
-        response = self.client.get('/api/v1/payments/gateways/')
-        modempay = response.data['data']['gateways'][0]
-        self.assertNotIn('settlement_currency', modempay)
-        self.assertNotIn('gmd_to_settlement_rate', modempay)
 
     def test_no_auth_required(self):
         # Donors picking a payment method aren't logged in yet.

@@ -47,15 +47,6 @@ def list_enabled_gateways():
         publishable_key = getattr(gateway, 'publishable_key', None)
         if publishable_key:
             entry['publishable_key'] = publishable_key
-        # Neither the settlement currency nor the exchange rate is a secret —
-        # exposing them lets the frontend mount Stripe Elements' "deferred
-        # intent" mode (an accurate amount/currency before any PaymentIntent
-        # exists yet) without a second round trip. The server still
-        # recomputes the real charge independently at donation-creation time,
-        # so a client can't use this to influence what's actually charged.
-        if code == 'stripe':
-            entry['settlement_currency'] = gateway.default_currency
-            entry['gmd_to_settlement_rate'] = str(gateway.gmd_to_settlement_rate)
         result.append(entry)
     return result
 
