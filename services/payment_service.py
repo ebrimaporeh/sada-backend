@@ -41,12 +41,6 @@ def list_enabled_gateways():
             'donation_methods': sorted(gateway.supported_donation_methods),
             'payout_methods': sorted(gateway.supported_payout_methods),
         }
-        # Publishable keys are safe to expose client-side by design (that's
-        # the whole point of the public/secret key split) — the frontend
-        # needs Stripe's to initialize its inline payment element.
-        publishable_key = getattr(gateway, 'publishable_key', None)
-        if publishable_key:
-            entry['publishable_key'] = publishable_key
         result.append(entry)
     return result
 

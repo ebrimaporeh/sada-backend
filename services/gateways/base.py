@@ -12,18 +12,11 @@ from dataclasses import dataclass, field
 
 @dataclass
 class GatewayIntent:
-    """Result of successfully creating a payment intent with a gateway.
-
-    Exactly one of these two "how the donor actually pays" fields is
-    populated, depending on the gateway's flow:
-    - payment_link: a hosted checkout URL to redirect the donor to
-      (ModemPay's mobile-money checkout).
-    - client_secret: confirmed inline, without leaving the page, via that
-      gateway's own JS SDK (Stripe's Elements card field +
-      stripe.confirmCardPayment()).
-    """
-    payment_link: str = ''
-    client_secret: str = ''
+    """Result of successfully creating a payment intent with a gateway —
+    payment_link is a hosted checkout URL to redirect the donor to (both
+    ModemPay's mobile-money checkout and Stripe's Checkout page work this
+    way)."""
+    payment_link: str
     provider_reference: str = ''
     raw: dict = field(default_factory=dict)
 
@@ -31,7 +24,7 @@ class GatewayIntent:
 class GatewayEventType:
     # The vocabulary payment_service.handle_*_webhook() dispatches on —
     # every gateway's verify_webhook() translates its own event names
-    # (ModemPay's "charge.succeeded", Stripe's "payment_intent.succeeded",
+    # (ModemPay's "charge.succeeded", Stripe's "checkout.session.completed",
     # ...) into these, so the dispatch logic never has to know which
     # gateway produced the event.
     DONATION_SUCCEEDED = 'donation_succeeded'
@@ -92,10 +85,8 @@ class PaymentGateway(ABC):
     def create_payment_intent(self, donation, return_url='', cancel_url='') -> GatewayIntent | None:
         """Start a payment for `donation`. Returns None (donation should be
         marked FAILED by the caller) if the intent could not be created.
-
-        `return_url`/`cancel_url` are only meaningful for a redirect-flow
-        gateway (ModemPay) — a gateway confirmed inline (Stripe) ignores
-        them, since the donor never navigates away."""
+        `return_url`/`cancel_url` are where the donor lands after paying (or
+        cancelling) on the gateway's own hosted checkout page."""
 
     @abstractmethod
     def retrieve_payment_intent(self, provider_reference) -> dict | None:

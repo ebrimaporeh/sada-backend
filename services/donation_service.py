@@ -22,11 +22,9 @@ def create_donation(donor, validated_data):
     """Create a PENDING donation and start a payment intent for it with
     whichever gateway validated_data['gateway'] names (modempay by default).
 
-    Returns (donation, intent_data). intent_data is a dict with whichever of
-    'payment_link' (a hosted checkout URL to redirect to — ModemPay) or
-    'client_secret' (confirmed inline via the gateway's own JS SDK — Stripe)
-    that gateway populated, or None if the intent could not be created
-    (donation is left FAILED in that case).
+    Returns (donation, payment_link). payment_link is the gateway's hosted
+    checkout URL the frontend must redirect the donor to — None if the
+    intent could not be created (donation is left FAILED in that case).
 
     The campaign row lock only covers the deadline/status check + donation
     creation; it's released before the gateway's HTTP call so one donor's
@@ -79,15 +77,14 @@ def create_donation(donor, validated_data):
             **validated_data,
         )
 
-    intent_data = _initiate_payment(donation)
-    return donation, intent_data
+    payment_link = _initiate_payment(donation)
+    return donation, payment_link
 
 
 def _initiate_payment(donation):
-    """Create the payment intent for a donation via its gateway. Returns a
-    dict with whichever of 'payment_link'/'client_secret' that gateway
-    populated, or None (and marks the donation FAILED) if it couldn't be
-    created."""
+    """Create the payment intent for a donation via its gateway. Returns the
+    hosted payment_link, or None (and marks the donation FAILED) if it
+    couldn't be created."""
     from django.conf import settings
     from services.gateways.registry import get_gateway
 
@@ -106,10 +103,7 @@ def _initiate_payment(donation):
 
     donation.provider_reference = intent.provider_reference
     donation.save(update_fields=['provider_reference'])
-    return {
-        'payment_link': intent.payment_link or None,
-        'client_secret': intent.client_secret or None,
-    }
+    return intent.payment_link
 
 
 @transaction.atomic

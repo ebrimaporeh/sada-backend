@@ -17,13 +17,11 @@ def _as_dict(stripe_object):
     return stripe_object.to_dict() if hasattr(stripe_object, 'to_dict') else stripe_object
 
 
-def create_payment_intent(donation, currency, amount_minor):
-    """Create a Stripe PaymentIntent for a donation.
-
-    Unlike Checkout Sessions (a hosted, full-page redirect), a PaymentIntent
-    is confirmed inline — the frontend mounts a Stripe Elements card field
-    directly in the donation page and calls stripe.confirmCardPayment() with
-    the client_secret this returns, so the donor never leaves the site.
+def create_checkout_session(donation, currency, amount_minor, success_url, cancel_url):
+    """Create a Stripe Checkout Session for a donation — a hosted, full-page
+    redirect, same shape as ModemPay's payment_link: the frontend sends the
+    donor to `url`, Stripe collects card details on its own page, and the
+    donor lands back on `success_url`/`cancel_url`.
 
     `amount_minor` is the already-converted, already-minor-unit amount (e.g.
     cents for usd) — conversion from the donor's GMD amount happens once, in
@@ -31,46 +29,50 @@ def create_payment_intent(donation, currency, amount_minor):
     PlatformSettings.gmd_to_settlement_rate, not here, so this function has
     no currency-math opinion of its own to get wrong twice.
 
-    Returns the SDK's PaymentIntent as a plain dict on success (has
-    `client_secret`, `id`, `status`), or None on failure — never raises.
+    Returns the SDK's Session as a plain dict on success (has `id`, `url`),
+    or None on failure — never raises.
     """
     try:
-        intent = stripe.PaymentIntent.create(
+        session = stripe.checkout.Session.create(
             api_key=_secret_key(),
-            amount=amount_minor,
-            currency=currency,
-            # Card only, deliberately — automatic_payment_methods would let
-            # Stripe also offer Link, Cash App Pay, Amazon Pay, etc. (any
-            # method enabled on the dashboard), which is more than this
-            # donation flow wants: a single, minimal card form.
+            mode='payment',
             payment_method_types=['card'],
-            description=f'Donation to {donation.campaign.title}',
-            receipt_email=donation.donor.email if donation.donor and donation.donor.email else None,
+            line_items=[{
+                'price_data': {
+                    'currency': currency,
+                    'unit_amount': amount_minor,
+                    'product_data': {'name': f'Donation to {donation.campaign.title}'},
+                },
+                'quantity': 1,
+            }],
             # How the async webhook matches this event back to our donation —
             # authoritative, same pattern as ModemPay's donation_reference.
             metadata={'donation_reference': donation.payment_reference},
+            customer_email=donation.donor.email if donation.donor and donation.donor.email else None,
+            success_url=success_url,
+            cancel_url=cancel_url,
         )
-        return _as_dict(intent)
+        return _as_dict(session)
     except stripe.error.StripeError as e:
         logger.error(
-            'Stripe create_payment_intent failed for donation %s: %s',
+            'Stripe create_checkout_session failed for donation %s: %s',
             donation.payment_reference, e,
         )
         return None
 
 
-def retrieve_payment_intent(intent_id):
-    """Fetch a PaymentIntent's current status directly from Stripe — used to
-    reconcile a donation when a webhook is missed. Returns the raw
-    PaymentIntent dict (status: requires_payment_method/requires_action/
-    processing/succeeded/canceled/...), or None on failure."""
-    if not intent_id:
+def retrieve_checkout_session(session_id):
+    """Fetch a Checkout Session's current status directly from Stripe —
+    used to reconcile a donation when a webhook is missed. Returns the raw
+    Session dict (has payment_status: 'paid'/'unpaid'/'no_payment_required'),
+    or None on failure."""
+    if not session_id:
         return None
     try:
-        intent = stripe.PaymentIntent.retrieve(intent_id, api_key=_secret_key())
-        return _as_dict(intent)
+        session = stripe.checkout.Session.retrieve(session_id, api_key=_secret_key())
+        return _as_dict(session)
     except stripe.error.StripeError as e:
-        logger.error('Stripe retrieve_payment_intent failed: %s', e)
+        logger.error('Stripe retrieve_checkout_session failed: %s', e)
         return None
 
 

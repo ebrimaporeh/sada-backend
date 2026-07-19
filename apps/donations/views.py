@@ -19,18 +19,17 @@ class DonationCreateView(APIView):
         serializer = DonationCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         donor = request.user if request.user.is_authenticated else None
-        donation, intent_data = donation_service.create_donation(donor, serializer.validated_data)
+        donation, payment_link = donation_service.create_donation(donor, serializer.validated_data)
         out = DonationSerializer(donation)
-        if intent_data is None:
+        if payment_link is None:
             return donation_service.error_response(
                 'Could not start payment. Please try again.',
                 status_code=status.HTTP_502_BAD_GATEWAY,
             )
-        # payment_link (redirect gateways) and client_secret (gateways
-        # confirmed inline, e.g. Stripe) are mutually exclusive — only
-        # whichever one the gateway actually populated is non-null here.
-        response_data = {'donation': out.data, **{k: v for k, v in intent_data.items() if v is not None}}
-        return donation_service.success_response(response_data, status_code=status.HTTP_201_CREATED)
+        return donation_service.success_response(
+            {'donation': out.data, 'payment_link': payment_link},
+            status_code=status.HTTP_201_CREATED,
+        )
 
 
 class DonationVerifyView(APIView):
