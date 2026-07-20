@@ -281,10 +281,15 @@ def delete_campaign_update(campaign, update_id, user):
 def _notify_donors_of_update(campaign, update):
     from apps.donations.models import Donation
     from apps.notifications.models import Notification
-    donor_users = (
+    # Donation's default ordering (-created_at) leaks into a
+    # .values_list().distinct() query -- Django adds created_at to the
+    # SELECT DISTINCT list to satisfy the implied ORDER BY, so this was
+    # deduping on (donor_id, created_at) instead of donor_id alone, and a
+    # donor with more than one paid donation got notified once per donation.
+    # set() in Python is always correct regardless of DB backend/ordering.
+    donor_users = set(
         Donation.objects.filter(campaign=campaign, status=Donation.Status.PAID, donor__isnull=False)
         .values_list('donor', flat=True)
-        .distinct()
     )
     notifications = [
         Notification(
@@ -372,7 +377,15 @@ def get_public_platform_stats():
     )
 
     paid_donations = Donation.objects.filter(status=Donation.Status.PAID, campaign__status__in=ever_public)
-    known_donors = paid_donations.filter(donor__isnull=False).values('donor').distinct().count()
+    # Count(..., distinct=True) rather than .values('donor').distinct().count()
+    # -- the latter silently inflates this count, since Donation's default
+    # ordering (-created_at) gets pulled into the SELECT DISTINCT list to
+    # satisfy the implied ORDER BY, so it was really deduping on
+    # (donor_id, created_at) instead of donor_id alone (same bug fixed in
+    # _notify_donors_of_update above).
+    known_donors = paid_donations.filter(donor__isnull=False).aggregate(
+        c=models.Count('donor', distinct=True),
+    )['c'] or 0
     guest_donations = paid_donations.filter(donor__isnull=True).count()
 
     week_ago = timezone.now() - timedelta(days=7)
