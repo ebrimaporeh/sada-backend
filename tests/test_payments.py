@@ -855,6 +855,51 @@ class RequestPayoutGatewayTest(APITestCase):
             })
 
 
+class AdminDonationCampaignFilterTest(APITestCase):
+    """get_all_donations()'s `campaign` param -- what the admin campaign
+    detail page's Donations tab scopes the list to."""
+
+    def test_filters_to_one_campaign(self):
+        c1 = make_campaign()
+        c2 = make_campaign()
+        Donation.objects.create(
+            campaign=c1, amount=Decimal('50.00'), provider='wave', phone='+2207000000',
+            payment_reference='SD-CAMPFILTER1', gateway='modempay', status=Donation.Status.PAID,
+        )
+        Donation.objects.create(
+            campaign=c2, amount=Decimal('75.00'), provider='wave', phone='+2207000000',
+            payment_reference='SD-CAMPFILTER2', gateway='modempay', status=Donation.Status.PAID,
+        )
+
+        results = list(donation_service.get_all_donations({'campaign': str(c1.id)}))
+        self.assertEqual([d.payment_reference for d in results], ['SD-CAMPFILTER1'])
+
+
+class AdminCampaignPayoutListViewTest(APITestCase):
+    """AdminCampaignPayoutListView / get_admin_campaign_payouts -- the
+    admin campaign detail page's Withdrawals tab, deliberately NOT
+    owner-restricted like get_campaign_payouts() (an admin viewing an
+    arbitrary campaign isn't that campaign's owner)."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user(email='payout-list-owner@example.com', password='pass')
+        self.campaign = make_campaign(owner=self.owner)
+        self.payout = Payout.objects.create(
+            campaign=self.campaign, requested_by=self.owner, amount=Decimal('200.00'),
+            net_amount=Decimal('190.00'), provider='wave', phone='+2207000000',
+            reference='PO-ADMINVIEW1', status=Payout.Status.COMPLETED,
+        )
+
+    def test_endpoint_requires_admin(self):
+        url = f'/api/v1/payments/admin/campaign/{self.campaign.id}/payouts/'
+        response = self.client.get(url)
+        self.assertIn(response.status_code, (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN))
+
+    def test_lists_payouts_for_any_campaign_not_just_owned(self):
+        payouts = payment_service.get_admin_campaign_payouts(self.campaign.id)
+        self.assertEqual(list(payouts), [self.payout])
+
+
 class PayoutFeePreviewSerializerTest(APITestCase):
     def test_fee_preview_rejects_method_not_supported_for_payouts(self):
         response = self.client.get(

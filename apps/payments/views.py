@@ -64,6 +64,19 @@ class MyCampaignPayoutListView(APIView):
         return payment_service.success_response({'payouts': serializer.data})
 
 
+class AdminCampaignPayoutListView(APIView):
+    """Admin view of a specific campaign's payout history -- unlike
+    MyCampaignPayoutListView, not restricted to the campaign's own owner."""
+    permission_classes = [HasResourceAccess]
+    required_resource = Resource.FINANCES
+
+    @extend_schema(summary='[Admin] List payouts for a campaign', responses={200: PayoutSerializer(many=True)})
+    def get(self, request, campaign_id):
+        payouts = payment_service.get_admin_campaign_payouts(campaign_id)
+        serializer = PayoutSerializer(payouts, many=True)
+        return payment_service.success_response({'payouts': serializer.data})
+
+
 class PlatformSettingsView(APIView):
     """Public read — the platform fee is already shown to anonymous
     visitors on the public Terms/Help pages (via the {{platform_fee_percent}}

@@ -386,6 +386,9 @@ def get_all_donations(params=None):
         s = params.get('status')
         if s:
             qs = qs.filter(status=s)
+        campaign_id = params.get('campaign')
+        if campaign_id:
+            qs = qs.filter(campaign_id=campaign_id)
         q = params.get('search')
         if q:
             qs = qs.filter(

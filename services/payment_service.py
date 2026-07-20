@@ -214,6 +214,13 @@ def get_campaign_payouts(user, slug):
     return Payout.objects.filter(campaign=campaign).order_by('-created_at')
 
 
+def get_admin_campaign_payouts(campaign_id):
+    """Admin view of one campaign's payout history -- unlike
+    get_campaign_payouts(), not restricted to the campaign's own owner."""
+    from apps.payments.models import Payout
+    return Payout.objects.filter(campaign_id=campaign_id).order_by('-created_at')
+
+
 def _mark_payout_completed(payout, provider_reference=''):
     """Shared by the transfer.succeeded webhook and reconcile_payout_by_reference
     so both paths resolve a payout out of PROCESSING identically. Only emails
