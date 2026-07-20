@@ -73,6 +73,14 @@ class UserUpdateSerializer(serializers.ModelSerializer):
         ]
 
 
+class DeleteAccountSerializer(serializers.Serializer):
+    # Optional at this layer -- delete_own_account() is what actually
+    # decides whether a password is required (skipped for a Google-only
+    # account with no usable password), since that's account state, not
+    # request-shape validation.
+    password = serializers.CharField(required=False, allow_blank=True, write_only=True)
+
+
 class AdminUserSerializer(serializers.ModelSerializer):
     full_name = serializers.ReadOnlyField()
     avatar = serializers.SerializerMethodField()

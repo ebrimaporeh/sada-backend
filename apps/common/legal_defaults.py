@@ -83,12 +83,12 @@ DEFAULT_PRIVACY_CONTENT = """## What We Collect
 ## Data Retention
 - Account data is retained for as long as your account is active.
 - Donation and withdrawal records are kept for 7 years for financial compliance.
-- You may request deletion of your account by emailing {{contact_email}}. Legally required financial records will be retained even after deletion.
+- You may delete your account at any time from Settings, or by emailing {{contact_email}}. Your personal information is removed; legally required financial records (donations and withdrawals) are retained but no longer linked to your name.
 
 ## Your Rights
 - You may request a copy of the personal data we hold about you.
 - You may correct inaccurate information from your account settings at any time.
-- You may request deletion of your account and associated data.
+- You may delete your account and its personal data at any time from Settings.
 - To exercise any of these rights, email {{contact_email}}.
 
 ## Contact

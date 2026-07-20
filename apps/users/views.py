@@ -16,6 +16,7 @@ from .serializers import (
     IdentityVerificationSerializer, IdentityVerificationCreateSerializer, PublicCampaignerSerializer,
     OrganizationVerificationSerializer, OrganizationVerificationCreateSerializer,
     OrganizationChangeRequestSerializer, OrganizationChangeRequestCreateSerializer,
+    DeleteAccountSerializer,
 )
 
 
@@ -33,6 +34,13 @@ class MeView(generics.RetrieveUpdateAPIView):
 
     def perform_update(self, serializer):
         user_service.update_user(self.request.user, **serializer.validated_data)
+
+    @extend_schema(summary='Delete my account', request=DeleteAccountSerializer)
+    def delete(self, request):
+        serializer = DeleteAccountSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user_service.delete_own_account(request.user, password=serializer.validated_data.get('password', ''))
+        return Response({'success': True, 'message': 'Account deleted.'}, status=status.HTTP_200_OK)
 
 
 @extend_schema(tags=['Users'], summary='Upload my avatar', responses={200: UserSerializer})

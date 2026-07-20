@@ -110,6 +110,87 @@ def update_user(user: User, **data) -> User:
     return user
 
 
+def delete_own_account(user: User, password: str = '') -> None:
+    """Self-service account deletion.
+
+    Doesn't hard-delete the User row: Campaign.owner is CASCADE, so an
+    actual `user.delete()` would destroy every campaign this user owns
+    and, via Donation.campaign's own CASCADE, every donation ever made to
+    them — the Privacy Policy explicitly promises "legally required
+    financial records will be retained even after deletion," so that's
+    not optional. Anonymizes the personally-identifying fields instead
+    and deactivates the account. is_active=False plus an unusable
+    password is enough on its own to lock the account out entirely --
+    SimpleJWT's JWTAuthentication checks is_active on every request, so
+    every existing token stops working immediately, not just future
+    logins.
+
+    Government-issued ID photos submitted for verification have no such
+    retention requirement, so those are deleted outright (file and row),
+    not just unlinked from the user.
+
+    Raises ValidationError if `password` doesn't match — skipped entirely
+    for an account with no usable password (Google-only sign-in), where
+    the caller already being authenticated is the only credential that
+    exists to check.
+    """
+    if user.has_usable_password() and not user.check_password(password):
+        raise ValidationError('Incorrect password.')
+
+    # Sent to the real address before it gets overwritten below.
+    from services import notification_service
+    notification_service.notify_user(
+        user, 'Your account has been deleted',
+        'This confirms your SADA account and personal information have been deleted, '
+        'as requested. Campaign and donation records are retained as required for '
+        'financial record-keeping, with your personal details removed from them.',
+    )
+
+    with transaction.atomic():
+        if user.avatar:
+            user.avatar.delete(save=False)
+
+        for verification in user.verification_requests.all():
+            for field in (verification.id_photo_front, verification.id_photo_back):
+                if field:
+                    field.delete(save=False)
+        user.verification_requests.all().delete()
+
+        for verification in user.organization_verification_requests.all():
+            for field in (
+                verification.contact_id_photo_front, verification.contact_id_photo_back,
+                verification.registration_document, verification.organization_photo,
+            ):
+                if field:
+                    field.delete(save=False)
+        user.organization_verification_requests.all().delete()
+
+        if user.is_organization and hasattr(user, 'organization'):
+            org = user.organization
+            if org.logo:
+                org.logo.delete(save=False)
+            org.organization_name = f'Deleted Organization {user.id}'
+            org.contact_person_name = ''
+            org.phone_2 = ''
+            org.recovery_email_1 = ''
+            org.recovery_email_2 = ''
+            org.save()
+
+        user.email = f'deleted-{user.id}@deleted.sada.gm'
+        user.first_name = 'Deleted'
+        user.last_name = 'User'
+        user.phone = ''
+        user.bio = ''
+        user.region = ''
+        user.avatar = None
+        user.default_payment_provider = ''
+        user.default_payment_phone = ''
+        user.google_sub = None
+        user.is_active = False
+        user.set_unusable_password()
+        user.save()
+
+
 def upload_avatar(user: User, image_file) -> User:
     if not image_file:
         raise ValueError('No image provided.')
