@@ -14,10 +14,20 @@ class RegisterSerializer(serializers.Serializer):
     account_type = serializers.ChoiceField(
         choices=User.AccountType.choices, required=False, default=User.AccountType.INDIVIDUAL,
     )
+    # write_only + popped in validate() -- register_user()/create_user()
+    # don't take this as a User field, RegisterView records it separately
+    # via consent_service once the account actually exists.
+    terms_accepted = serializers.BooleanField(write_only=True)
+
+    def validate_terms_accepted(self, value):
+        if not value:
+            raise serializers.ValidationError('You must accept the Terms of Service to create an account.')
+        return value
 
     def validate(self, data):
         if data['password'] != data.pop('password_confirm'):
             raise serializers.ValidationError({'password_confirm': 'Passwords do not match.'})
+        data.pop('terms_accepted')
         return data
 
     def validate_email(self, value):

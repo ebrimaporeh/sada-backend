@@ -7,7 +7,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 from drf_spectacular.utils import extend_schema
 
-from services import auth_service
+from services import auth_service, consent_service
 from services.google_oauth_service import verify_google_token, get_or_create_google_user, link_google_account
 from apps.users.serializers import UserSerializer
 from throttling.base import LoginThrottle, RegisterThrottle, ResendVerificationThrottle, PasswordResetRequestThrottle
@@ -27,6 +27,7 @@ class RegisterView(APIView):
         serializer = RegisterSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user, tokens = auth_service.register_user(**serializer.validated_data)
+        consent_service.record_terms_acceptance(user, ip_address=consent_service.get_client_ip(request))
         return Response({
             'success': True,
             'message': 'Registration successful. Please verify your email.',
@@ -171,7 +172,13 @@ class GoogleOAuthView(APIView):
         google_data = verify_google_token(id_token_str)
 
         # Get or create user
-        user = get_or_create_google_user(google_data, account_type=serializer.validated_data.get('account_type'))
+        user, created = get_or_create_google_user(google_data, account_type=serializer.validated_data.get('account_type'))
+        if created:
+            # A brand-new account, not a returning user logging back in --
+            # the signup page's Google button is gated behind the same
+            # Terms checkbox as the email/password form, so this is the
+            # equivalent moment to record acceptance for that flow.
+            consent_service.record_terms_acceptance(user, ip_address=consent_service.get_client_ip(request))
 
         # Generate JWT tokens
         tokens = auth_service._get_tokens_for_user(user)

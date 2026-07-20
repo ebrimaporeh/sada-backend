@@ -13,6 +13,7 @@ class RegisterViewTest(APITestCase):
             'password_confirm': 'StrongPass@1',
             'first_name': 'Test',
             'last_name': 'User',
+            'terms_accepted': True,
         }
 
     def test_register_success(self):
@@ -21,6 +22,19 @@ class RegisterViewTest(APITestCase):
         self.assertTrue(response.data['success'])
         self.assertIn('tokens', response.data['data'])
         self.assertTrue(User.objects.filter(email='test@example.com').exists())
+
+    def test_register_records_terms_acceptance(self):
+        from apps.users.models import TermsAcceptance
+        response = self.client.post(self.url, self.valid_data)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        user = User.objects.get(email='test@example.com')
+        self.assertTrue(TermsAcceptance.objects.filter(user=user).exists())
+
+    def test_register_without_accepting_terms_fails(self):
+        data = {**self.valid_data, 'terms_accepted': False}
+        response = self.client.post(self.url, data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(User.objects.filter(email='test@example.com').exists())
 
     def test_register_duplicate_email(self):
         User.objects.create_user(email='test@example.com', password='pass')

@@ -48,7 +48,7 @@ def verify_google_token(id_token_str: str) -> dict:
         raise ValidationError(f'Token verification failed: {str(e)}')
 
 
-def get_or_create_google_user(google_data: dict, account_type: str = None) -> User:
+def get_or_create_google_user(google_data: dict, account_type: str = None) -> tuple[User, bool]:
     """
     Get or create a user from Google OAuth data.
 
@@ -60,7 +60,10 @@ def get_or_create_google_user(google_data: dict, account_type: str = None) -> Us
             whatever account_type they already have.
 
     Returns:
-        User instance
+        (User instance, created) -- `created` is True only when this call
+        made a brand-new account, so callers can tell a first-time Google
+        signup apart from a returning user just logging back in (e.g. to
+        record Terms acceptance once, not on every login).
 
     Raises:
         ValidationError: If email is missing
@@ -111,7 +114,7 @@ def get_or_create_google_user(google_data: dict, account_type: str = None) -> Us
     user.last_login = timezone.now()
     user.save(update_fields=['last_login'])
 
-    return user
+    return user, created
 
 
 def link_google_account(user: User, id_token_str: str) -> User:

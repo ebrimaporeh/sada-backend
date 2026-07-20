@@ -182,6 +182,34 @@ class IdentityVerification(BaseModel):
         return f'{self.user.email} — {self.status}'
 
 
+class TermsAcceptance(BaseModel):
+    """Records that a user explicitly agreed to the Terms of Service (and,
+    via the same signup checkbox, the Privacy Policy it links to) at a
+    specific moment and against a specific version of that content -- so
+    a dispute or regulator asking "did this user actually agree, and to
+    which version" has an answer instead of nothing.
+
+    `terms_version` is a short hash of LegalContent.terms_content's text at
+    acceptance time, not a version *number* -- there's no separate version
+    field on that admin-edited singleton row, and its own updated_at covers
+    all four legal pages (Help/Trust & Safety/Privacy/Terms) at once, so it
+    can't tell you whether the *Terms* text specifically changed. Hashing
+    the actual text pins down exactly what was agreed to regardless of what
+    else on that row was edited before or after.
+    """
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='terms_acceptances')
+    terms_version = models.CharField(max_length=64)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Terms Acceptance'
+        verbose_name_plural = 'Terms Acceptances'
+
+    def __str__(self):
+        return f'{self.user.email} accepted terms {self.terms_version} at {self.created_at}'
+
+
 class Organization(BaseModel):
     """Org-specific profile data for a User with account_type=organization.
     1:1 rather than folded into User directly, since these fields are
