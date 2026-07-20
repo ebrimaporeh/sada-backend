@@ -42,6 +42,21 @@ class ModemPayGateway(PaymentGateway):
             return 'failed'
         return 'pending'
 
+    def resolve_confirmed_reference(self, donation_reference, fallback_reference=''):
+        # The PaymentIntent id (fallback_reference here) is a different
+        # resource than the Transaction reverse_transaction() needs -- look
+        # up the real transaction by the donation_reference metadata stamped
+        # on it at intent-creation time. Falls back to the intent id if no
+        # transaction is found yet, so confirmation still proceeds; a refund
+        # attempted against that stale id will simply fail loudly later.
+        transaction = modempay_service.find_transaction_by_donation_reference(donation_reference)
+        if transaction and transaction.get('id'):
+            return transaction['id']
+        return fallback_reference
+
+    def refund_donation(self, donation):
+        return modempay_service.reverse_transaction(donation.provider_reference)
+
     def verify_webhook(self, payload, signature):
         # payload is the raw request body (bytes) — pass it through as a
         # string rather than a re-serialized dict, so the HMAC modempay

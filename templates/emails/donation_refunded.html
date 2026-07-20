@@ -1,0 +1,24 @@
+{% extends "emails/base.html" %}
+{% block subject %}Your donation was refunded{% endblock %}
+{% block content %}
+<h2 style="margin: 0 0 4px; color: #18181b; font-size: 20px;">Your donation has been refunded</h2>
+<p>Hi {{ donor_name }},</p>
+<p>Your donation to <strong>"{{ campaign_title }}"</strong> has been refunded and the funds are on their way back to you.</p>
+
+<div class="card">
+  <div class="row"><span class="label">Amount refunded</span><span class="value" style="color:#16793a;">D{{ amount }}</span></div>
+  <div class="row"><span class="label">Campaign</span><span class="value">{{ campaign_title }}</span></div>
+  <div class="row"><span class="label">Reference</span><span class="value">{{ payment_reference }}</span></div>
+</div>
+
+{% if reason %}
+<div class="card">
+  <p class="label" style="margin: 0 0 4px;">Reason</p>
+  <p style="margin: 0;">{{ reason }}</p>
+</div>
+{% endif %}
+
+<a href="{{ frontend_url }}/campaigns/{{ campaign_slug }}" class="btn">View Campaign</a>
+
+<p class="muted">Refunds are returned via the same method you paid with and may take a few business days to appear. If you have questions, please contact support and reference the number above.</p>
+{% endblock %}

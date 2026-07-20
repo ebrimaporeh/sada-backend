@@ -77,6 +77,9 @@ class StripeGateway(PaymentGateway):
             return 'failed'
         return 'pending'
 
+    def refund_donation(self, donation):
+        return stripe_service.refund_checkout_session(donation.provider_reference)
+
     def verify_webhook(self, payload, signature):
         # Stripe signs the exact raw bytes it sent — never pass a
         # re-parsed/re-serialized version of the body here.

@@ -255,21 +255,45 @@ class DonationWebhookGatewayTest(APITestCase):
         )
         self.url = reverse('gateway-webhook', kwargs={'gateway_code': 'modempay'})
 
+    @patch('services.modempay_service.find_transaction_by_donation_reference')
     @patch('services.modempay_service.verify_and_parse_webhook')
-    def test_charge_succeeded_confirms_donation_via_gateway_abstraction(self, mock_verify):
+    def test_charge_succeeded_confirms_donation_via_gateway_abstraction(self, mock_verify, mock_find_txn):
+        # ModemPay's PaymentIntent id ('ch_abc' here) and its actual Transaction
+        # id are different resources -- resolve_confirmed_reference() looks up
+        # the real transaction, so provider_reference ends up being ITS id,
+        # not the raw webhook payload's 'id' (see modempay_service.find_transaction_by_donation_reference).
         mock_verify.return_value = {
             'event': 'charge.succeeded',
             'payload': {'id': 'ch_abc', 'metadata': {'donation_reference': 'SD-TEST123'}},
         }
+        mock_find_txn.return_value = {'id': 'txn_real_abc', 'metadata': {'donation_reference': 'SD-TEST123'}}
         response = self.client.post(self.url, {'any': 'payload'}, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         self.donation.refresh_from_db()
         self.campaign.refresh_from_db()
         self.assertEqual(self.donation.status, Donation.Status.PAID)
-        self.assertEqual(self.donation.provider_reference, 'ch_abc')
+        self.assertEqual(self.donation.provider_reference, 'txn_real_abc')
         self.assertEqual(self.campaign.raised, Decimal('200.00'))
         self.assertEqual(self.campaign.donors_count, 1)
+
+    @patch('services.modempay_service.find_transaction_by_donation_reference')
+    @patch('services.modempay_service.verify_and_parse_webhook')
+    def test_charge_succeeded_falls_back_to_intent_id_when_transaction_not_found(self, mock_verify, mock_find_txn):
+        # If ModemPay hasn't recorded the transaction yet (or the lookup
+        # fails), confirmation still proceeds using the intent id rather than
+        # blocking the donor's confirmation on a refund-only lookup.
+        mock_verify.return_value = {
+            'event': 'charge.succeeded',
+            'payload': {'id': 'ch_abc', 'metadata': {'donation_reference': 'SD-TEST123'}},
+        }
+        mock_find_txn.return_value = None
+        response = self.client.post(self.url, {'any': 'payload'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.donation.refresh_from_db()
+        self.assertEqual(self.donation.status, Donation.Status.PAID)
+        self.assertEqual(self.donation.provider_reference, 'ch_abc')
 
     @patch('services.modempay_service.verify_and_parse_webhook')
     def test_charge_failed_fails_donation(self, mock_verify):
@@ -451,17 +475,22 @@ class ReconcileDonationGatewayTest(APITestCase):
     def setUp(self):
         self.campaign = make_campaign()
 
+    @patch('services.modempay_service.find_transaction_by_donation_reference')
     @patch('services.modempay_service.retrieve_payment_intent')
-    def test_reconciles_successful_modempay_intent(self, mock_retrieve):
+    def test_reconciles_successful_modempay_intent(self, mock_retrieve, mock_find_txn):
         donation = Donation.objects.create(
             campaign=self.campaign, amount=Decimal('100.00'), provider='wave',
             phone='+2207000000', payment_reference='SD-RECON1', gateway='modempay',
             provider_reference='sec_abc', status=Donation.Status.PENDING,
         )
         mock_retrieve.return_value = {'status': 'successful', 'id': 'ch_final'}
+        # The intent's own id ('ch_final') is a different resource than the
+        # real Transaction -- resolve_confirmed_reference() looks that up,
+        # so provider_reference ends up being the transaction's id instead.
+        mock_find_txn.return_value = {'id': 'txn_final', 'metadata': {'donation_reference': 'SD-RECON1'}}
         result = donation_service.reconcile_donation_by_reference('SD-RECON1')
         self.assertEqual(result.status, Donation.Status.PAID)
-        self.assertEqual(result.provider_reference, 'ch_final')
+        self.assertEqual(result.provider_reference, 'txn_final')
 
     @patch('services.modempay_service.retrieve_payment_intent')
     def test_reconciles_failed_modempay_intent(self, mock_retrieve):
@@ -505,6 +534,75 @@ class ReconcileDonationGatewayTest(APITestCase):
         }):
             result = donation_service.reconcile_donation_by_reference('SD-RECON4')
         self.assertEqual(result.status, Donation.Status.FAILED)
+
+
+class RefundDonationGatewayTest(APITestCase):
+    """donation_service.refund_donation is the admin-triggered refund
+    execution path — validates PAID-only, calls the gateway's own
+    refund_donation(), and unwinds campaign.raised/donors_count the same
+    way _confirm_donation incremented them."""
+
+    def setUp(self):
+        self.campaign = make_campaign(raised=Decimal('100.00'), donors_count=1)
+        self.donor = User.objects.create_user(email='donor@example.com', password='pass')
+
+    def make_paid_donation(self, reference, **kwargs):
+        defaults = {
+            'campaign': self.campaign, 'donor': self.donor, 'amount': Decimal('100.00'),
+            'provider': 'wave', 'phone': '+2207000000', 'payment_reference': reference,
+            'gateway': 'modempay', 'provider_reference': 'ch_paid123',
+            'status': Donation.Status.PAID,
+        }
+        defaults.update(kwargs)
+        return Donation.objects.create(**defaults)
+
+    @patch('services.modempay_service.reverse_transaction')
+    def test_refunds_paid_modempay_donation(self, mock_reverse):
+        donation = self.make_paid_donation('SD-REFUND1')
+        mock_reverse.return_value = {'id': 'ch_paid123', 'status': 'reversed'}
+
+        result = donation_service.refund_donation(donation, reason='Duplicate charge')
+
+        self.assertEqual(result.status, Donation.Status.REFUNDED)
+        self.assertIsNotNone(result.refunded_at)
+        self.assertEqual(result.refund_reason, 'Duplicate charge')
+        self.campaign.refresh_from_db()
+        self.assertEqual(self.campaign.raised, Decimal('0.00'))
+        self.assertEqual(self.campaign.donors_count, 0)
+
+    @patch('services.modempay_service.reverse_transaction')
+    def test_gateway_decline_raises_and_makes_no_changes(self, mock_reverse):
+        donation = self.make_paid_donation('SD-REFUND2')
+        mock_reverse.return_value = None
+
+        with self.assertRaises(ValidationError):
+            donation_service.refund_donation(donation)
+
+        donation.refresh_from_db()
+        self.assertEqual(donation.status, Donation.Status.PAID)
+        self.campaign.refresh_from_db()
+        self.assertEqual(self.campaign.raised, Decimal('100.00'))
+
+    def test_non_paid_donation_rejected(self):
+        donation = self.make_paid_donation('SD-REFUND3', status=Donation.Status.PENDING)
+        with self.assertRaises(ValidationError):
+            donation_service.refund_donation(donation)
+
+    @patch('services.stripe_service.refund_checkout_session')
+    def test_refunds_paid_stripe_donation(self, mock_refund):
+        donation = self.make_paid_donation(
+            'SD-REFUND4', gateway='stripe', currency='usd', provider='card',
+            phone='', provider_reference='cs_test_paid',
+        )
+        mock_refund.return_value = {'id': 're_abc', 'status': 'succeeded'}
+        set_platform_settings(stripe_enabled=True)
+        with self.settings(PAYMENT_GATEWAYS={
+            'modempay': {'demo_mode': True},
+            'stripe': {'secret_key': 'sk_test', 'webhook_secret': 'whsec_test'},
+        }):
+            result = donation_service.refund_donation(donation)
+        self.assertEqual(result.status, Donation.Status.REFUNDED)
+        mock_refund.assert_called_once_with('cs_test_paid')
 
 
 class ReconcilePayoutGatewayTest(APITestCase):
@@ -561,6 +659,18 @@ class ReconcilePayoutGatewayTest(APITestCase):
     def test_unknown_reference_returns_none(self):
         result = payment_service.reconcile_payout_by_reference('PO-NOPE')
         self.assertIsNone(result)
+
+
+class AdminDonationRefundViewTest(APITestCase):
+    def test_refund_endpoint_requires_admin(self):
+        campaign = make_campaign()
+        donation = Donation.objects.create(
+            campaign=campaign, amount=Decimal('100.00'), provider='wave',
+            phone='+2207000000', payment_reference='SD-VIEWREFUND', gateway='modempay',
+            provider_reference='ch_paid123', status=Donation.Status.PAID,
+        )
+        response = self.client.post(f'/api/v1/donations/admin/{donation.id}/refund/', {})
+        self.assertIn(response.status_code, (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN))
 
 
 class GatewayWebhookRoutingTest(APITestCase):
@@ -653,11 +763,13 @@ class SweepReconciliationTest(APITestCase):
         )
         return payout
 
+    @patch('services.modempay_service.find_transaction_by_donation_reference')
     @patch('services.modempay_service.retrieve_payment_intent')
-    def test_sweep_donations_resolves_stale_pending(self, mock_retrieve):
+    def test_sweep_donations_resolves_stale_pending(self, mock_retrieve, mock_find_txn):
         self.make_stale_donation('SD-SWEEP1', minutes_old=30)
         fresh = self.make_stale_donation('SD-SWEEP2', minutes_old=2)
         mock_retrieve.return_value = {'status': 'successful', 'id': 'ch_final'}
+        mock_find_txn.return_value = None
 
         result = donation_service.sweep_pending_donations(older_than_minutes=15)
 
@@ -667,10 +779,12 @@ class SweepReconciliationTest(APITestCase):
         self.assertEqual(fresh.status, Donation.Status.PENDING)
 
     @patch('services.modempay_service.retrieve_payment_intent')
-    def test_sweep_donations_respects_limit(self, mock_retrieve):
+    @patch('services.modempay_service.find_transaction_by_donation_reference')
+    def test_sweep_donations_respects_limit(self, mock_find_txn, mock_retrieve):
         for i in range(3):
             self.make_stale_donation(f'SD-LIMIT{i}', minutes_old=30)
         mock_retrieve.return_value = {'status': 'successful', 'id': 'ch_final'}
+        mock_find_txn.return_value = None
 
         result = donation_service.sweep_pending_donations(older_than_minutes=15, limit=2)
         self.assertEqual(result['checked'], 2)

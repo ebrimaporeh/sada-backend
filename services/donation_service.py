@@ -192,6 +192,64 @@ def admin_update_donation(donation, validated_data):
     return donation
 
 
+@transaction.atomic
+def refund_donation(donation, reason=''):
+    """Refund a PAID donation via its own gateway and unwind its
+    contribution to the campaign's totals — the reverse of _confirm_donation().
+
+    Re-fetches the donation with a row lock so two concurrent refund
+    attempts on the same donation can't both pass the PAID check before
+    either commits. Raises ValidationError if the donation isn't PAID or
+    the gateway declines the refund (real money reversing — surfaced to the
+    admin, not silently swallowed).
+    """
+    from apps.campaigns.models import Campaign
+    from apps.notifications.models import Notification
+    from services.gateways.registry import get_gateway
+    from emails.tasks import send_donation_refunded_email_task
+
+    donation = donation.__class__.objects.select_for_update().get(pk=donation.pk)
+    if donation.status != donation.Status.PAID:
+        raise ValidationError(f'Only paid donations can be refunded (current status: {donation.status}).')
+
+    gateway = get_gateway(donation.gateway)
+    result = gateway.refund_donation(donation)
+    if result is None:
+        raise ValidationError('Refund could not be processed by the payment provider. Please try again shortly.')
+
+    Campaign.objects.filter(pk=donation.campaign_id).update(
+        raised=F('raised') - donation.net_amount,
+        donors_count=F('donors_count') - 1,
+    )
+
+    donation.status = donation.Status.REFUNDED
+    donation.refunded_at = timezone.now()
+    donation.refund_reason = reason
+    donation.save(update_fields=['status', 'refunded_at', 'refund_reason'])
+    donation.campaign.refresh_from_db()
+
+    Notification.objects.create(
+        user=donation.campaign.owner,
+        notification_type=Notification.Type.DONATION_REFUNDED,
+        title='Donation Refunded',
+        message=f'A donation of D{donation.amount} to "{donation.campaign.title}" was refunded. '
+                f'Your campaign total has been adjusted.',
+        link=f'/my-campaigns/{donation.campaign.slug}',
+    )
+
+    if donation.donor:
+        Notification.objects.create(
+            user=donation.donor,
+            notification_type=Notification.Type.DONATION_REFUNDED,
+            title='Donation Refunded',
+            message=f'Your donation of D{donation.amount} to "{donation.campaign.title}" has been refunded.',
+            link=f'/campaigns/{donation.campaign.slug}',
+        )
+        transaction.on_commit(lambda: send_donation_refunded_email_task.delay(str(donation.id)))
+
+    return donation
+
+
 def confirm_donation_by_reference(reference, provider_reference=''):
     from apps.donations.models import Donation
     try:
@@ -241,7 +299,8 @@ def reconcile_donation_by_reference(reference):
 
     resolved = gateway.intent_status(intent)
     if resolved == 'successful':
-        return confirm_donation_by_reference(reference, intent.get('id', ''))
+        real_reference = gateway.resolve_confirmed_reference(reference, intent.get('id', ''))
+        return confirm_donation_by_reference(reference, real_reference)
     if resolved == 'failed':
         fail_donation_by_reference(reference)
         donation.refresh_from_db()

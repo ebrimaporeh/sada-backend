@@ -81,7 +81,7 @@ class AdminDonationSerializer(serializers.ModelSerializer):
             'id', 'amount', 'currency', 'gateway', 'provider', 'phone', 'status',
             'is_anonymous', 'message', 'fee', 'net_amount',
             'donor_name', 'donor_email', 'campaign_title', 'payment_reference',
-            'provider_reference', 'paid_at', 'created_at',
+            'provider_reference', 'paid_at', 'refunded_at', 'refund_reason', 'created_at',
         ]
 
     def get_donor_name(self, obj):
@@ -113,3 +113,7 @@ class AdminDonationUpdateSerializer(serializers.ModelSerializer):
         if not digits.isdigit():
             raise serializers.ValidationError('Invalid phone number.')
         return value
+
+
+class AdminDonationRefundSerializer(serializers.Serializer):
+    reason = serializers.CharField(required=False, allow_blank=True, default='')

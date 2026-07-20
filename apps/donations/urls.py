@@ -10,4 +10,5 @@ urlpatterns = [
     path('admin/all/', views.AdminDonationListView.as_view(), name='admin-donations'),
     path('admin/stats/', views.AdminDonationStatsView.as_view(), name='admin-donation-stats'),
     path('admin/<uuid:pk>/update/', views.AdminDonationUpdateView.as_view(), name='admin-donation-update'),
+    path('admin/<uuid:pk>/refund/', views.AdminDonationRefundView.as_view(), name='admin-donation-refund'),
 ]

@@ -110,6 +110,23 @@ def send_payout_update_email_task(self, payout_id):
 
 
 @shared_task(**RETRY_KWARGS)
+def send_donation_refunded_email_task(self, donation_id):
+    from apps.donations.models import Donation
+    from emails.service import email_service
+    try:
+        donation = Donation.objects.select_related('campaign', 'donor').get(pk=donation_id)
+    except Donation.DoesNotExist:
+        logger.warning('send_donation_refunded_email_task: donation %s not found', donation_id)
+        return
+    if not donation.donor:
+        return
+    _retry_on_failure(
+        self, email_service.send_donation_refunded_email(donation.donor, donation),
+        f'donation refunded email for donation {donation_id}',
+    )
+
+
+@shared_task(**RETRY_KWARGS)
 def send_verification_reviewed_email_task(self, verification_id):
     from apps.users.models import IdentityVerification
     from emails.service import email_service

@@ -203,6 +203,55 @@ def retrieve_transfer(transfer_id):
         return None
 
 
+def find_transaction_by_donation_reference(payment_reference):
+    """Resolve a donation's real ModemPay Transaction record by the
+    donation_reference stamped in its metadata at intent-creation time.
+
+    ModemPay's PaymentIntent and Transaction are separate resources with
+    separate id spaces -- the intent id retrieve_payment_intent()/webhooks
+    hand back is NOT what transactions.reverse()/retrieve() accept (confirmed
+    against the real API: passing an intent id to either 404s with
+    "Transaction not found"). This is the only reliable way to go from "the
+    donation we know about" to "the transaction ModemPay can actually act
+    on" -- transactions.list()'s search doesn't match on payment_intent_id,
+    only on fields like reference/customer, so this filters the results by
+    metadata match rather than trusting the search itself. Returns the raw
+    Transaction dict, or None if no match is found (e.g. called too soon
+    after a charge, before ModemPay has recorded the transaction).
+    """
+    if not payment_reference:
+        return None
+    try:
+        result = get_client().transactions.list(options={'search': payment_reference, 'limit': 5})
+    except ModemPayError as e:
+        logger.error(
+            'ModemPay find_transaction_by_donation_reference failed: %s (status_code=%s)',
+            e, getattr(e, 'status_code', None),
+        )
+        return None
+    for txn in (result or {}).get('data', []):
+        if (txn.get('metadata') or {}).get('donation_reference') == payment_reference:
+            return txn
+    return None
+
+
+def reverse_transaction(reference):
+    """Refund a ModemPay donation via /v1/transactions/refund. `reference`
+    is the transaction's own id — the same id ModemPay sends in the
+    charge.succeeded webhook payload and that confirm_donation_by_reference
+    stores as donation.provider_reference. Returns the SDK's parsed
+    Transaction dict on success, or None on failure."""
+    if not reference:
+        return None
+    if getattr(settings, 'DEMO_MODE', False):
+        return {'id': reference, 'status': 'reversed'}
+    try:
+        return get_client().transactions.reverse(reference)
+    except ModemPayError as e:
+        logger.error('ModemPay reverse_transaction failed: %s (status_code=%s)', e, getattr(e, 'status_code', None))
+        return None
+
+
 def _local_phone(phone):
     """Strip the +220 country code (and any non-digits) down to the bare
     7-digit local number ModemPay's payout account_number field expects."""

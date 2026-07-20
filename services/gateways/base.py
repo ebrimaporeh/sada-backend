@@ -106,6 +106,26 @@ class PaymentGateway(ABC):
         """Verify an incoming webhook's signature and return a normalized
         GatewayEvent, or None if the signature/payload is invalid."""
 
+    def resolve_confirmed_reference(self, donation_reference, fallback_reference='') -> str:
+        """Once a donation is confirmed PAID, this is the value stored as
+        donation.provider_reference -- and therefore exactly what
+        refund_donation() will later be handed back. Defaults to
+        `fallback_reference` (the intent/session's own id, which is correct
+        for Stripe: refund_donation() resolves the real PaymentIntent from
+        it at refund time anyway). Override when a gateway's payment intent
+        and its actual charge/transaction record are different resources
+        with different ids (see ModemPayGateway)."""
+        return fallback_reference
+
+    @abstractmethod
+    def refund_donation(self, donation) -> dict | None:
+        """Refund a PAID donation's original charge. Required of every
+        donation gateway (unlike the payout-only methods below) — refunding
+        what you charged is a base capability, not something only some
+        gateways support. Returns the gateway's raw refund result on
+        success, or None if the refund could not be processed — never
+        raises."""
+
     @property
     def supported_donation_methods(self) -> set:
         """Payment methods this gateway can charge a donation through

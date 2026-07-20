@@ -11,6 +11,7 @@ class Notification(BaseModel):
         PAYOUT_PROCESSED = 'payout_processed', 'Payout Processed'
         CAMPAIGN_UPDATE = 'campaign_update', 'Campaign Update'
         GOAL_REACHED = 'goal_reached', 'Goal Reached'
+        DONATION_REFUNDED = 'donation_refunded', 'Donation Refunded'
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,

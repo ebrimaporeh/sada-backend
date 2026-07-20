@@ -346,7 +346,8 @@ def handle_webhook(gateway_code, payload, headers):
         from services.donation_service import confirm_donation_by_reference
         if not event.donation_reference:
             return False
-        donation = confirm_donation_by_reference(event.donation_reference, event.provider_reference)
+        real_reference = gateway.resolve_confirmed_reference(event.donation_reference, event.provider_reference)
+        donation = confirm_donation_by_reference(event.donation_reference, real_reference)
         return donation is not None
 
     if event.type == GatewayEventType.DONATION_FAILED:

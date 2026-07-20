@@ -52,6 +52,8 @@ class Donation(BaseModel):
     message = models.TextField(blank=True)
     fee = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     paid_at = models.DateTimeField(null=True, blank=True)
+    refunded_at = models.DateTimeField(null=True, blank=True)
+    refund_reason = models.TextField(blank=True)
 
     class Meta:
         ordering = ['-created_at']

@@ -76,6 +76,32 @@ def retrieve_checkout_session(session_id):
         return None
 
 
+def refund_checkout_session(session_id):
+    """Refund a Stripe donation. donation.provider_reference holds the
+    Checkout Session id (cs_...), but Stripe's refund API needs the
+    underlying PaymentIntent id (pi_...) -- those aren't the same object, so
+    this expands the session to resolve the PaymentIntent before refunding
+    it, rather than requiring a separate stored field. Returns the SDK's
+    Refund dict on success, or None on failure."""
+    if not session_id:
+        return None
+    try:
+        session = stripe.checkout.Session.retrieve(
+            session_id, expand=['payment_intent'], api_key=_secret_key(),
+        )
+        session = _as_dict(session)
+        payment_intent = session.get('payment_intent')
+        pi_id = payment_intent.get('id') if isinstance(payment_intent, dict) else payment_intent
+        if not pi_id:
+            logger.error('Stripe refund_checkout_session failed for session %s: no payment_intent found', session_id)
+            return None
+        refund = stripe.Refund.create(payment_intent=pi_id, api_key=_secret_key())
+        return _as_dict(refund)
+    except stripe.error.StripeError as e:
+        logger.error('Stripe refund_checkout_session failed for session %s: %s', session_id, e)
+        return None
+
+
 def verify_and_parse_webhook(payload, signature, secret=None):
     """Validate an incoming webhook signature and return the parsed Stripe
     Event, or None if invalid. `payload` must be the raw request body

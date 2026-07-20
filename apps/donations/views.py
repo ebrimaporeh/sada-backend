@@ -6,7 +6,10 @@ from pagination.base import StandardResultsPagination
 from permissions.base import HasResourceAccess
 from permissions.roles import Resource
 from throttling.base import DonationCreateThrottle
-from .serializers import DonationSerializer, DonationCreateSerializer, AdminDonationSerializer, AdminDonationUpdateSerializer
+from .serializers import (
+    DonationSerializer, DonationCreateSerializer, AdminDonationSerializer,
+    AdminDonationUpdateSerializer, AdminDonationRefundSerializer,
+)
 import services.donation_service as donation_service
 
 
@@ -116,3 +119,19 @@ class AdminDonationUpdateView(APIView):
         donation = donation_service.admin_update_donation(donation, serializer.validated_data)
         out = AdminDonationSerializer(donation)
         return donation_service.success_response({'donation': out.data})
+
+
+class AdminDonationRefundView(APIView):
+    permission_classes = [HasResourceAccess]
+    required_resource = Resource.DONATIONS
+
+    @extend_schema(summary='[Admin] Refund a paid donation', request=AdminDonationRefundSerializer)
+    def post(self, request, pk):
+        from django.shortcuts import get_object_or_404
+        from .models import Donation
+        donation = get_object_or_404(Donation, pk=pk)
+        serializer = AdminDonationRefundSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        donation = donation_service.refund_donation(donation, reason=serializer.validated_data['reason'])
+        out = AdminDonationSerializer(donation)
+        return donation_service.success_response({'donation': out.data}, message='Donation refunded.')
