@@ -11,7 +11,7 @@ from .models import Campaign, Category, CampaignReport
 from .serializers import (
     CampaignListSerializer, CampaignDetailSerializer, CampaignCreateSerializer,
     CategorySerializer, CampaignUpdateCreateSerializer, CampaignUpdateSerializer,
-    AdminCampaignSerializer, CampaignReportCreateSerializer, CampaignReportSerializer,
+    AdminCampaignListSerializer, AdminCampaignSerializer, CampaignReportCreateSerializer, CampaignReportSerializer,
     AdminCampaignUpdateSerializer, CampaignReportUpdateSerializer,
 )
 import services.campaign_service as campaign_service
@@ -337,12 +337,12 @@ class AdminCampaignListView(APIView):
     permission_classes = [HasResourceAccess]
     required_resource = Resource.CAMPAIGNS_VIEW
 
-    @extend_schema(summary='[Admin] List all campaigns', responses={200: AdminCampaignSerializer(many=True)})
+    @extend_schema(summary='[Admin] List all campaigns', responses={200: AdminCampaignListSerializer(many=True)})
     def get(self, request):
         campaigns = campaign_service.get_all_campaigns(request.query_params)
         paginator = StandardResultsPagination()
         page = paginator.paginate_queryset(campaigns, request)
-        serializer = AdminCampaignSerializer(page, many=True, context={'request': request})
+        serializer = AdminCampaignListSerializer(page, many=True)
         return paginator.get_paginated_response(serializer.data)
 
 

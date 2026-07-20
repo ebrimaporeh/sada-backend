@@ -333,7 +333,9 @@ def create_campaign_report(campaign, user, reason, description, reporter_name=''
 
 def get_all_campaigns(params=None):
     from apps.campaigns.models import Campaign
-    qs = Campaign.objects.select_related('owner', 'category').order_by('-created_at')
+    # AdminCampaignListSerializer only needs category (for category_name) --
+    # owner was only ever needed by the old, heavier serializer this feeds.
+    qs = Campaign.objects.select_related('category').order_by('-created_at')
     if params:
         s = params.get('status')
         if s:

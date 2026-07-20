@@ -215,6 +215,27 @@ class CampaignUpdateCreateSerializer(serializers.ModelSerializer):
         fields = ['title', 'content']
 
 
+class AdminCampaignListSerializer(serializers.ModelSerializer):
+    """Minimal projection for the admin campaigns list table + summary
+    sheet. AdminCampaignSerializer below is what those two only actually
+    need a handful of fields from, but it also serializes full
+    story/images/updates and runs 4 extra aggregate queries per row
+    (reports_count, pending_reports_count, total_withdrawn,
+    available_balance) -- multiplied by every row on the page, that's
+    what was making this list slow. The full projection is still
+    fetched, once, by the admin campaign detail page
+    (AdminCampaignDetailView) for the one campaign actually being
+    viewed."""
+    category_name = serializers.CharField(source='category.name', read_only=True)
+
+    class Meta:
+        model = Campaign
+        fields = [
+            'id', 'title', 'slug', 'status', 'goal', 'raised',
+            'region', 'beneficiary', 'category_name', 'deadline',
+        ]
+
+
 class AdminCampaignSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
     category_slug = serializers.CharField(source='category.slug', read_only=True)
