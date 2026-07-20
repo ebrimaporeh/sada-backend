@@ -1,5 +1,7 @@
+import logging
 import uuid
 import json
+from datetime import timedelta
 from decimal import Decimal
 from django.utils import timezone
 from django.db import transaction
@@ -10,6 +12,8 @@ from rest_framework import status
 from rest_framework.exceptions import ValidationError
 from services.gateways.registry import get_gateway
 from services.gateways.base import GatewayEventType
+
+logger = logging.getLogger(__name__)
 
 
 def success_response(data, message='Success.', status_code=status.HTTP_200_OK):
@@ -210,6 +214,108 @@ def get_campaign_payouts(user, slug):
     return Payout.objects.filter(campaign=campaign).order_by('-created_at')
 
 
+def _mark_payout_completed(payout, provider_reference=''):
+    """Shared by the transfer.succeeded webhook and reconcile_payout_by_reference
+    so both paths resolve a payout out of PROCESSING identically. Only emails
+    on the transition — the initial request already sent one if ModemPay
+    resolved it synchronously; this covers a payout left PROCESSING that only
+    resolves later."""
+    from emails.tasks import send_payout_update_email_task
+
+    was_already_completed = payout.status == payout.Status.COMPLETED
+    payout.status = payout.Status.COMPLETED
+    if provider_reference:
+        payout.provider_reference = provider_reference
+    payout.processed_at = timezone.now()
+    payout.save()
+    if not was_already_completed:
+        send_payout_update_email_task.delay(str(payout.id))
+    return payout
+
+
+def _mark_payout_failed(payout):
+    from emails.tasks import send_payout_update_email_task
+
+    was_already_failed = payout.status == payout.Status.FAILED
+    payout.status = payout.Status.FAILED
+    payout.save(update_fields=['status'])
+    if not was_already_failed:
+        send_payout_update_email_task.delay(str(payout.id))
+    return payout
+
+
+def reconcile_payout_by_reference(reference):
+    """Check a payout's own gateway directly for its real transfer status and
+    complete/fail it if needed.
+
+    Mirrors donation_service.reconcile_donation_by_reference() — the
+    transfer.succeeded/failed webhook is the primary resolution path, but this
+    is the fallback for a payout stuck PROCESSING because a webhook was missed
+    or delayed. Payouts are modempay-only, so this always reconciles against
+    ModemPay regardless of which gateway created the campaign's donations.
+    Safe to call repeatedly: a no-op once the payout is no longer PROCESSING.
+    Returns the (possibly updated) payout, or None if the reference doesn't exist.
+    """
+    from apps.payments.models import Payout
+
+    try:
+        payout = Payout.objects.get(reference=reference)
+    except Payout.DoesNotExist:
+        return None
+
+    if payout.status != Payout.Status.PROCESSING or not payout.provider_reference:
+        return payout
+
+    gateway = get_gateway('modempay')
+    transfer = gateway.retrieve_transfer(payout.provider_reference)
+    if not transfer:
+        return payout
+
+    resolved = gateway.transfer_status(transfer)
+    if resolved == 'successful':
+        return _mark_payout_completed(payout)
+    if resolved == 'failed':
+        return _mark_payout_failed(payout)
+
+    return payout
+
+
+def sweep_processing_payouts(older_than_minutes=30, limit=50):
+    """Reconcile PROCESSING payouts old enough that their transfer webhook
+    should have already arrived. Runs on a periodic schedule (see
+    apps/payments/tasks.py) as the safety net for missed/delayed webhooks.
+
+    Payouts get a longer staleness window than donations
+    (donation_service.sweep_pending_donations) — a mobile-money transfer
+    settling can legitimately take longer than a donor completing checkout.
+    `limit` caps how many payouts one sweep run touches, so a large backlog
+    is worked off over several runs instead of one run making `limit`
+    synchronous gateway calls back-to-back.
+    """
+    from apps.payments.models import Payout
+
+    cutoff = timezone.now() - timedelta(minutes=older_than_minutes)
+    references = list(
+        Payout.objects.filter(
+            status=Payout.Status.PROCESSING,
+            created_at__lt=cutoff,
+        ).order_by('created_at').values_list('reference', flat=True)[:limit]
+    )
+
+    resolved = 0
+    for reference in references:
+        payout = reconcile_payout_by_reference(reference)
+        if payout and payout.status != Payout.Status.PROCESSING:
+            resolved += 1
+
+    if references:
+        logger.info(
+            'sweep_processing_payouts: checked %d, resolved %d, still processing %d',
+            len(references), resolved, len(references) - resolved,
+        )
+    return {'checked': len(references), 'resolved': resolved}
+
+
 def handle_webhook(gateway_code, payload, headers):
     """Verify and process an incoming webhook from any gateway: confirm/fail
     a donation or payout. Gateway-agnostic — dispatches on the normalized
@@ -249,35 +355,20 @@ def handle_webhook(gateway_code, payload, headers):
 
     if event.type == GatewayEventType.PAYOUT_SUCCEEDED:
         from apps.payments.models import Payout
-        from emails.tasks import send_payout_update_email_task
         try:
             payout = Payout.objects.get(reference=event.payout_reference)
         except Payout.DoesNotExist:
             return False
-        was_already_completed = payout.status == Payout.Status.COMPLETED
-        payout.status = Payout.Status.COMPLETED
-        payout.provider_reference = event.provider_reference
-        payout.processed_at = timezone.now()
-        payout.save()
-        # Only email on the transition — the initial request already sent one
-        # if ModemPay resolved it synchronously; this covers the case where
-        # it was left PROCESSING and only resolves later via this webhook.
-        if not was_already_completed:
-            send_payout_update_email_task.delay(str(payout.id))
+        _mark_payout_completed(payout, event.provider_reference)
         return True
 
     if event.type == GatewayEventType.PAYOUT_FAILED:
         from apps.payments.models import Payout
-        from emails.tasks import send_payout_update_email_task
         try:
             payout = Payout.objects.get(reference=event.payout_reference)
         except Payout.DoesNotExist:
             return False
-        was_already_failed = payout.status == Payout.Status.FAILED
-        payout.status = Payout.Status.FAILED
-        payout.save(update_fields=['status'])
-        if not was_already_failed:
-            send_payout_update_email_task.delay(str(payout.id))
+        _mark_payout_failed(payout)
         return True
 
     # GatewayEventType.UNHANDLED (customer.*, payment_intent.*, charge.created,

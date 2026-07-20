@@ -79,6 +79,18 @@ class ModemPayGateway(PaymentGateway):
             currency=currency,
         )
 
+    def retrieve_transfer(self, provider_reference):
+        return modempay_service.retrieve_transfer(provider_reference)
+
+    def transfer_status(self, transfer):
+        # Transfer.status is Literal['pending', 'completed', 'failed', 'cancelled'].
+        raw = (transfer or {}).get('status')
+        if raw == 'completed':
+            return 'successful'
+        if raw in ('failed', 'cancelled'):
+            return 'failed'
+        return 'pending'
+
 
 def _normalize_event(event) -> GatewayEvent:
     event_type = event.get('event')

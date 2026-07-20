@@ -127,3 +127,14 @@ class PaymentGateway(ABC):
 
     def request_disbursement(self, reference, net_amount, phone, method, beneficiary_name, currency='GMD'):
         raise NotImplementedError(f'{self.code} does not support payouts.')
+
+    def retrieve_transfer(self, provider_reference) -> dict | None:
+        """Fetch a payout transfer's current status directly from the
+        gateway — used to reconcile a payout stuck PROCESSING when the
+        success/failure webhook is missed or delayed."""
+        raise NotImplementedError(f'{self.code} does not support payouts.')
+
+    def transfer_status(self, transfer) -> str:
+        """Normalize a retrieve_transfer() result to 'successful' / 'failed'
+        / 'pending', same contract as intent_status() for donations."""
+        raise NotImplementedError(f'{self.code} does not support payouts.')

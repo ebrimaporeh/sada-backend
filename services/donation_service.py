@@ -1,4 +1,6 @@
+import logging
 import uuid
+from datetime import timedelta
 from decimal import Decimal
 from django.utils import timezone
 from django.db import transaction
@@ -8,6 +10,8 @@ from django.http import Http404
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.exceptions import ValidationError
+
+logger = logging.getLogger(__name__)
 
 
 def success_response(data, message='Success.', status_code=status.HTTP_200_OK):
@@ -243,6 +247,41 @@ def reconcile_donation_by_reference(reference):
         donation.refresh_from_db()
 
     return donation
+
+
+def sweep_pending_donations(older_than_minutes=15, limit=50):
+    """Reconcile PENDING donations old enough that their webhook should have
+    already arrived. Runs on a periodic schedule (see apps/donations/tasks.py)
+    as the safety net for missed/delayed webhooks — the same fallback
+    reconcile_donation_by_reference() provides on-demand, just self-triggered
+    instead of waiting for a donor to check their status.
+
+    `limit` caps how many donations one sweep run touches, so a large backlog
+    is worked off over several runs rather than one run making `limit`
+    synchronous gateway calls back-to-back.
+    """
+    from apps.donations.models import Donation
+
+    cutoff = timezone.now() - timedelta(minutes=older_than_minutes)
+    references = list(
+        Donation.objects.filter(
+            status=Donation.Status.PENDING,
+            created_at__lt=cutoff,
+        ).order_by('created_at').values_list('payment_reference', flat=True)[:limit]
+    )
+
+    resolved = 0
+    for reference in references:
+        donation = reconcile_donation_by_reference(reference)
+        if donation and donation.status != Donation.Status.PENDING:
+            resolved += 1
+
+    if references:
+        logger.info(
+            'sweep_pending_donations: checked %d, resolved %d, still pending %d',
+            len(references), resolved, len(references) - resolved,
+        )
+    return {'checked': len(references), 'resolved': resolved}
 
 
 def get_user_donations(user):

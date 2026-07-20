@@ -189,6 +189,20 @@ def request_disbursement(reference, net_amount, phone, provider, beneficiary_nam
         return None
 
 
+def retrieve_transfer(transfer_id):
+    """Fetch a transfer's current status directly from ModemPay — used to
+    reconcile a payout stuck PROCESSING when the transfer.succeeded/failed
+    webhook is missed or delayed. Returns the raw Transfer dict (status:
+    pending/completed/failed/cancelled), or None on failure."""
+    if not transfer_id:
+        return None
+    try:
+        return get_client().transfers.retrieve(transfer_id)
+    except ModemPayError as e:
+        logger.error('ModemPay retrieve_transfer failed: %s (status_code=%s)', e, getattr(e, 'status_code', None))
+        return None
+
+
 def _local_phone(phone):
     """Strip the +220 country code (and any non-digits) down to the bare
     7-digit local number ModemPay's payout account_number field expects."""

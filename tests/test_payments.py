@@ -1,6 +1,8 @@
+from datetime import timedelta
 from decimal import Decimal
 from unittest.mock import patch
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 from rest_framework.exceptions import ValidationError
@@ -505,6 +507,62 @@ class ReconcileDonationGatewayTest(APITestCase):
         self.assertEqual(result.status, Donation.Status.FAILED)
 
 
+class ReconcilePayoutGatewayTest(APITestCase):
+    """payment_service.reconcile_payout_by_reference is the fallback path for
+    a payout stuck PROCESSING when ModemPay's transfer.succeeded/failed
+    webhook is missed or delayed — mirrors ReconcileDonationGatewayTest."""
+
+    def setUp(self):
+        self.campaign = make_campaign()
+
+    def make_payout(self, reference, **kwargs):
+        defaults = {
+            'campaign': self.campaign,
+            'requested_by': self.campaign.owner,
+            'amount': Decimal('100.00'),
+            'net_amount': Decimal('95.00'),
+            'provider': 'wave',
+            'phone': '+2207000000',
+            'reference': reference,
+            'status': Payout.Status.PROCESSING,
+            'provider_reference': 'tr_pending123',
+        }
+        defaults.update(kwargs)
+        return Payout.objects.create(**defaults)
+
+    @patch('services.modempay_service.retrieve_transfer')
+    def test_reconciles_completed_transfer(self, mock_retrieve):
+        self.make_payout('PO-RECON1')
+        mock_retrieve.return_value = {'status': 'completed', 'id': 'tr_pending123'}
+        result = payment_service.reconcile_payout_by_reference('PO-RECON1')
+        self.assertEqual(result.status, Payout.Status.COMPLETED)
+
+    @patch('services.modempay_service.retrieve_transfer')
+    def test_reconciles_failed_transfer(self, mock_retrieve):
+        self.make_payout('PO-RECON2')
+        mock_retrieve.return_value = {'status': 'cancelled', 'id': 'tr_pending123'}
+        result = payment_service.reconcile_payout_by_reference('PO-RECON2')
+        self.assertEqual(result.status, Payout.Status.FAILED)
+
+    @patch('services.modempay_service.retrieve_transfer')
+    def test_still_pending_transfer_is_untouched(self, mock_retrieve):
+        self.make_payout('PO-RECON3')
+        mock_retrieve.return_value = {'status': 'pending', 'id': 'tr_pending123'}
+        result = payment_service.reconcile_payout_by_reference('PO-RECON3')
+        self.assertEqual(result.status, Payout.Status.PROCESSING)
+
+    @patch('services.modempay_service.retrieve_transfer')
+    def test_non_processing_payout_is_noop(self, mock_retrieve):
+        self.make_payout('PO-RECON4', status=Payout.Status.COMPLETED)
+        result = payment_service.reconcile_payout_by_reference('PO-RECON4')
+        self.assertEqual(result.status, Payout.Status.COMPLETED)
+        mock_retrieve.assert_not_called()
+
+    def test_unknown_reference_returns_none(self):
+        result = payment_service.reconcile_payout_by_reference('PO-NOPE')
+        self.assertIsNone(result)
+
+
 class GatewayWebhookRoutingTest(APITestCase):
     """The route itself is generic (/payments/webhook/<gateway_code>/) —
     these don't touch ModemPay at all, just the URL/dispatch layer."""
@@ -560,6 +618,83 @@ class PayoutWebhookGatewayTest(APITestCase):
 
         self.payout.refresh_from_db()
         self.assertEqual(self.payout.status, Payout.Status.FAILED)
+
+
+class SweepReconciliationTest(APITestCase):
+    """donation_service.sweep_pending_donations / payment_service.sweep_processing_payouts
+    are the periodic (Celery Beat) safety net — these test the query/loop
+    wrapper only (staleness cutoff, limit, skips fresh records); the actual
+    per-record reconciliation is covered by ReconcileDonationGatewayTest /
+    ReconcilePayoutGatewayTest above."""
+
+    def setUp(self):
+        self.campaign = make_campaign()
+
+    def make_stale_donation(self, reference, minutes_old=30):
+        donation = Donation.objects.create(
+            campaign=self.campaign, amount=Decimal('100.00'), provider='wave',
+            phone='+2207000000', payment_reference=reference, gateway='modempay',
+            provider_reference='sec_abc', status=Donation.Status.PENDING,
+        )
+        Donation.objects.filter(pk=donation.pk).update(
+            created_at=timezone.now() - timedelta(minutes=minutes_old)
+        )
+        return donation
+
+    def make_stale_payout(self, reference, minutes_old=45):
+        payout = Payout.objects.create(
+            campaign=self.campaign, requested_by=self.campaign.owner,
+            amount=Decimal('100.00'), net_amount=Decimal('95.00'), provider='wave',
+            phone='+2207000000', reference=reference, status=Payout.Status.PROCESSING,
+            provider_reference='tr_abc',
+        )
+        Payout.objects.filter(pk=payout.pk).update(
+            created_at=timezone.now() - timedelta(minutes=minutes_old)
+        )
+        return payout
+
+    @patch('services.modempay_service.retrieve_payment_intent')
+    def test_sweep_donations_resolves_stale_pending(self, mock_retrieve):
+        self.make_stale_donation('SD-SWEEP1', minutes_old=30)
+        fresh = self.make_stale_donation('SD-SWEEP2', minutes_old=2)
+        mock_retrieve.return_value = {'status': 'successful', 'id': 'ch_final'}
+
+        result = donation_service.sweep_pending_donations(older_than_minutes=15)
+
+        self.assertEqual(result, {'checked': 1, 'resolved': 1})
+        self.assertEqual(Donation.objects.get(payment_reference='SD-SWEEP1').status, Donation.Status.PAID)
+        fresh.refresh_from_db()
+        self.assertEqual(fresh.status, Donation.Status.PENDING)
+
+    @patch('services.modempay_service.retrieve_payment_intent')
+    def test_sweep_donations_respects_limit(self, mock_retrieve):
+        for i in range(3):
+            self.make_stale_donation(f'SD-LIMIT{i}', minutes_old=30)
+        mock_retrieve.return_value = {'status': 'successful', 'id': 'ch_final'}
+
+        result = donation_service.sweep_pending_donations(older_than_minutes=15, limit=2)
+        self.assertEqual(result['checked'], 2)
+
+    @patch('services.modempay_service.retrieve_transfer')
+    def test_sweep_payouts_resolves_stale_processing(self, mock_retrieve):
+        self.make_stale_payout('PO-SWEEP1', minutes_old=45)
+        fresh = self.make_stale_payout('PO-SWEEP2', minutes_old=5)
+        mock_retrieve.return_value = {'status': 'completed', 'id': 'tr_abc'}
+
+        result = payment_service.sweep_processing_payouts(older_than_minutes=30)
+
+        self.assertEqual(result, {'checked': 1, 'resolved': 1})
+        self.assertEqual(Payout.objects.get(reference='PO-SWEEP1').status, Payout.Status.COMPLETED)
+        fresh.refresh_from_db()
+        self.assertEqual(fresh.status, Payout.Status.PROCESSING)
+
+    @patch('services.modempay_service.retrieve_transfer')
+    def test_sweep_payouts_still_pending_not_counted_resolved(self, mock_retrieve):
+        self.make_stale_payout('PO-SWEEP3', minutes_old=45)
+        mock_retrieve.return_value = {'status': 'pending', 'id': 'tr_abc'}
+
+        result = payment_service.sweep_processing_payouts(older_than_minutes=30)
+        self.assertEqual(result, {'checked': 1, 'resolved': 0})
 
 
 class RequestPayoutGatewayTest(APITestCase):
