@@ -93,7 +93,7 @@ DEFAULT_PRIVACY_CONTENT = """## What We Collect
 
 ## Contact
 - Questions about this policy? Email {{contact_email}}.
-- Last updated: June 2026."""
+- Last updated: July 2026."""
 
 DEFAULT_TERMS_CONTENT = """## 1. Acceptance
 By using {{site_name}} you agree to these Terms of Service. If you do not agree, please do not use the platform. We may update these terms from time to time and will notify users of material changes.
