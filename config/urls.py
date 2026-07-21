@@ -21,6 +21,7 @@ urlpatterns = [
     path('api/v1/zakat/', include('apps.zakat.urls')),
     path('api/v1/notifications/', include('apps.notifications.urls')),
     path('api/v1/analytics/', include('apps.analytics.urls')),
+    path('api/v1/vision/', include('apps.vision.urls')),
 
     # Password reset
     path('api/v1/auth/password-reset/', include('django_rest_passwordreset.urls', namespace='password_reset')),
