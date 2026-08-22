@@ -23,6 +23,12 @@ class SiteSettings(BaseModel):
         upload_to=site_logo_with_background_path, null=True, blank=True, validators=[validate_image_size],
         help_text='Logo on its own solid background, used where a transparent logo needs backing (e.g. social sharing).',
     )
+    # Admin-editable support inbox -- used as the {{contact_email}} tag in
+    # Legal/Help content and as the destination for notify_admin() emails.
+    # Falls back to the CONTACT_EMAIL env var (see SiteSettingsSerializer)
+    # when left blank, so an empty value here never leaves support
+    # unreachable.
+    contact_email = models.EmailField(blank=True, default='')
 
     class Meta:
         verbose_name = 'Site Settings'

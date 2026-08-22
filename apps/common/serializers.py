@@ -5,19 +5,21 @@ from .models import SiteSettings, LegalContent
 
 
 class SiteSettingsSerializer(serializers.ModelSerializer):
-    # Not a DB field — CONTACT_EMAIL is server-side env config (see
-    # settings/base.py) with nowhere else public to read it from. Exposed
-    # here (read-only) so the frontend can offer it as a {{contact_email}}
-    # variable in the Legal/Help markdown editor without a dedicated
-    # endpoint just for one value.
-    contact_email = serializers.SerializerMethodField()
-
     class Meta:
         model = SiteSettings
         fields = ['site_name', 'site_description', 'logo', 'logo_with_background', 'contact_email']
 
-    def get_contact_email(self, obj):
-        return getattr(django_settings, 'CONTACT_EMAIL', '')
+    def to_representation(self, instance):
+        # contact_email is admin-editable (Settings -> Branding), but falls
+        # back to the CONTACT_EMAIL env var when left blank -- an empty
+        # value here should never make support unreachable.
+        data = super().to_representation(instance)
+        if not data.get('contact_email'):
+            data['contact_email'] = getattr(django_settings, 'CONTACT_EMAIL', '')
+        return data
+
+    def validate_contact_email(self, value):
+        return value.strip()
 
     def validate_site_name(self, value):
         if not value.strip():

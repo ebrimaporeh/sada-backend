@@ -135,6 +135,16 @@ class NotifyEmailTest(APITestCase):
         self.assertIn(settings.CONTACT_EMAIL, mail.outbox[0].to)
         self.assertIn('[Admin]', mail.outbox[0].subject)
 
+    def test_notify_admin_prefers_the_admin_editable_support_email(self):
+        from apps.common.models import SiteSettings
+        settings_obj = SiteSettings.get_solo()
+        settings_obj.contact_email = 'support-desk@example.com'
+        settings_obj.save(update_fields=['contact_email'])
+
+        mail.outbox = []
+        notification_service.notify_admin('Something happened', 'Details here')
+        self.assertIn('support-desk@example.com', mail.outbox[0].to)
+
 
 class NotificationViewTest(APITestCase):
     def setUp(self):

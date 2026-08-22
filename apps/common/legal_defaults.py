@@ -21,8 +21,8 @@ Donations carry no {{site_name}} fee — donors only pay whatever their mobile m
 ### How do I donate to a campaign?
 Find a campaign you want to support, click "Donate Now", enter your amount and mobile money number, then confirm the payment prompt on your phone. Your donation is recorded as soon as the payment clears.
 
-### Which mobile money networks are supported?
-We currently support Wave and APS Wallet, both through the ModemPay payment gateway.
+### Which payment methods are supported?
+We support Wave and APS Wallet mobile money, both through the ModemPay payment gateway, as well as debit and credit cards through Stripe.
 
 ### When can I withdraw raised funds?
 You can request a withdrawal at any time once your campaign has received donations. Go to your campaign management page, open the Withdraw tab, and submit a withdrawal request.
@@ -49,7 +49,7 @@ Every campaign submitted to {{site_name}} is reviewed by our moderation team. We
 All donations are processed through ModemPay, a licensed mobile money gateway covering Wave and APS Wallet. {{site_name}} never stores your payment credentials. Payment confirmations happen directly between your mobile network and ModemPay — we only record the result.
 
 ## Donor Protection
-We display the full fundraising history and withdrawal records for every campaign so donors can see exactly how money is being used. Campaign owners can verify their identity with a government ID for an added trust badge.
+We display each campaign's donation history and progress toward its goal, so donors can see exactly how a campaign is doing. Campaign owners can verify their identity with a government ID for an added trust badge.
 
 ## Reporting Abuse
 If you believe a campaign is fraudulent or violates our policies, use the Report button on the campaign page. Our team reviews every report and will suspend any campaign found to be in violation.
