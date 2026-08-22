@@ -13,8 +13,9 @@ class IsAdminUser(BasePermission):
 
 
 class HasResourceAccess(BasePermission):
-    """Admin-area permission driven entirely by `permissions/roles.py`'s
-    ROLE_RESOURCES map. The view just declares which resource it is:
+    """Admin-area permission driven by Django Group/Permission membership
+    (see permissions/roles.py::user_has_resource). The view just declares
+    which resource it is:
 
         permission_classes = [HasResourceAccess]
         required_resource = Resource.CAMPAIGNS_VIEW

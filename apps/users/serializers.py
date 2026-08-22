@@ -29,6 +29,7 @@ class UserSerializer(serializers.ModelSerializer):
     avatar = serializers.SerializerMethodField()
     has_usable_password = serializers.SerializerMethodField()
     organization = serializers.SerializerMethodField()
+    resources = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -40,7 +41,7 @@ class UserSerializer(serializers.ModelSerializer):
             'show_total_raised',
             'notify_donations_received', 'notify_campaign_approved', 'notify_campaign_rejected',
             'notify_goal_reached', 'notify_new_comment', 'notify_new_update', 'notify_marketing',
-            'has_usable_password', 'is_google_linked',
+            'has_usable_password', 'is_google_linked', 'resources',
         ]
         read_only_fields = ['id', 'email', 'role', 'account_type', 'email_verified', 'is_verified', 'created_at']
 
@@ -52,6 +53,15 @@ class UserSerializer(serializers.ModelSerializer):
 
     def get_has_usable_password(self, obj):
         return obj.has_usable_password()
+
+    def get_resources(self, obj):
+        # Every admin resource this user currently has access to -- the
+        # frontend's dynamic source of truth for nav/route gating (see
+        # src/utils/permissions.js), since permissions.roles.MANAGED_ROLES'
+        # access is now admin-editable at runtime and can't be mirrored as
+        # a hardcoded frontend map without going stale.
+        from permissions.roles import get_user_resources
+        return sorted(get_user_resources(obj))
 
     def get_organization(self, obj):
         org = getattr(obj, 'organization', None)
