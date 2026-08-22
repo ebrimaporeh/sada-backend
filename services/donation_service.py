@@ -115,6 +115,10 @@ def _confirm_donation(donation):
     from apps.campaigns.models import Campaign
     from apps.notifications.models import Notification
     from emails.tasks import send_donation_received_email_task
+    import services.audit_service as audit_service
+    import services.events_service as events_service
+    from apps.audit.models import AuditLog
+    from apps.events.models import Event
 
     donation.status = donation.Status.PAID
     donation.paid_at = timezone.now()
@@ -125,6 +129,15 @@ def _confirm_donation(donation):
         donors_count=F('donors_count') + 1,
     )
     donation.campaign.refresh_from_db()
+
+    # actor=None -- this path only ever runs from a gateway webhook or the
+    # reconciliation sweep, never a logged-in admin/donor request.
+    audit_service.log(
+        None, AuditLog.Action.DONATION_STATUS_CHANGED, donation,
+        f'Donation {donation.payment_reference} marked paid',
+        metadata={'status': 'paid'},
+    )
+    events_service.track(Event.Type.DONATION_COMPLETED, campaign=donation.campaign, metadata={'amount': str(donation.amount)})
 
     Notification.objects.create(
         user=donation.campaign.owner,
@@ -265,10 +278,20 @@ def fail_donation_by_reference(reference):
     """Mark a still-pending donation as failed/cancelled from a webhook event.
     No campaign totals to unwind — a PENDING donation was never credited."""
     from apps.donations.models import Donation
-    updated = Donation.objects.filter(
-        payment_reference=reference, status=Donation.Status.PENDING
-    ).update(status=Donation.Status.FAILED)
-    return updated > 0
+    import services.audit_service as audit_service
+    from apps.audit.models import AuditLog
+
+    donation = Donation.objects.filter(payment_reference=reference, status=Donation.Status.PENDING).first()
+    if donation is None:
+        return False
+    donation.status = Donation.Status.FAILED
+    donation.save(update_fields=['status'])
+    audit_service.log(
+        None, AuditLog.Action.DONATION_STATUS_CHANGED, donation,
+        f'Donation {donation.payment_reference} marked failed',
+        metadata={'status': 'failed'},
+    )
+    return True
 
 
 def reconcile_donation_by_reference(reference):
@@ -358,7 +381,13 @@ def get_campaign_donors(user, slug):
     ).select_related('donor').order_by('-paid_at')
 
 
-def get_public_campaign_donors(slug):
+DONOR_SORT_OPTIONS = {
+    'latest': '-paid_at',
+    'highest': '-amount',
+}
+
+
+def get_public_campaign_donors(slug, sort='latest'):
     """Donor list for the public campaign page — any visible campaign, not owner-scoped."""
     from apps.donations.models import Donation
     from apps.campaigns.models import Campaign
@@ -372,10 +401,11 @@ def get_public_campaign_donors(slug):
             Campaign.Status.PENDING,
         ],
     )
+    ordering = DONOR_SORT_OPTIONS.get(sort, DONOR_SORT_OPTIONS['latest'])
     return Donation.objects.filter(
         campaign=campaign,
         status=Donation.Status.PAID,
-    ).select_related('donor').order_by('-paid_at')
+    ).select_related('donor').order_by(ordering)
 
 
 def get_all_donations(params=None):
@@ -389,6 +419,9 @@ def get_all_donations(params=None):
         campaign_id = params.get('campaign')
         if campaign_id:
             qs = qs.filter(campaign_id=campaign_id)
+        donor_id = params.get('donor')
+        if donor_id:
+            qs = qs.filter(donor_id=donor_id)
         q = params.get('search')
         if q:
             qs = qs.filter(

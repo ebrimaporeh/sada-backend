@@ -958,6 +958,79 @@ class AdminCampaignPayoutListViewTest(APITestCase):
         self.assertEqual(list(payouts), [self.payout])
 
 
+class AdminDonationDonorFilterTest(APITestCase):
+    """get_all_donations()'s `donor` param -- what the campaigner detail
+    page's Donations tab scopes the list to (a donor, not a campaign)."""
+
+    def test_filters_to_one_donor(self):
+        donor1 = User.objects.create_user(email='donor-filter-1@example.com', password='pass')
+        donor2 = User.objects.create_user(email='donor-filter-2@example.com', password='pass')
+        campaign = make_campaign()
+        Donation.objects.create(
+            campaign=campaign, donor=donor1, amount=Decimal('50.00'), provider='wave', phone='+2207000000',
+            payment_reference='SD-DONORFILTER1', gateway='modempay', status=Donation.Status.PAID,
+        )
+        Donation.objects.create(
+            campaign=campaign, donor=donor2, amount=Decimal('75.00'), provider='wave', phone='+2207000000',
+            payment_reference='SD-DONORFILTER2', gateway='modempay', status=Donation.Status.PAID,
+        )
+
+        results = list(donation_service.get_all_donations({'donor': str(donor1.id)}))
+        self.assertEqual([d.payment_reference for d in results], ['SD-DONORFILTER1'])
+
+
+class AdminCampaignOwnerFilterTest(APITestCase):
+    """get_all_campaigns()'s `owner` param -- what the campaigner detail
+    page's Campaigns tab scopes the list to."""
+
+    def test_filters_to_one_owner(self):
+        from services import campaign_service
+        owner1 = User.objects.create_user(email='owner-filter-1@example.com', password='pass')
+        owner2 = User.objects.create_user(email='owner-filter-2@example.com', password='pass')
+        make_campaign(owner=owner1, title='Owner 1 campaign')
+        make_campaign(owner=owner2, title='Owner 2 campaign')
+
+        results = list(campaign_service.get_all_campaigns({'owner': str(owner1.id)}))
+        self.assertEqual([c.title for c in results], ['Owner 1 campaign'])
+
+
+class AdminOwnerPayoutListViewTest(APITestCase):
+    """AdminOwnerPayoutListView / get_admin_owner_payouts -- the campaigner
+    detail page's Payouts tab, scoped to who *requested* the payout across
+    every campaign they own, not one campaign at a time."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user(email='owner-payout-list@example.com', password='pass')
+        self.other_owner = User.objects.create_user(email='other-owner-payout-list@example.com', password='pass')
+        self.campaign_a = make_campaign(owner=self.owner, title='Campaign A')
+        self.campaign_b = make_campaign(owner=self.owner, title='Campaign B')
+        other_campaign = make_campaign(owner=self.other_owner, title='Other owner campaign')
+        self.payout_a = Payout.objects.create(
+            campaign=self.campaign_a, requested_by=self.owner, amount=Decimal('100.00'),
+            net_amount=Decimal('95.00'), provider='wave', phone='+2207000000',
+            reference='PO-OWNERVIEW1', status=Payout.Status.COMPLETED,
+        )
+        self.payout_b = Payout.objects.create(
+            campaign=self.campaign_b, requested_by=self.owner, amount=Decimal('200.00'),
+            net_amount=Decimal('190.00'), provider='wave', phone='+2207000000',
+            reference='PO-OWNERVIEW2', status=Payout.Status.PENDING,
+        )
+        Payout.objects.create(
+            campaign=other_campaign, requested_by=self.other_owner, amount=Decimal('50.00'),
+            net_amount=Decimal('48.00'), provider='wave', phone='+2207000000',
+            reference='PO-OWNERVIEW3', status=Payout.Status.COMPLETED,
+        )
+
+    def test_endpoint_requires_admin(self):
+        url = f'/api/v1/payments/admin/campaigner/{self.owner.id}/payouts/'
+        response = self.client.get(url)
+        self.assertIn(response.status_code, (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN))
+
+    def test_lists_payouts_across_all_of_the_owners_campaigns_only(self):
+        payouts = payment_service.get_admin_owner_payouts(self.owner.id)
+        self.assertEqual(set(payouts), {self.payout_a, self.payout_b})
+
+
 class PayoutFeePreviewSerializerTest(APITestCase):
     def test_fee_preview_rejects_method_not_supported_for_payouts(self):
         response = self.client.get(
@@ -1014,3 +1087,43 @@ class PlatformSettingsGatewayAdminTest(APITestCase):
     def test_platform_settings_endpoint_requires_admin_to_patch(self):
         response = self.client.patch('/api/v1/payments/settings/', {'stripe_enabled': True})
         self.assertIn(response.status_code, (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN))
+
+
+class PublicCampaignDonorSortTest(APITestCase):
+    """The public campaign page's donors tab sorts by latest (default) or
+    highest amount — see donation_service.DONOR_SORT_OPTIONS."""
+
+    def setUp(self):
+        self.campaign = make_campaign()
+        now = timezone.now()
+        self.small_recent = Donation.objects.create(
+            campaign=self.campaign, amount=Decimal('10.00'), currency='GMD', provider='wave', phone='',
+            payment_reference='SD-SORT1', gateway='modempay', status=Donation.Status.PAID,
+            paid_at=now, is_anonymous=True,
+        )
+        self.big_older = Donation.objects.create(
+            campaign=self.campaign, amount=Decimal('500.00'), currency='GMD', provider='wave', phone='',
+            payment_reference='SD-SORT2', gateway='modempay', status=Donation.Status.PAID,
+            paid_at=now - timedelta(days=1), is_anonymous=True,
+        )
+
+    def test_defaults_to_latest_first(self):
+        response = self.client.get(f'/api/v1/donations/campaign/{self.campaign.slug}/public/')
+        ids = [d['id'] for d in response.data['results']]
+        self.assertEqual(ids[0], str(self.small_recent.id))
+
+    def test_sort_highest_orders_by_amount(self):
+        response = self.client.get(f'/api/v1/donations/campaign/{self.campaign.slug}/public/', {'sort': 'highest'})
+        ids = [d['id'] for d in response.data['results']]
+        self.assertEqual(ids[0], str(self.big_older.id))
+
+    def test_page_size_defaults_to_20(self):
+        for i in range(25):
+            Donation.objects.create(
+                campaign=self.campaign, amount=Decimal('5.00'), currency='GMD', provider='wave', phone='',
+                payment_reference=f'SD-SORT-PAGE{i}', gateway='modempay', status=Donation.Status.PAID,
+                paid_at=timezone.now(), is_anonymous=True,
+            )
+        response = self.client.get(f'/api/v1/donations/campaign/{self.campaign.slug}/public/')
+        self.assertEqual(len(response.data['results']), 20)
+        self.assertEqual(response.data['count'], 27)

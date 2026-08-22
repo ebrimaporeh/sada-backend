@@ -1,7 +1,7 @@
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import extend_schema, OpenApiParameter
 from pagination.base import StandardResultsPagination
 from permissions.base import HasResourceAccess
 from permissions.roles import Resource
@@ -11,6 +11,11 @@ from .serializers import (
     AdminDonationUpdateSerializer, AdminDonationRefundSerializer,
 )
 import services.donation_service as donation_service
+import services.audit_service as audit_service
+import services.events_service as events_service
+import services.consent_service as consent_service
+from apps.audit.models import AuditLog
+from apps.events.models import Event
 
 
 class DonationCreateView(APIView):
@@ -24,11 +29,34 @@ class DonationCreateView(APIView):
         donor = request.user if request.user.is_authenticated else None
         donation, payment_link = donation_service.create_donation(donor, serializer.validated_data)
         out = DonationSerializer(donation)
+
+        # A real Donation row was persisted either way (even a gateway
+        # failure still creates one, marked FAILED) -- that's the state
+        # change worth an audit entry, regardless of what happens next.
+        # A guest donor is still a real person, not "the system" -- use
+        # whatever name they gave rather than leaving actor/actor_name
+        # blank (which would fall back to a bare "System" in the UI). This
+        # deliberately ignores the donation's own is_anonymous flag, which
+        # only controls *public* display -- admins reading the audit log
+        # should still see who actually donated.
+        actor_name = donor.full_name if donor else (donation.donor_name or 'Anonymous donor')
+        audit_service.log(
+            donor, AuditLog.Action.DONATION_CREATED, donation,
+            f'{actor_name} donated D{donation.amount} to "{donation.campaign.title}"',
+            actor_name=actor_name,
+        )
+
         if payment_link is None:
             return donation_service.error_response(
                 'Could not start payment. Please try again.',
                 status_code=status.HTTP_502_BAD_GATEWAY,
             )
+
+        events_service.track(
+            Event.Type.DONATION_STARTED, user=donor, campaign=donation.campaign,
+            metadata={'amount': str(donation.amount), 'provider': donation.provider},
+            ip_address=consent_service.get_client_ip(request) or None,
+        )
         return donation_service.success_response(
             {'donation': out.data, 'payment_link': payment_link},
             status_code=status.HTTP_201_CREATED,
@@ -74,9 +102,14 @@ class CampaignDonorListView(APIView):
 class PublicCampaignDonorListView(APIView):
     permission_classes = [AllowAny]
 
-    @extend_schema(summary='List donors for a public campaign page', responses={200: DonationSerializer(many=True)})
+    @extend_schema(
+        summary='List donors for a public campaign page',
+        parameters=[OpenApiParameter('sort', str, description='latest (default) or highest')],
+        responses={200: DonationSerializer(many=True)},
+    )
     def get(self, request, slug):
-        donations = donation_service.get_public_campaign_donors(slug)
+        sort = request.query_params.get('sort', 'latest')
+        donations = donation_service.get_public_campaign_donors(slug, sort=sort)
         paginator = StandardResultsPagination()
         page = paginator.paginate_queryset(donations, request)
         serializer = DonationSerializer(page, many=True)
@@ -133,5 +166,10 @@ class AdminDonationRefundView(APIView):
         serializer = AdminDonationRefundSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         donation = donation_service.refund_donation(donation, reason=serializer.validated_data['reason'])
+        audit_service.log(
+            request.user, AuditLog.Action.PAYMENT_REFUNDED, donation,
+            f'{request.user.full_name} refunded D{donation.amount} donation to "{donation.campaign.title}"',
+            metadata={'reason': serializer.validated_data['reason']},
+        )
         out = AdminDonationSerializer(donation)
         return donation_service.success_response({'donation': out.data}, message='Donation refunded.')

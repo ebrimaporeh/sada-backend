@@ -10,6 +10,8 @@ from .serializers import (
     PayoutCreateSerializer, PayoutSerializer, PayoutFeePreviewSerializer, PlatformSettingsSerializer,
 )
 import services.payment_service as payment_service
+import services.audit_service as audit_service
+from apps.audit.models import AuditLog
 
 
 class GatewayListView(APIView):
@@ -32,6 +34,10 @@ class PayoutRequestView(APIView):
         serializer = PayoutCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         payout = payment_service.request_payout(request.user, serializer.validated_data)
+        audit_service.log(
+            request.user, AuditLog.Action.PAYOUT_REQUESTED, payout,
+            f'{request.user.full_name} requested payout of D{payout.amount} from "{payout.campaign.title}"',
+        )
         out = PayoutSerializer(payout)
         return payment_service.success_response({'payout': out.data}, status_code=status.HTTP_201_CREATED)
 
@@ -73,6 +79,19 @@ class AdminCampaignPayoutListView(APIView):
     @extend_schema(summary='[Admin] List payouts for a campaign', responses={200: PayoutSerializer(many=True)})
     def get(self, request, campaign_id):
         payouts = payment_service.get_admin_campaign_payouts(campaign_id)
+        serializer = PayoutSerializer(payouts, many=True)
+        return payment_service.success_response({'payouts': serializer.data})
+
+
+class AdminOwnerPayoutListView(APIView):
+    """Admin view of every payout a campaigner has requested, across all of
+    their campaigns -- backs the campaigner detail page's Payouts tab."""
+    permission_classes = [HasResourceAccess]
+    required_resource = Resource.FINANCES
+
+    @extend_schema(summary="[Admin] List a campaigner's payouts across all their campaigns", responses={200: PayoutSerializer(many=True)})
+    def get(self, request, owner_id):
+        payouts = payment_service.get_admin_owner_payouts(owner_id)
         serializer = PayoutSerializer(payouts, many=True)
         return payment_service.success_response({'payouts': serializer.data})
 

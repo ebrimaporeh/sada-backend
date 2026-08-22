@@ -221,6 +221,13 @@ def get_admin_campaign_payouts(campaign_id):
     return Payout.objects.filter(campaign_id=campaign_id).order_by('-created_at')
 
 
+def get_admin_owner_payouts(owner_id):
+    """Admin view of every payout a campaigner has requested, across all of
+    their campaigns -- backs the campaigner detail page's Payouts tab."""
+    from apps.payments.models import Payout
+    return Payout.objects.filter(requested_by_id=owner_id).select_related('campaign').order_by('-created_at')
+
+
 def _mark_payout_completed(payout, provider_reference=''):
     """Shared by the transfer.succeeded webhook and reconcile_payout_by_reference
     so both paths resolve a payout out of PROCESSING identically. Only emails
@@ -237,6 +244,15 @@ def _mark_payout_completed(payout, provider_reference=''):
     payout.save()
     if not was_already_completed:
         send_payout_update_email_task.delay(str(payout.id))
+        import services.audit_service as audit_service
+        from apps.audit.models import AuditLog
+        # actor=None -- this path only ever runs from a gateway webhook or
+        # the reconciliation sweep, never a logged-in admin request.
+        audit_service.log(
+            None, AuditLog.Action.PAYOUT_STATUS_CHANGED, payout,
+            f'Payout of D{payout.amount} to "{payout.campaign.title}" completed',
+            metadata={'status': 'completed'},
+        )
     return payout
 
 
@@ -248,6 +264,13 @@ def _mark_payout_failed(payout):
     payout.save(update_fields=['status'])
     if not was_already_failed:
         send_payout_update_email_task.delay(str(payout.id))
+        import services.audit_service as audit_service
+        from apps.audit.models import AuditLog
+        audit_service.log(
+            None, AuditLog.Action.PAYOUT_STATUS_CHANGED, payout,
+            f'Payout of D{payout.amount} to "{payout.campaign.title}" failed',
+            metadata={'status': 'failed'},
+        )
     return payout
 
 
