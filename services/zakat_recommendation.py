@@ -38,7 +38,7 @@ EXCLUDED_CATEGORY_SLUGS = {
 HARAM_KEYWORDS = [
     'casino', 'gambling', 'lottery', 'sports bet', 'betting', 'wager',
     'alcohol', 'beer', 'wine', 'liquor', 'brewery', 'nightclub',
-    'pork', 'riba', 'usury', 'interest-bearing loan',
+    'pork', 'riba', 'usury', 'interest-bearing loan', 'music',
 ]
 
 # Maps each remaining category to the Qur'anic recipient category it
