@@ -20,7 +20,9 @@ def verify_google_token(id_token_str: str) -> dict:
         dict with 'email', 'name', 'google_sub' keys
 
     Raises:
-        ValidationError: If token is invalid or verification fails
+        ValidationError: If token is invalid, verification fails, or Google
+            itself hasn't verified the token's email address (see below —
+            this is a real account-takeover vector, not a theoretical one).
     """
     client_id = config('GOOGLE_OAUTH_CLIENT_ID', default=None)
     if not client_id:
@@ -35,6 +37,23 @@ def verify_google_token(id_token_str: str) -> dict:
         )
 
         # Verify token hasn't expired (verify_oauth2_token checks this)
+
+        # get_or_create_google_user() logs the caller straight into an
+        # *existing* account matching this email with no further
+        # confirmation — so this claim is the entire trust boundary for
+        # every already-registered account on the platform. Google includes
+        # email_verified=False for some accounts (e.g. legacy/Workspace
+        # accounts with an admin-added, never-confirmed address); without
+        # this check, presenting such a token for someone else's email is a
+        # full account takeover requiring no knowledge of their password.
+        # Fail closed if the claim is missing entirely.
+        if not payload.get('email_verified'):
+            raise ValidationError(
+                "This Google account's email isn't verified with Google, so it "
+                "can't be used to sign in here. Verify it with Google, or sign "
+                "in with your password instead."
+            )
+
         # Extract user information
         return {
             'email': payload.get('email'),
