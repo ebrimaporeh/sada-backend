@@ -243,7 +243,15 @@ def get_regular_users(filters: dict = None) -> 'QuerySet[User]':
     """Everyone who isn't staff — the audience for the admin Users page."""
     qs = User.objects.exclude(role__in=STAFF_ROLES)
     if filters:
-        qs = qs.filter(**filters)
+        filters = dict(filters)
+        search = filters.pop('search', None)
+        if filters:
+            qs = qs.filter(**filters)
+        if search:
+            qs = qs.filter(
+                Q(first_name__icontains=search) | Q(last_name__icontains=search)
+                | Q(email__icontains=search) | Q(organization__organization_name__icontains=search)
+            )
     return qs
 
 

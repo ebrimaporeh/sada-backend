@@ -59,6 +59,22 @@ class UserListViewTest(APITestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
+    def test_search_matches_name_or_email(self):
+        User.objects.create_user(email='amiesatta@example.com', password='pass', first_name='Amie', last_name='Satta')
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.get(self.url, {'search': 'Amie'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        emails = [u['email'] for u in response.data['results']]
+        self.assertIn('amiesatta@example.com', emails)
+        self.assertNotIn('regular@example.com', emails)
+
+    def test_search_with_no_match_returns_empty(self):
+        self.client.force_authenticate(user=self.admin)
+        response = self.client.get(self.url, {'search': 'no-such-person-xyz'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['results'], [])
+
 
 class DeleteOwnAccountTest(APITestCase):
     """Self-service account deletion anonymizes rather than hard-deletes --

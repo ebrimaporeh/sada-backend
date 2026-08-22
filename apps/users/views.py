@@ -10,6 +10,8 @@ from permissions.base import HasResourceAccess
 from permissions.roles import Resource
 from pagination.base import StandardResultsPagination
 from services import user_service, verification_service, organization_change_service
+import services.audit_service as audit_service
+from apps.audit.models import AuditLog
 from .models import User
 from .serializers import (
     UserSerializer, UserUpdateSerializer, AdminUserSerializer, AdminUserCreateSerializer,
@@ -33,13 +35,27 @@ class MeView(generics.RetrieveUpdateAPIView):
         return self.request.user
 
     def perform_update(self, serializer):
-        user_service.update_user(self.request.user, **serializer.validated_data)
+        user = self.request.user
+        user_service.update_user(user, **serializer.validated_data)
+        audit_service.log(
+            user, AuditLog.Action.USER_PROFILE_UPDATED, user,
+            f'{user.full_name} updated their profile',
+            metadata={'fields': list(serializer.validated_data.keys())},
+        )
 
     @extend_schema(summary='Delete my account', request=DeleteAccountSerializer)
     def delete(self, request):
         serializer = DeleteAccountSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        user_service.delete_own_account(request.user, password=serializer.validated_data.get('password', ''))
+        # Captured before delete_own_account() runs -- it anonymizes the
+        # user's name/email as part of the deletion itself, so logging
+        # after would record the log entry against already-scrubbed fields.
+        user, name, email = request.user, request.user.full_name, request.user.email
+        user_service.delete_own_account(user, password=serializer.validated_data.get('password', ''))
+        audit_service.log(
+            user, AuditLog.Action.USER_ACCOUNT_DELETED, None, f'{name} deleted their account ({email})',
+            actor_name=name, actor_email=email,
+        )
         return Response({'success': True, 'message': 'Account deleted.'}, status=status.HTTP_200_OK)
 
 
@@ -127,6 +143,9 @@ class UserListView(generics.ListAPIView):
         account_type = self.request.query_params.get('account_type')
         if account_type:
             filters['account_type'] = account_type
+        search = self.request.query_params.get('search')
+        if search:
+            filters['search'] = search
         return user_service.get_regular_users(filters)
 
 
@@ -152,6 +171,10 @@ class AdminUserCreateView(APIView):
             requesting_user=request.user,
             **serializer.validated_data,
         )
+        audit_service.log(
+            request.user, AuditLog.Action.STAFF_CREATED, user,
+            f'{request.user.full_name} created staff account for {user.full_name} ({user.role})',
+        )
         out = AdminUserSerializer(user, context={'request': request})
         return Response(
             {'success': True, 'message': "Staff account created — they'll receive an email to set their password.", 'data': {'user': out.data}},
@@ -167,7 +190,13 @@ class AdminStaffRoleChangeView(APIView):
     def post(self, request, pk):
         user = user_service.get_user_by_id(pk)
         role = request.data.get('role')
+        old_role = user.role
         updated = user_service.change_staff_role(user, role, requesting_user=request.user)
+        audit_service.log(
+            request.user, AuditLog.Action.USER_ROLE_CHANGED, updated,
+            f"{request.user.full_name} changed {updated.full_name}'s role from {old_role} to {updated.role}",
+            metadata={'old_role': old_role, 'new_role': updated.role},
+        )
         out = AdminUserSerializer(updated, context={'request': request})
         return Response({'success': True, 'message': 'Role updated.', 'data': {'user': out.data}})
 
@@ -246,11 +275,17 @@ class AdminVerificationActionView(APIView):
         if action == 'approve':
             verification = verification_service.approve_verification(pk, request.user)
             message = 'Verification approved.'
+            audit_action, verb = AuditLog.Action.VERIFICATION_APPROVED, 'approved'
         elif action == 'reject':
             verification = verification_service.reject_verification(pk, request.user, request.data.get('reason', ''))
             message = 'Verification rejected.'
+            audit_action, verb = AuditLog.Action.VERIFICATION_REJECTED, 'rejected'
         else:
             return Response({'success': False, 'message': f'Unknown action "{action}".'}, status=status.HTTP_400_BAD_REQUEST)
+        audit_service.log(
+            request.user, audit_action, verification,
+            f"{request.user.full_name} {verb} {verification.user.full_name}'s identity verification",
+        )
         out = IdentityVerificationSerializer(verification, context={'request': request})
         return Response({'success': True, 'message': message, 'data': {'verification': out.data}})
 
@@ -304,11 +339,17 @@ class AdminOrganizationVerificationActionView(APIView):
         if action == 'approve':
             verification = verification_service.approve_organization_verification(pk, request.user)
             message = 'Verification approved.'
+            audit_action, verb = AuditLog.Action.VERIFICATION_APPROVED, 'approved'
         elif action == 'reject':
             verification = verification_service.reject_organization_verification(pk, request.user, request.data.get('reason', ''))
             message = 'Verification rejected.'
+            audit_action, verb = AuditLog.Action.VERIFICATION_REJECTED, 'rejected'
         else:
             return Response({'success': False, 'message': f'Unknown action "{action}".'}, status=status.HTTP_400_BAD_REQUEST)
+        audit_service.log(
+            request.user, audit_action, verification,
+            f"{request.user.full_name} {verb} {verification.user.full_name}'s organization verification",
+        )
         out = OrganizationVerificationSerializer(verification, context={'request': request})
         return Response({'success': True, 'message': message, 'data': {'verification': out.data}})
 
