@@ -57,43 +57,49 @@ def get_dashboard_stats(start_date_str=None, end_date_str=None):
     }
 
 
-MAX_ZERO_FILL_DAYS = 92
+MAX_TREND_POINTS = 15
 
 
-def _zero_fill_daily_trend(grouped_rows, start_date, end_date):
-    """Backfill every day in [start_date, end_date] that had no donations
-    with a zero-amount point, so a trend line always spans the full
-    requested range.
+def _bucketed_daily_trend(grouped_rows, start_date, end_date):
+    """Turn a sparse group-by-date query into an evenly-spaced trend line
+    spanning the full [start_date, end_date] range, capped at
+    MAX_TREND_POINTS points.
 
-    Without this, a group-by-date query only returns rows for days that
-    actually had a donation -- a week with activity on a single day came
-    back as one data point, which looked (and rendered) exactly like the
-    date range was being ignored and only "today" was fetched.
-
-    Skipped for very wide ranges (e.g. "All Time") where backfilling every
-    day would blow up the response for no visual benefit.
+    Two problems in one pass:
+    - A group-by-date query only returns rows for days that actually had a
+      donation -- a week with activity on a single day came back as one
+      data point, which looked (and rendered) exactly like the date range
+      was being ignored and only "today" was fetched. Every day in range
+      gets a point, zero-amount ones included.
+    - A wide range (90 days, "All Time") produced one point per day, which
+      is unreadable and, for very wide ranges, a lot of payload for no
+      visual benefit. Days are grouped into buckets (summed) so the number
+      of points never exceeds MAX_TREND_POINTS -- e.g. 90 days becomes 15
+      six-day buckets instead of 90 individual days.
     """
-    if (end_date - start_date).days > MAX_ZERO_FILL_DAYS:
-        return [
-            {
-                'date': row['date'].strftime('%b %d') if row['date'] else 'Unknown',
-                'amount': float(row['amount'] or 0),
-                'count': row['count'],
-            }
-            for row in grouped_rows
-        ]
+    total_days = (end_date - start_date).days + 1
+    bucket_size = max(1, -(-total_days // MAX_TREND_POINTS))  # ceil division
 
     by_date = {row['date']: row for row in grouped_rows if row['date']}
     result = []
-    current = start_date
-    while current <= end_date:
-        row = by_date.get(current)
-        result.append({
-            'date': current.strftime('%b %d'),
-            'amount': float(row['amount'] or 0) if row else 0.0,
-            'count': row['count'] if row else 0,
-        })
-        current += timedelta(days=1)
+    bucket_start = start_date
+    while bucket_start <= end_date:
+        bucket_end = min(bucket_start + timedelta(days=bucket_size - 1), end_date)
+        amount = 0
+        count = 0
+        day = bucket_start
+        while day <= bucket_end:
+            row = by_date.get(day)
+            if row:
+                amount += row['amount'] or 0
+                count += row['count'] or 0
+            day += timedelta(days=1)
+        # Bucket start date only, even for multi-day buckets -- a "May
+        # 29-03" range label reads as ambiguous/wrong across a month
+        # boundary, and the frontend tooltip has room to show the exact
+        # amount; the axis just needs a consistent point-in-time label.
+        result.append({'date': bucket_start.strftime('%b %d'), 'amount': float(amount), 'count': count})
+        bucket_start = bucket_end + timedelta(days=1)
     return result
 
 
@@ -111,7 +117,7 @@ def get_donations_by_day(start_date_str=None, end_date_str=None):
         count=Count('id')
     ).order_by('date')
 
-    return _zero_fill_daily_trend(donations, start_date, end_date)
+    return _bucketed_daily_trend(donations, start_date, end_date)
 
 
 def get_campaign_status_distribution(start_date_str=None, end_date_str=None):
@@ -290,7 +296,7 @@ def get_finance_summary(period=None, start_date_str=None, end_date_str=None, top
             'total': total_transactions,
             'success_rate': success_rate,
         },
-        'donations_trend': _zero_fill_daily_trend(donations_trend, start_date, end_date),
+        'donations_trend': _bucketed_daily_trend(donations_trend, start_date, end_date),
         'provider_breakdown': [
             {
                 'provider': row['provider'],
