@@ -57,6 +57,46 @@ def get_dashboard_stats(start_date_str=None, end_date_str=None):
     }
 
 
+MAX_ZERO_FILL_DAYS = 92
+
+
+def _zero_fill_daily_trend(grouped_rows, start_date, end_date):
+    """Backfill every day in [start_date, end_date] that had no donations
+    with a zero-amount point, so a trend line always spans the full
+    requested range.
+
+    Without this, a group-by-date query only returns rows for days that
+    actually had a donation -- a week with activity on a single day came
+    back as one data point, which looked (and rendered) exactly like the
+    date range was being ignored and only "today" was fetched.
+
+    Skipped for very wide ranges (e.g. "All Time") where backfilling every
+    day would blow up the response for no visual benefit.
+    """
+    if (end_date - start_date).days > MAX_ZERO_FILL_DAYS:
+        return [
+            {
+                'date': row['date'].strftime('%b %d') if row['date'] else 'Unknown',
+                'amount': float(row['amount'] or 0),
+                'count': row['count'],
+            }
+            for row in grouped_rows
+        ]
+
+    by_date = {row['date']: row for row in grouped_rows if row['date']}
+    result = []
+    current = start_date
+    while current <= end_date:
+        row = by_date.get(current)
+        result.append({
+            'date': current.strftime('%b %d'),
+            'amount': float(row['amount'] or 0) if row else 0.0,
+            'count': row['count'] if row else 0,
+        })
+        current += timedelta(days=1)
+    return result
+
+
 def get_donations_by_day(start_date_str=None, end_date_str=None):
     """Get donations aggregated by day for chart"""
     start_date, end_date = get_date_range(start_date_str, end_date_str)
@@ -71,14 +111,7 @@ def get_donations_by_day(start_date_str=None, end_date_str=None):
         count=Count('id')
     ).order_by('date')
 
-    return [
-        {
-            'date': d['date'].strftime('%b %d') if d['date'] else 'Unknown',
-            'amount': float(d['amount'] or 0),
-            'count': d['count'],
-        }
-        for d in donations
-    ]
+    return _zero_fill_daily_trend(donations, start_date, end_date)
 
 
 def get_campaign_status_distribution(start_date_str=None, end_date_str=None):
@@ -257,14 +290,7 @@ def get_finance_summary(period=None, start_date_str=None, end_date_str=None, top
             'total': total_transactions,
             'success_rate': success_rate,
         },
-        'donations_trend': [
-            {
-                'date': row['date'].strftime('%b %d') if row['date'] else 'Unknown',
-                'amount': float(row['amount'] or 0),
-                'count': row['count'],
-            }
-            for row in donations_trend
-        ],
+        'donations_trend': _zero_fill_daily_trend(donations_trend, start_date, end_date),
         'provider_breakdown': [
             {
                 'provider': row['provider'],
