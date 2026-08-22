@@ -15,8 +15,14 @@ def get_client():
 
 # Networks ModemPay's Direct Charge accepts on payment intents (prefills the
 # customer's network + number in checkout instead of making them re-pick/
-# re-enter what SADA's own donation form already collected).
-DIRECT_CHARGE_NETWORKS = {'wave', 'afrimoney', 'qmoney', 'aps'}
+# re-enter what SADA's own donation form already collected). Confirmed
+# against the real API: 'aps' is NOT accepted here (payment_intents.create
+# 400s with "Network 'aps' is not allowed for this payment intent.") even
+# though it's a valid donation provider — every APS donation was failing
+# with this until 'aps' was removed. APS donors just get ModemPay's generic
+# hosted checkout (no network/account_number prefill) instead of Direct
+# Charge; they still pick/confirm APS there.
+DIRECT_CHARGE_NETWORKS = {'wave', 'afrimoney', 'qmoney'}
 
 
 def create_payment_intent(donation, return_url='', cancel_url=''):

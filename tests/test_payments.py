@@ -202,6 +202,42 @@ class DonationCreateGatewayTest(APITestCase):
         donation.refresh_from_db()
         self.assertEqual(donation.status, Donation.Status.FAILED)
 
+    @patch('services.modempay_service.get_client')
+    def test_aps_donation_omits_direct_charge_network_param(self, mock_get_client):
+        # Regression guard: ModemPay's real API 400s payment_intents.create
+        # with "Network 'aps' is not allowed for this payment intent." --
+        # every APS donation failed (surfaced to the donor as a 502) until
+        # 'aps' was removed from DIRECT_CHARGE_NETWORKS. Confirmed live
+        # against the sandbox API that omitting network/account_number
+        # entirely (ModemPay's generic hosted checkout) works for APS.
+        mock_get_client.return_value.payment_intents.create.return_value = {
+            'status': True, 'data': {'payment_link': 'https://pay.modempay.com/aps', 'intent_secret': 'sec_aps'},
+        }
+        donation = Donation.objects.create(
+            campaign=self.campaign, amount=Decimal('100.00'), currency='GMD',
+            provider='aps', phone='+2207000000', payment_reference='SD-APS1', gateway='modempay',
+        )
+        import services.modempay_service as modempay_service
+        modempay_service.create_payment_intent(donation)
+        params = mock_get_client.return_value.payment_intents.create.call_args.kwargs['params']
+        self.assertNotIn('network', params)
+        self.assertNotIn('account_number', params)
+
+    @patch('services.modempay_service.get_client')
+    def test_wave_donation_includes_direct_charge_network_param(self, mock_get_client):
+        mock_get_client.return_value.payment_intents.create.return_value = {
+            'status': True, 'data': {'payment_link': 'https://pay.modempay.com/wave', 'intent_secret': 'sec_wave'},
+        }
+        donation = Donation.objects.create(
+            campaign=self.campaign, amount=Decimal('100.00'), currency='GMD',
+            provider='wave', phone='+2207000000', payment_reference='SD-WAVE1', gateway='modempay',
+        )
+        import services.modempay_service as modempay_service
+        modempay_service.create_payment_intent(donation)
+        params = mock_get_client.return_value.payment_intents.create.call_args.kwargs['params']
+        self.assertEqual(params['network'], 'wave')
+        self.assertEqual(params['account_number'], '7000000')
+
     def _enable_stripe(self, rate=Decimal('70.0000'), currency='usd'):
         set_platform_settings(stripe_enabled=True, stripe_settlement_currency=currency, gmd_to_settlement_rate=rate)
         return self.settings(PAYMENT_GATEWAYS={
