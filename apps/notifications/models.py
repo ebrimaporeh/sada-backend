@@ -8,6 +8,7 @@ class Notification(BaseModel):
         DONATION_RECEIVED = 'donation_received', 'Donation Received'
         CAMPAIGN_APPROVED = 'campaign_approved', 'Campaign Approved'
         CAMPAIGN_REJECTED = 'campaign_rejected', 'Campaign Rejected'
+        CAMPAIGN_SUSPENDED = 'campaign_suspended', 'Campaign Suspended'
         PAYOUT_PROCESSED = 'payout_processed', 'Payout Processed'
         CAMPAIGN_UPDATE = 'campaign_update', 'Campaign Update'
         GOAL_REACHED = 'goal_reached', 'Goal Reached'

@@ -81,6 +81,12 @@ class Campaign(BaseModel):
     is_anonymous = models.BooleanField(default=False)
     cover_image = models.ImageField(upload_to=campaign_cover_image_path, null=True, blank=True, validators=[validate_image_size])
     rejection_reason = models.TextField(blank=True)
+    # Internal moderation notes -- distinct from rejection_reason, which is
+    # shown to the owner (in the status-update email and their own campaign
+    # page). admin_notes is staff-only context, e.g. detail an admin wants on
+    # file about *why* a suspension decision was made beyond the owner-facing
+    # reason.
+    admin_notes = models.TextField(blank=True)
     approved_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
 

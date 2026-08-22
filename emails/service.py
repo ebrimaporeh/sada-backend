@@ -92,6 +92,20 @@ class EmailService:
             },
         )
 
+    def send_campaign_suspended_email(self, user, campaign, reason: str = '', notes: str = '') -> bool:
+        return self._send(
+            to=user.email,
+            subject=f'Your Campaign Has Been Suspended: {campaign.title}',
+            template='emails/campaign_suspended.html',
+            context={
+                'campaign_owner_name': user.full_name or user.email,
+                'campaign_title': campaign.title,
+                'campaign_slug': campaign.slug,
+                'reason': reason,
+                'notes': notes,
+            },
+        )
+
     def send_donation_received_email(self, owner, donation) -> bool:
         return self._send(
             to=owner.email,

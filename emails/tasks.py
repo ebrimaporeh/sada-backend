@@ -82,6 +82,23 @@ def send_campaign_status_update_email_task(self, user_id, campaign_id, new_statu
 
 
 @shared_task(**RETRY_KWARGS)
+def send_campaign_suspended_email_task(self, user_id, campaign_id, reason='', notes=''):
+    from apps.users.models import User
+    from apps.campaigns.models import Campaign
+    from emails.service import email_service
+    try:
+        user = User.objects.get(pk=user_id)
+        campaign = Campaign.objects.get(pk=campaign_id)
+    except (User.DoesNotExist, Campaign.DoesNotExist):
+        logger.warning('send_campaign_suspended_email_task: user %s or campaign %s not found', user_id, campaign_id)
+        return
+    _retry_on_failure(
+        self, email_service.send_campaign_suspended_email(user, campaign, reason, notes),
+        f'campaign suspended email to user {user_id}',
+    )
+
+
+@shared_task(**RETRY_KWARGS)
 def send_donation_received_email_task(self, donation_id):
     from apps.donations.models import Donation
     from emails.service import email_service

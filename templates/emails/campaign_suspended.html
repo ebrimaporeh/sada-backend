@@ -1,0 +1,31 @@
+{% extends "emails/base.html" %}
+
+{% block subject %}Your Campaign Has Been Suspended{% endblock %}
+
+{% block content %}
+<h2 style="margin: 0 0 4px; color: #18181b; font-size: 20px;">Campaign suspended</h2>
+<p>Hello {{ campaign_owner_name }},</p>
+<p>Your campaign <strong>"{{ campaign_title }}"</strong> has been suspended by our moderation team. It's no longer visible to donors and can't receive new donations while suspended.</p>
+
+<p><span class="badge badge-danger">Suspended</span></p>
+
+{% if reason %}
+<div class="card">
+  <p class="label" style="margin: 0 0 4px;">Reason</p>
+  <p style="margin: 0;">{{ reason }}</p>
+</div>
+{% endif %}
+
+{% if notes %}
+<div class="card">
+  <p class="label" style="margin: 0 0 4px;">Additional notes</p>
+  <p style="margin: 0;">{{ notes }}</p>
+</div>
+{% endif %}
+
+<p>If you believe this was a mistake, or would like to address the issue above, just reply to this email and our team will follow up.</p>
+
+<a href="{{ frontend_url }}/my-campaigns/{{ campaign_slug }}" class="btn">View Campaign</a>
+
+<p class="muted">Questions about this decision? Just reply to this email.</p>
+{% endblock %}

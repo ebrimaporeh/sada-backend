@@ -241,6 +241,37 @@ class CampaignReportTest(APITestCase):
         self.assertEqual(CampaignReport.objects.filter(campaign=self.campaign).count(), 2)
 
 
+class ReportedCampaignsFilterTest(APITestCase):
+    """get_reported_campaigns() -- backs the admin Reports table's
+    "Campaign" filter with only campaigns that actually have a report."""
+
+    def test_only_returns_campaigns_with_a_report(self):
+        reported = make_campaign(title='Reported Campaign')
+        make_campaign(title='Clean Campaign')
+        campaign_service.create_campaign_report(reported, None, 'spam', 'desc', reporter_name='Guest')
+
+        titles = [c.title for c in campaign_service.get_reported_campaigns()]
+        self.assertIn('Reported Campaign', titles)
+        self.assertNotIn('Clean Campaign', titles)
+
+    def test_a_campaign_with_multiple_reports_is_listed_once(self):
+        campaign = make_campaign()
+        campaign_service.create_campaign_report(campaign, None, 'spam', 'desc', reporter_name='Guest A')
+        campaign_service.create_campaign_report(campaign, None, 'fraudulent', 'desc', reporter_name='Guest B')
+
+        results = list(campaign_service.get_reported_campaigns())
+        self.assertEqual(results.count(campaign), 1)
+
+    def test_filtering_reports_by_campaign_scopes_the_list(self):
+        c1 = make_campaign(title='Campaign One')
+        c2 = make_campaign(title='Campaign Two')
+        campaign_service.create_campaign_report(c1, None, 'spam', 'desc', reporter_name='Guest')
+        campaign_service.create_campaign_report(c2, None, 'spam', 'desc', reporter_name='Guest')
+
+        results = campaign_service.get_all_campaign_reports({'campaign': str(c1.id)})
+        self.assertEqual([r.campaign_id for r in results], [c1.id])
+
+
 class AdminActionTest(APITestCase):
     def setUp(self):
         self.admin = User.objects.create_user(email='mod@example.com', password='pass', role='admin')
@@ -268,10 +299,25 @@ class AdminActionTest(APITestCase):
             user=self.campaign.owner, notification_type=Notification.Type.CAMPAIGN_REJECTED,
         ).exists())
 
-    def test_suspend_sets_status_without_notification(self):
+    def test_suspend_stores_reason_and_notes_and_notifies_owner(self):
         active = make_campaign(status=Campaign.Status.ACTIVE)
-        result = campaign_service.admin_action(active.id, 'suspend', '', self.admin)
+        result = campaign_service.admin_action(
+            active.id, 'suspend', 'Fraudulent activity reported', self.admin, notes='Escalated by two moderators',
+        )
         self.assertEqual(result.status, Campaign.Status.SUSPENDED)
+        self.assertEqual(result.rejection_reason, 'Fraudulent activity reported')
+        self.assertEqual(result.admin_notes, 'Escalated by two moderators')
+        self.assertTrue(Notification.objects.filter(
+            user=active.owner, notification_type=Notification.Type.CAMPAIGN_SUSPENDED,
+        ).exists())
+
+    def test_suspend_sends_the_dedicated_suspension_email(self):
+        active = make_campaign(status=Campaign.Status.ACTIVE)
+        mail.outbox = []
+        campaign_service.admin_action(active.id, 'suspend', 'Spam', self.admin, notes='See ticket #42')
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn(active.owner.email, mail.outbox[0].to)
+        self.assertIn('Suspended', mail.outbox[0].subject)
 
     def test_unknown_action_raises(self):
         with self.assertRaises(ValueError):

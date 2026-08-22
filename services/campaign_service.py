@@ -83,7 +83,11 @@ def get_campaign_by_slug(slug):
 
 
 def record_view(slug):
-    """Increment views_count for a publicly-visible campaign by slug.
+    """Increment views_count for a publicly-visible campaign by slug, and
+    return it (or None for an unknown/non-public slug) so the caller can
+    fire a campaign_viewed analytics event alongside — see
+    apps.events.models.Event. This is a product-engagement signal, not an
+    admin-worthy action, so it deliberately never touches apps.audit.
 
     Called explicitly by the frontend when the public campaign detail page
     is actually viewed — kept separate from CampaignDetailView's GET so
@@ -93,15 +97,16 @@ def record_view(slug):
     a dropped view-tracking beacon shouldn't surface as a user-facing error.
     """
     from apps.campaigns.models import Campaign
-    Campaign.objects.filter(
-        slug=slug,
-        status__in=[
-            Campaign.Status.ACTIVE,
-            Campaign.Status.APPROVED,
-            Campaign.Status.COMPLETED,
-            Campaign.Status.PENDING,
-        ],
-    ).update(views_count=models.F('views_count') + 1)
+    public_statuses = [
+        Campaign.Status.ACTIVE, Campaign.Status.APPROVED,
+        Campaign.Status.COMPLETED, Campaign.Status.PENDING,
+    ]
+    updated = Campaign.objects.filter(slug=slug, status__in=public_statuses).update(
+        views_count=models.F('views_count') + 1,
+    )
+    if not updated:
+        return None
+    return Campaign.objects.filter(slug=slug).first()
 
 
 def get_owner_campaigns(user):
@@ -345,6 +350,9 @@ def get_all_campaigns(params=None):
         s = params.get('status')
         if s:
             qs = qs.filter(status=s)
+        owner_id = params.get('owner')
+        if owner_id:
+            qs = qs.filter(owner_id=owner_id)
         q = params.get('search')
         if q:
             qs = qs.filter(
@@ -428,7 +436,7 @@ def get_campaign_report_stats():
     }
 
 
-def admin_action(campaign_id, action, reason, admin_user):
+def admin_action(campaign_id, action, reason, admin_user, notes=''):
     from apps.campaigns.models import Campaign
     from apps.notifications.models import Notification
 
@@ -458,8 +466,19 @@ def admin_action(campaign_id, action, reason, admin_user):
             link=f'/my-campaigns/{campaign.slug}',
         )
     elif action == 'suspend':
+        from emails.tasks import send_campaign_suspended_email_task
         campaign.status = Campaign.Status.SUSPENDED
+        campaign.rejection_reason = reason
+        campaign.admin_notes = notes
         campaign.save()
+        Notification.objects.create(
+            user=campaign.owner,
+            notification_type=Notification.Type.CAMPAIGN_SUSPENDED,
+            title='Campaign Suspended',
+            message=f'Your campaign "{campaign.title}" has been suspended.' + (f' Reason: {reason}' if reason else ''),
+            link=f'/my-campaigns/{campaign.slug}',
+        )
+        send_campaign_suspended_email_task.delay(str(campaign.owner_id), str(campaign.id), reason, notes)
     elif action == 'submit':
         campaign.status = Campaign.Status.PENDING
         campaign.save()
@@ -522,3 +541,12 @@ def get_all_campaign_reports(params=None):
             )
 
     return qs
+
+
+def get_reported_campaigns():
+    """Distinct campaigns that have at least one report -- backs the admin
+    Reports table's "Campaign" filter with a short, relevant list instead of
+    every campaign on the platform."""
+    from apps.campaigns.models import Campaign, CampaignReport
+    campaign_ids = CampaignReport.objects.values_list('campaign_id', flat=True).distinct()
+    return Campaign.objects.filter(id__in=campaign_ids).order_by('title')

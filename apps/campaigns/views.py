@@ -15,6 +15,11 @@ from .serializers import (
     AdminCampaignUpdateSerializer, CampaignReportUpdateSerializer,
 )
 import services.campaign_service as campaign_service
+import services.audit_service as audit_service
+import services.events_service as events_service
+import services.consent_service as consent_service
+from apps.audit.models import AuditLog
+from apps.events.models import Event
 
 
 class CategoryListView(APIView):
@@ -191,7 +196,14 @@ class CampaignRecordViewView(APIView):
 
     @extend_schema(summary='Record a view of a campaign', responses={200: None})
     def post(self, request, slug):
-        campaign_service.record_view(slug)
+        campaign = campaign_service.record_view(slug)
+        if campaign:
+            events_service.track(
+                Event.Type.CAMPAIGN_VIEWED,
+                user=request.user if request.user.is_authenticated else None,
+                campaign=campaign,
+                ip_address=consent_service.get_client_ip(request) or None,
+            )
         return campaign_service.success_response(None, message='View recorded.')
 
 
@@ -203,6 +215,10 @@ class CampaignCreateView(APIView):
         serializer = CampaignCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         campaign = campaign_service.create_campaign(request.user, serializer.validated_data)
+        audit_service.log(
+            request.user, AuditLog.Action.CAMPAIGN_CREATED, campaign,
+            f'{request.user.full_name} created campaign "{campaign.title}"',
+        )
         out = CampaignDetailSerializer(campaign, context={'request': request})
         return campaign_service.success_response({'campaign': out.data}, status_code=status.HTTP_201_CREATED)
 
@@ -232,13 +248,25 @@ class MyCampaignDetailView(APIView):
         serializer = CampaignCreateSerializer(campaign, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         updated = campaign_service.update_campaign(campaign, serializer.validated_data)
+        audit_service.log(
+            request.user, AuditLog.Action.CAMPAIGN_UPDATED, updated,
+            f'{request.user.full_name} updated campaign "{updated.title}"',
+            metadata={'fields': list(serializer.validated_data.keys())},
+        )
         out = CampaignDetailSerializer(updated, context={'request': request})
         return campaign_service.success_response({'campaign': out.data})
 
     @extend_schema(summary='Delete my campaign')
     def delete(self, request, slug):
         campaign = campaign_service.get_owner_campaign(request.user, slug)
+        # Captured before delete() runs -- Django clears campaign.pk once the
+        # row is actually gone, and the audit entry needs the real id/title.
+        title, campaign_id = campaign.title, campaign.pk
         campaign_service.delete_campaign(campaign)
+        audit_service.log(
+            request.user, AuditLog.Action.CAMPAIGN_DELETED, None,
+            f'{request.user.full_name} deleted campaign "{title}"', metadata={'campaign_id': str(campaign_id)},
+        )
         return campaign_service.success_response({}, message='Campaign deleted.')
 
 
@@ -248,6 +276,9 @@ class MyCampaignTogglePauseView(APIView):
     @extend_schema(summary='Pause or resume my campaign')
     def post(self, request, slug):
         campaign = campaign_service.toggle_pause_campaign(request.user, slug)
+        action = AuditLog.Action.CAMPAIGN_PUBLISHED if campaign.status == Campaign.Status.ACTIVE else AuditLog.Action.CAMPAIGN_UNPUBLISHED
+        verb = 'resumed' if campaign.status == Campaign.Status.ACTIVE else 'paused'
+        audit_service.log(request.user, action, campaign, f'{request.user.full_name} {verb} campaign "{campaign.title}"')
         serializer = CampaignDetailSerializer(campaign, context={'request': request})
         return campaign_service.success_response({'campaign': serializer.data})
 
@@ -359,10 +390,24 @@ class AdminCampaignActionView(APIView):
     permission_classes = [HasResourceAccess]
     required_resource = Resource.CAMPAIGNS_MODERATE
 
-    @extend_schema(summary='[Admin] Approve or reject a campaign')
+    @extend_schema(summary='[Admin] Approve, reject, or suspend a campaign')
     def post(self, request, pk, action):
         reason = request.data.get('reason', '')
-        campaign = campaign_service.admin_action(pk, action, reason, request.user)
+        notes = request.data.get('notes', '')
+        campaign = campaign_service.admin_action(pk, action, reason, request.user, notes=notes)
+        audit_action = {
+            'approve': AuditLog.Action.CAMPAIGN_PUBLISHED,
+            'reject': AuditLog.Action.CAMPAIGN_REJECTED,
+            'suspend': AuditLog.Action.CAMPAIGN_UNPUBLISHED,
+        }.get(action)
+        if audit_action:
+            verb = AuditLog.VERBS[audit_action]
+            metadata = {k: v for k, v in {'reason': reason, 'notes': notes}.items() if v}
+            audit_service.log(
+                request.user, audit_action, campaign,
+                f'{request.user.full_name} {verb} campaign "{campaign.title}"',
+                metadata=metadata or None,
+            )
         serializer = AdminCampaignSerializer(campaign, context={'request': request})
         return campaign_service.success_response({'campaign': serializer.data})
 
@@ -377,6 +422,11 @@ class AdminCampaignUpdateView(APIView):
         serializer = AdminCampaignUpdateSerializer(campaign, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        audit_service.log(
+            request.user, AuditLog.Action.CAMPAIGN_UPDATED, campaign,
+            f'{request.user.full_name} updated campaign "{campaign.title}"',
+            metadata={'fields': list(serializer.validated_data.keys())},
+        )
         out = AdminCampaignSerializer(campaign, context={'request': request})
         return campaign_service.success_response({'campaign': out.data})
 
@@ -485,6 +535,19 @@ class AdminCampaignReportStatsView(APIView):
         return campaign_service.success_response(campaign_service.get_campaign_report_stats())
 
 
+class AdminReportedCampaignsListView(APIView):
+    """Backs the admin Reports table's "Campaign" filter dropdown -- only
+    campaigns that actually have a report, not every campaign."""
+    permission_classes = [HasResourceAccess]
+    required_resource = Resource.REPORTS
+
+    @extend_schema(summary='[Admin] List campaigns that have at least one report')
+    def get(self, request):
+        campaigns = campaign_service.get_reported_campaigns()
+        data = [{'id': str(c.id), 'title': c.title} for c in campaigns]
+        return campaign_service.success_response({'campaigns': data})
+
+
 class AdminCampaignReportUpdateView(APIView):
     permission_classes = [HasResourceAccess]
     required_resource = Resource.REPORTS
@@ -496,5 +559,10 @@ class AdminCampaignReportUpdateView(APIView):
         serializer = CampaignReportUpdateSerializer(report, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        audit_service.log(
+            request.user, AuditLog.Action.REPORT_STATUS_CHANGED, report,
+            f'{request.user.full_name} updated report on "{report.campaign.title}"',
+            metadata={'fields': list(serializer.validated_data.keys())},
+        )
         out = CampaignReportSerializer(report)
         return campaign_service.success_response({'report': out.data})

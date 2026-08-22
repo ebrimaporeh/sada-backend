@@ -263,7 +263,7 @@ class AdminCampaignSerializer(serializers.ModelSerializer):
             'category_name', 'category_slug',
             'owner_id', 'owner_email', 'owner_name', 'owner_phone', 'owner_joined_at',
             'story', 'beneficiary', 'beneficiary_relationship', 'deadline',
-            'short_description', 'rejection_reason',
+            'short_description', 'rejection_reason', 'admin_notes',
             'total_withdrawn', 'available_balance',
             'reports_count', 'pending_reports_count',
             'approved_at', 'completed_at', 'created_at', 'updated_at',

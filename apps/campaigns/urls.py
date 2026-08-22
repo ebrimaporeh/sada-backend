@@ -26,6 +26,7 @@ urlpatterns = [
     path('admin/all/', views.AdminCampaignListView.as_view(), name='admin-campaign-list'),
     path('admin/stats/', views.AdminCampaignStatsView.as_view(), name='admin-campaign-stats'),
     path('admin/reports/stats/', views.AdminCampaignReportStatsView.as_view(), name='admin-campaign-report-stats'),
+    path('admin/reports/campaigns/', views.AdminReportedCampaignsListView.as_view(), name='admin-reported-campaigns'),
     path('admin/reports/', views.AdminCampaignReportsView.as_view(), name='admin-campaign-reports'),
     path('admin/<uuid:pk>/action/<str:action>/', views.AdminCampaignActionView.as_view(), name='admin-campaign-action'),
     path('admin/<uuid:pk>/update/', views.AdminCampaignUpdateView.as_view(), name='admin-campaign-update'),
