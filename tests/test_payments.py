@@ -106,6 +106,28 @@ class GatewayRegistryTest(APITestCase):
             minor_units = gateway.convert_gmd_to_minor_units(Decimal('100.00'))
         self.assertEqual(minor_units, 200)  # 100/50 = $2.00 -> 200 cents
 
+    @patch('services.stripe_service.stripe.checkout.Session.create')
+    def test_checkout_session_disables_stripe_adaptive_pricing(self, mock_session_create):
+        # Regression guard: Stripe's Adaptive Pricing (on by default per the
+        # account's Dashboard setting) re-converts the amount we already
+        # computed from the admin-configured gmd_to_settlement_rate into the
+        # donor's local currency using Stripe's own live FX rate -- making
+        # it look like the admin rate was being ignored on the Checkout
+        # page. Explicitly disabling it per-session is the fix; this pins
+        # that the parameter is actually sent.
+        mock_session_create.return_value = {'id': 'cs_test_1', 'url': 'https://checkout.stripe.com/pay/cs_test_1'}
+        set_platform_settings(stripe_enabled=True, gmd_to_settlement_rate=Decimal('70.0000'))
+        with self.settings(PAYMENT_GATEWAYS={
+            'stripe': {'secret_key': 'sk_test', 'webhook_secret': 'whsec_test'},
+        }):
+            donation = Donation.objects.create(
+                campaign=make_campaign(), amount=Decimal('100.00'), currency='usd',
+                provider='card', phone='', payment_reference='SD-ADAPT1', gateway='stripe',
+            )
+            gateway = get_gateway('stripe')
+            gateway.create_payment_intent(donation)
+        self.assertEqual(mock_session_create.call_args.kwargs.get('adaptive_pricing'), {'enabled': False})
+
 
 class GatewayListViewTest(APITestCase):
     """The frontend builds its provider picker from GET /payments/gateways/

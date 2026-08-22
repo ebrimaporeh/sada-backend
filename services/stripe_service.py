@@ -29,6 +29,16 @@ def create_checkout_session(donation, currency, amount_minor, success_url, cance
     PlatformSettings.gmd_to_settlement_rate, not here, so this function has
     no currency-math opinion of its own to get wrong twice.
 
+    `adaptive_pricing` is explicitly disabled below — left on its Dashboard
+    default, Stripe would re-convert this already-converted amount into the
+    donor's local currency using Stripe's own live FX rate (plus a 2-4% fee
+    the donor pays), which is exactly what made the admin-configured rate
+    above look like it was being ignored on the Checkout page. Our own
+    accounting was never actually wrong — `amount_total`/`currency` on the
+    Session always reflect what we set — but the donor-facing price did not
+    match what the admin rate implied, which is the real-world bug. See
+    https://docs.stripe.com/payments/currencies/localize-prices/adaptive-pricing.
+
     Returns the SDK's Session as a plain dict on success (has `id`, `url`),
     or None on failure — never raises.
     """
@@ -37,6 +47,7 @@ def create_checkout_session(donation, currency, amount_minor, success_url, cance
             api_key=_secret_key(),
             mode='payment',
             payment_method_types=['card'],
+            adaptive_pricing={'enabled': False},
             line_items=[{
                 'price_data': {
                     'currency': currency,
