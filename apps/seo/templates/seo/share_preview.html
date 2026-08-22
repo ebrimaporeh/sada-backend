@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ title }}</title>
+  <meta name="description" content="{{ description }}">
+  <link rel="canonical" href="{{ page_url }}">
+
+  {# Real humans following this link get bounced straight to the app. #}
+  {# Social-preview crawlers (WhatsApp/Facebook/LinkedIn/Slack/...) don't #}
+  {# execute JS and don't follow meta-refresh -- they stop right here and #}
+  {# read the tags below, which is the whole point of this page existing. #}
+  <meta http-equiv="refresh" content="0; url={{ page_url }}">
+
+  <meta property="og:type" content="{{ og_type }}">
+  <meta property="og:title" content="{{ title }}">
+  <meta property="og:description" content="{{ description }}">
+  <meta property="og:image" content="{{ image_url }}">
+  <meta property="og:url" content="{{ page_url }}">
+  <meta property="og:site_name" content="{{ site_name }}">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{{ title }}">
+  <meta name="twitter:description" content="{{ description }}">
+  <meta name="twitter:image" content="{{ image_url }}">
+
+  <script>window.location.replace("{{ page_url|escapejs }}");</script>
+</head>
+<body>
+  <p>Redirecting to <a href="{{ page_url }}">{{ title }}</a>&hellip;</p>
+</body>
+</html>
