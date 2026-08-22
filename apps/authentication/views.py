@@ -8,6 +8,8 @@ from rest_framework_simplejwt.exceptions import TokenError
 from drf_spectacular.utils import extend_schema
 
 from services import auth_service, consent_service
+import services.audit_service as audit_service
+from apps.audit.models import AuditLog
 from services.google_oauth_service import verify_google_token, get_or_create_google_user, link_google_account
 from apps.users.serializers import UserSerializer
 from throttling.base import LoginThrottle, RegisterThrottle, ResendVerificationThrottle, PasswordResetRequestThrottle
@@ -28,6 +30,7 @@ class RegisterView(APIView):
         serializer.is_valid(raise_exception=True)
         user, tokens = auth_service.register_user(**serializer.validated_data)
         consent_service.record_terms_acceptance(user, ip_address=consent_service.get_client_ip(request))
+        audit_service.log(user, AuditLog.Action.USER_REGISTERED, user, f'{user.full_name} registered')
         return Response({
             'success': True,
             'message': 'Registration successful. Please verify your email.',
@@ -51,6 +54,7 @@ class LoginView(APIView):
             email=serializer.validated_data['email'],
             password=serializer.validated_data['password'],
         )
+        audit_service.log(user, AuditLog.Action.USER_LOGGED_IN, user, f'{user.full_name} logged in')
         return Response({
             'success': True,
             'message': 'Login successful.',
@@ -179,6 +183,9 @@ class GoogleOAuthView(APIView):
             # Terms checkbox as the email/password form, so this is the
             # equivalent moment to record acceptance for that flow.
             consent_service.record_terms_acceptance(user, ip_address=consent_service.get_client_ip(request))
+            audit_service.log(user, AuditLog.Action.USER_REGISTERED, user, f'{user.full_name} registered via Google')
+        else:
+            audit_service.log(user, AuditLog.Action.USER_LOGGED_IN, user, f'{user.full_name} logged in via Google')
 
         # Generate JWT tokens
         tokens = auth_service._get_tokens_for_user(user)

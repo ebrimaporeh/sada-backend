@@ -22,6 +22,8 @@ urlpatterns = [
     path('api/v1/notifications/', include('apps.notifications.urls')),
     path('api/v1/analytics/', include('apps.analytics.urls')),
     path('api/v1/vision/', include('apps.vision.urls')),
+    path('api/v1/audit/', include('apps.audit.urls')),
+    path('api/v1/events/', include('apps.events.urls')),
 
     # Password reset
     path('api/v1/auth/password-reset/', include('django_rest_passwordreset.urls', namespace='password_reset')),
@@ -30,6 +32,10 @@ urlpatterns = [
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
     path('api/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
+
+    # SEO: sitemap.xml, robots.txt (this domain only -- see apps/seo/views.py),
+    # and the bot-preview pages the frontend's Share button links to.
+    path('', include('apps.seo.urls')),
 ]
 
 if settings.DEBUG:

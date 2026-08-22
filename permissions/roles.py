@@ -30,12 +30,14 @@ class Resource:
     VERIFICATIONS = 'verifications'
     DONATIONS = 'donations'
     FINANCES = 'finances'
+    AUDIT = 'audit'
 
 
 ALL_RESOURCES = {
     Resource.USERS, Resource.STAFF, Resource.DASHBOARD, Resource.SETTINGS,
     Resource.CAMPAIGNS_VIEW, Resource.CAMPAIGNS_MODERATE, Resource.CATEGORIES,
     Resource.REPORTS, Resource.VERIFICATIONS, Resource.DONATIONS, Resource.FINANCES,
+    Resource.AUDIT,
 }
 
 # The actual product decision lives here — everything above/below it is
