@@ -230,21 +230,24 @@ if SUPABASE_STORAGE_BUCKET:
     if _supabase_url:
         AWS_S3_CUSTOM_DOMAIN = f'{_supabase_url}/storage/v1/object/public/{AWS_STORAGE_BUCKET_NAME}'
 
-# ─── Email ───────────────────────────────────────────────────────────────────
+# ─── Email (Resend, via django-anymail) ─────────────────────────────────────
+# Every environment sends over Resend's HTTPS API — never SMTP. Railway (and
+# most PaaS hosts) block outbound SMTP (port 587) entirely, which is why this
+# is the default here rather than just in settings/production.py; local dev
+# uses the same backend so "it works on my machine" actually means something.
+# settings/testing.py overrides this with Django's locmem backend so the
+# automated test suite never makes real network calls.
 
-EMAIL_BACKEND = config('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')
-EMAIL_HOST = config('EMAIL_HOST', default='smtp.gmail.com')
-EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
-EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
-EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
-EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
+EMAIL_BACKEND = 'anymail.backends.resend.EmailBackend'
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@yourapp.com')
+EMAIL_REPLY_TO = config('EMAIL_REPLY_TO', default='')
 
-# Railway (and most PaaS hosts) block outbound SMTP entirely, so production
-# sends over Resend's HTTPS API instead — see settings/production.py.
 ANYMAIL = {
     'RESEND_API_KEY': config('RESEND_API_KEY', default=''),
 }
+# Not read by Anymail itself — kept as a plain setting for logging/reference
+# (e.g. which Resend account/project a deploy is wired to).
+RESEND_API_NAME = config('RESEND_API_NAME', default='')
 
 # ─── Celery ──────────────────────────────────────────────────────────────────
 # Emails (and any other background work) run through Celery so a slow SMTP

@@ -6,9 +6,9 @@ ALLOWED_HOSTS = ['*']
 
 CORS_ALLOW_ALL_ORIGINS = True
 
-# EMAIL_BACKEND is already read from .env in base.py (defaults to console if
-# unset there) — don't hardcode it here, or a real SMTP backend configured in
-# .env gets silently overridden and "sent" emails just print to the terminal.
+# EMAIL_BACKEND is already forced to Anymail's Resend backend in base.py —
+# don't override it here. Local dev sends real emails via Resend, same as
+# production; there is no console/SMTP fallback.
 
 # Faster password hashing for tests
 PASSWORD_HASHERS = [

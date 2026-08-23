@@ -22,12 +22,6 @@ CSRF_COOKIE_SECURE = True
 
 CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', cast=Csv())
 
-# ─── Email ───────────────────────────────────────────────────────────────────
-# Raw SMTP (port 587) is blocked outbound on Railway, so production sends
-# over Resend's HTTPS API via django-anymail instead.
-
-EMAIL_BACKEND = 'anymail.backends.resend.EmailBackend'
-
 # ─── Caching ─────────────────────────────────────────────────────────────────
 
 CACHES = {

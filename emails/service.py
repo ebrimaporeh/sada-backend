@@ -1,4 +1,4 @@
-from django.core.mail import send_mail, EmailMultiAlternatives
+from django.core.mail import EmailMessage, EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 from django.conf import settings
@@ -12,18 +12,23 @@ class EmailService:
         from apps.common.models import SiteSettings
         return SiteSettings.get_solo().site_name
 
-    def _send(self, to: str, subject: str, template: str, context: dict, cc: list = None) -> bool:
+    def _send(self, to: str, subject: str, template: str, context: dict, cc: list = None, attachments: list = None) -> bool:
         try:
             context = {'site_name': self._site_name(), 'frontend_url': settings.FRONTEND_URL, **context}
             html_content = render_to_string(template, context)
+            reply_to = settings.EMAIL_REPLY_TO
             msg = EmailMultiAlternatives(
                 subject=subject,
                 body=strip_tags(html_content),
                 from_email=settings.DEFAULT_FROM_EMAIL,
                 to=[to],
                 cc=cc or None,
+                reply_to=[reply_to] if reply_to else None,
             )
             msg.attach_alternative(html_content, 'text/html')
+            for attachment in attachments or []:
+                # (filename, content, mimetype) tuples — Django's own attach() signature.
+                msg.attach(*attachment)
             msg.send()
             return True
         except Exception as e:
@@ -67,12 +72,14 @@ class EmailService:
 
     def send_plain_email(self, to: str, subject: str, message: str) -> bool:
         try:
-            send_mail(
+            reply_to = settings.EMAIL_REPLY_TO
+            EmailMessage(
                 subject=subject,
-                message=message,
+                body=message,
                 from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[to],
-            )
+                to=[to],
+                reply_to=[reply_to] if reply_to else None,
+            ).send()
             return True
         except Exception as e:
             logger.error(f'Failed to send email to {to}: {e}')
