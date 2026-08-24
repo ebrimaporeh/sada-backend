@@ -1,9 +1,13 @@
+import logging
+import requests
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
 from django.core.exceptions import ValidationError
 from decouple import config
 
 from apps.users.models import User
+
+logger = logging.getLogger(__name__)
 
 
 def verify_google_token(id_token_str: str) -> dict:
@@ -17,7 +21,7 @@ def verify_google_token(id_token_str: str) -> dict:
         id_token_str: Google ID token from frontend
 
     Returns:
-        dict with 'email', 'name', 'google_sub' keys
+        dict with 'email', 'name', 'google_sub', 'picture' keys
 
     Raises:
         ValidationError: If token is invalid, verification fails, or Google
@@ -65,6 +69,25 @@ def verify_google_token(id_token_str: str) -> dict:
         raise ValidationError(f'Invalid Google token: {str(e)}')
     except Exception as e:
         raise ValidationError(f'Token verification failed: {str(e)}')
+
+
+def _set_avatar_from_google(user: User, picture_url: str) -> None:
+    """Best-effort only -- a failed fetch/process must never block the
+    signup itself, so any error here is swallowed (and logged) rather than
+    raised. Only called for brand-new accounts (see `created` below), so
+    this never overwrites an avatar a returning user has since uploaded."""
+    if not picture_url:
+        return
+    try:
+        from django.core.files.base import ContentFile
+        from services.image_compression import process_image
+        response = requests.get(picture_url, timeout=10)
+        response.raise_for_status()
+        raw = ContentFile(response.content, name='google_avatar.jpg')
+        user.avatar = process_image(raw, profile='avatar')
+        user.save(update_fields=['avatar'])
+    except Exception:
+        logger.warning('Failed to fetch Google profile picture for %s', user.email, exc_info=True)
 
 
 def get_or_create_google_user(google_data: dict, account_type: str = None) -> tuple[User, bool]:
@@ -115,6 +138,8 @@ def get_or_create_google_user(google_data: dict, account_type: str = None) -> tu
             # as a usable (empty) password rather than "no password set".
             user.set_unusable_password()
             user.save(update_fields=['password'])
+
+            _set_avatar_from_google(user, google_data.get('picture'))
 
             if user.account_type == User.AccountType.ORGANIZATION:
                 # Google gives us no org details at all — every field is

@@ -1,6 +1,9 @@
+import tempfile
 from unittest.mock import patch
 
 from django.core.exceptions import ValidationError
+from django.core.files.base import ContentFile
+from django.test import override_settings
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -79,3 +82,55 @@ class GoogleOAuthViewAccountTakeoverTest(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['data']['user']['email'], 'victim@example.com')
+
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class GoogleSignupAvatarTest(APITestCase):
+    """A brand-new Google signup gets their Google profile picture set as
+    their avatar -- see google_oauth_service._set_avatar_from_google."""
+
+    def _google_data(self, email='newuser@example.com', sub='sub-avatar-1', picture='https://example.com/pic.jpg'):
+        return {'email': email, 'name': 'New User', 'google_sub': sub, 'picture': picture}
+
+    @patch('services.image_compression.process_image')
+    @patch('services.google_oauth_service.requests.get')
+    def test_new_google_user_gets_avatar_from_google_picture(self, mock_get, mock_process):
+        mock_get.return_value.content = b'fake-image-bytes'
+        mock_get.return_value.raise_for_status = lambda: None
+        mock_process.return_value = ContentFile(b'processed', name='avatar.webp')
+
+        user, created = google_oauth_service.get_or_create_google_user(self._google_data())
+
+        self.assertTrue(created)
+        user.refresh_from_db()
+        self.assertTrue(bool(user.avatar))
+        mock_get.assert_called_once_with('https://example.com/pic.jpg', timeout=10)
+
+    def test_new_google_user_with_no_picture_claim_gets_no_avatar(self):
+        user, created = google_oauth_service.get_or_create_google_user(self._google_data(picture=None))
+
+        self.assertTrue(created)
+        self.assertFalse(bool(user.avatar))
+
+    @patch('services.google_oauth_service.requests.get')
+    def test_avatar_fetch_failure_does_not_block_signup(self, mock_get):
+        mock_get.side_effect = Exception('network error')
+
+        user, created = google_oauth_service.get_or_create_google_user(self._google_data())
+
+        self.assertTrue(created)
+        self.assertFalse(bool(user.avatar))
+
+    @patch('services.image_compression.process_image')
+    @patch('services.google_oauth_service.requests.get')
+    def test_returning_user_does_not_get_avatar_refetched(self, mock_get, mock_process):
+        mock_get.return_value.content = b'fake-image-bytes'
+        mock_get.return_value.raise_for_status = lambda: None
+        mock_process.return_value = ContentFile(b'processed', name='avatar.webp')
+        google_oauth_service.get_or_create_google_user(self._google_data())
+        mock_get.reset_mock()
+
+        user, created = google_oauth_service.get_or_create_google_user(self._google_data())
+
+        self.assertFalse(created)
+        mock_get.assert_not_called()
