@@ -1,3 +1,4 @@
+import random
 import uuid
 from django.utils import timezone
 from django.db import models
@@ -66,6 +67,55 @@ def get_featured_campaigns():
         extra = qs.exclude(pk__in=seen).order_by('-created_at')[:4 - len(featured)]
         featured += list(extra)
     return featured
+
+
+# Priority weights for the homepage hero pick, strictly ordered per product
+# spec: verified owner > urgent > disaster relief > medical/health. Powers
+# of 2 are deliberate, not just "biggish numbers" -- they guarantee that
+# rank ordering, e.g. a verified-only campaign (8) always outweighs a
+# campaign matching every criterion below it combined (4+2+1=7), so the
+# *order* holds even when campaigns satisfy different combinations of
+# criteria, not just "verified counts for more on average."
+HERO_WEIGHT_VERIFIED_OWNER = 8
+HERO_WEIGHT_URGENT = 4
+HERO_WEIGHT_DISASTER_CATEGORY = 2
+HERO_WEIGHT_MEDICAL_CATEGORY = 1
+HERO_WEIGHT_BASE = 1  # every eligible campaign gets a nonzero chance
+HERO_CATEGORY_SLUGS = {'disaster': HERO_WEIGHT_DISASTER_CATEGORY, 'medical': HERO_WEIGHT_MEDICAL_CATEGORY}
+
+
+def _hero_weight(campaign):
+    weight = HERO_WEIGHT_BASE
+    if campaign.owner.is_verified:
+        weight += HERO_WEIGHT_VERIFIED_OWNER
+    if campaign.is_urgent:
+        weight += HERO_WEIGHT_URGENT
+    if campaign.category_id and campaign.category.slug in HERO_CATEGORY_SLUGS:
+        weight += HERO_CATEGORY_SLUGS[campaign.category.slug]
+    return weight
+
+
+def get_hero_campaign():
+    """Weighted-random pick for the homepage hero card.
+
+    Not the same list get_featured_campaigns() returns (that's a curated/
+    fallback grid shown elsewhere on the homepage) -- this is a single
+    campaign, re-rolled on every call rather than cached or deterministic,
+    so reloading the homepage (as the same visitor or a different one) can
+    surface a different eligible campaign each time. "Prioritize" here means
+    weighted odds, not a fixed sort: a campaign matching more/higher-ranked
+    criteria is more *likely* to come up, not guaranteed to, which is what
+    keeps the hero varied instead of freezing on one campaign indefinitely.
+    """
+    from apps.campaigns.models import Campaign
+    visible = [Campaign.Status.ACTIVE, Campaign.Status.APPROVED]
+    campaigns = list(
+        Campaign.objects.filter(status__in=visible).select_related('owner', 'category')
+    )
+    if not campaigns:
+        return None
+    weights = [_hero_weight(c) for c in campaigns]
+    return random.choices(campaigns, weights=weights, k=1)[0]
 
 
 def get_campaign_by_slug(slug):

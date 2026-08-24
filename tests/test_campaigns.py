@@ -397,6 +397,131 @@ class FeaturedCampaignsTest(APITestCase):
         self.assertEqual(len({c.pk for c in results}), 4)
 
 
+class HeroCampaignWeightTest(APITestCase):
+    """_hero_weight encodes a strict priority order (verified > urgent >
+    disaster > medical) via power-of-2 weights, not just "biggish numbers"
+    -- these tests pin that a campaign matching only a higher-priority
+    criterion always outweighs one matching every criterion below it."""
+
+    def _owner(self, is_verified=False):
+        return User.objects.create_user(
+            email=f'owner{User.objects.count()}@example.com', password='pass', is_verified=is_verified,
+        )
+
+    def test_base_weight_for_a_plain_campaign(self):
+        campaign = make_campaign(owner=self._owner())
+        self.assertEqual(campaign_service._hero_weight(campaign), 1)
+
+    def test_verified_owner_adds_the_most_weight(self):
+        campaign = make_campaign(owner=self._owner(is_verified=True))
+        self.assertEqual(campaign_service._hero_weight(campaign), 1 + 8)
+
+    def test_urgent_adds_weight(self):
+        campaign = make_campaign(owner=self._owner(), is_urgent=True)
+        self.assertEqual(campaign_service._hero_weight(campaign), 1 + 4)
+
+    def test_disaster_category_adds_weight(self):
+        category = make_category(name='Disaster Relief', slug='disaster')
+        campaign = make_campaign(owner=self._owner(), category=category)
+        self.assertEqual(campaign_service._hero_weight(campaign), 1 + 2)
+
+    def test_medical_category_adds_weight(self):
+        category = make_category(name='Medical & Health', slug='medical')
+        campaign = make_campaign(owner=self._owner(), category=category)
+        self.assertEqual(campaign_service._hero_weight(campaign), 1 + 1)
+
+    def test_unrelated_category_adds_no_weight(self):
+        category = make_category(name='Education', slug='education')
+        campaign = make_campaign(owner=self._owner(), category=category)
+        self.assertEqual(campaign_service._hero_weight(campaign), 1)
+
+    def test_verified_alone_outweighs_urgent_and_disaster_and_medical_combined(self):
+        verified_only = make_campaign(owner=self._owner(is_verified=True))
+        category = make_category(name='Disaster Relief', slug='disaster')
+        everything_but_verified = make_campaign(owner=self._owner(), is_urgent=True, category=category)
+        # everything_but_verified is missing the medical bump too (a
+        # campaign can only have one category) -- even so, verified alone
+        # still needs to beat urgent+disaster+medical's combined total to
+        # prove the ordering, not just this particular pair.
+        self.assertGreater(
+            campaign_service._hero_weight(verified_only),
+            campaign_service.HERO_WEIGHT_URGENT + campaign_service.HERO_WEIGHT_DISASTER_CATEGORY
+            + campaign_service.HERO_WEIGHT_MEDICAL_CATEGORY + campaign_service.HERO_WEIGHT_BASE,
+        )
+        self.assertGreater(
+            campaign_service._hero_weight(verified_only),
+            campaign_service._hero_weight(everything_but_verified),
+        )
+
+    def test_urgent_alone_outweighs_disaster_and_medical_combined(self):
+        urgent_only = make_campaign(owner=self._owner(), is_urgent=True)
+        self.assertGreater(
+            campaign_service._hero_weight(urgent_only),
+            campaign_service.HERO_WEIGHT_DISASTER_CATEGORY + campaign_service.HERO_WEIGHT_MEDICAL_CATEGORY
+            + campaign_service.HERO_WEIGHT_BASE,
+        )
+
+    def test_disaster_alone_outweighs_medical(self):
+        category = make_category(name='Disaster Relief', slug='disaster')
+        disaster_only = make_campaign(owner=self._owner(), category=category)
+        medical_category = make_category(name='Medical & Health', slug='medical')
+        medical_only = make_campaign(owner=self._owner(), category=medical_category)
+        self.assertGreater(
+            campaign_service._hero_weight(disaster_only),
+            campaign_service._hero_weight(medical_only),
+        )
+
+
+class HeroCampaignTest(APITestCase):
+    def test_returns_none_when_no_eligible_campaigns(self):
+        make_campaign(status=Campaign.Status.PENDING)
+        self.assertIsNone(campaign_service.get_hero_campaign())
+
+    def test_only_considers_active_and_approved_campaigns(self):
+        eligible = make_campaign(status=Campaign.Status.ACTIVE)
+        make_campaign(status=Campaign.Status.PENDING)
+        make_campaign(status=Campaign.Status.REJECTED)
+        make_campaign(status=Campaign.Status.COMPLETED)
+        make_campaign(status=Campaign.Status.DRAFT)
+
+        # Only one eligible campaign exists, so any correct weighted-random
+        # pick has no other choice -- deterministic without needing to
+        # patch random.
+        result = campaign_service.get_hero_campaign()
+        self.assertEqual(result, eligible)
+
+    def test_weights_are_passed_to_random_choices_matching_each_campaign(self):
+        from unittest.mock import patch
+        plain = make_campaign(owner=self._owner_helper())
+        verified = make_campaign(owner=self._owner_helper(is_verified=True))
+
+        with patch('services.campaign_service.random.choices') as mock_choices:
+            mock_choices.return_value = [plain]
+            result = campaign_service.get_hero_campaign()
+
+        called_campaigns, called_weights = mock_choices.call_args[0][0], mock_choices.call_args[1]['weights']
+        weight_by_campaign = dict(zip(called_campaigns, called_weights))
+        self.assertEqual(weight_by_campaign[plain], 1)
+        self.assertEqual(weight_by_campaign[verified], 9)
+        self.assertEqual(result, plain)
+
+    def _owner_helper(self, is_verified=False):
+        return User.objects.create_user(
+            email=f'heroowner{User.objects.count()}@example.com', password='pass', is_verified=is_verified,
+        )
+
+    def test_api_endpoint_returns_a_campaign_with_no_auth_required(self):
+        make_campaign()
+        response = self.client.get('/api/v1/campaigns/hero/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNotNone(response.data['data']['campaign'])
+
+    def test_api_endpoint_returns_null_campaign_when_none_eligible(self):
+        response = self.client.get('/api/v1/campaigns/hero/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNone(response.data['data']['campaign'])
+
+
 class CampaignStatsTest(APITestCase):
     def test_get_campaign_stats_counts_by_status(self):
         make_campaign(status=Campaign.Status.ACTIVE)

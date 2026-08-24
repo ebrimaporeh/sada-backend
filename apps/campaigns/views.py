@@ -181,6 +181,22 @@ class FeaturedCampaignsView(APIView):
         return campaign_service.success_response({'campaigns': serializer.data})
 
 
+class HeroCampaignView(APIView):
+    """Weighted-random single campaign for the homepage hero -- see
+    campaign_service.get_hero_campaign() for the priority weighting.
+    Deliberately never cached server-side (see StandardResultsPagination/
+    other views for comparison) so every request re-rolls."""
+    permission_classes = [AllowAny]
+
+    @extend_schema(summary='Get a weighted-random campaign for the homepage hero', responses={200: CampaignListSerializer})
+    def get(self, request):
+        campaign = campaign_service.get_hero_campaign()
+        if campaign is None:
+            return campaign_service.success_response({'campaign': None})
+        serializer = CampaignListSerializer(campaign, context={'request': request})
+        return campaign_service.success_response({'campaign': serializer.data})
+
+
 class CampaignDetailView(APIView):
     permission_classes = [AllowAny]
 
