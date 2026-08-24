@@ -119,11 +119,11 @@ def verify_and_parse_webhook(payload, signature, secret=None):
         return None
 
 
-# ModemPay's own payout docs list wave/afrimoney as valid transfer networks,
-# but we only actually use wave — aps isn't confirmed to work for payouts
-# (only verified as a donation/charge method so far). Revisit this once
-# aps-for-payouts is confirmed with ModemPay.
-SUPPORTED_PAYOUT_NETWORKS = {'wave'}
+# ModemPay's own payout docs (confirmed 2026-08) list wave/afrimoney as
+# valid transfer networks — aps isn't among them and isn't confirmed to work
+# for payouts (only verified as a donation/charge method so far). Revisit
+# this once aps-for-payouts is confirmed with ModemPay.
+SUPPORTED_PAYOUT_NETWORKS = {'wave', 'afrimoney'}
 
 
 def check_transfer_fee(amount, network, currency='GMD'):

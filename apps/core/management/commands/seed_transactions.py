@@ -204,7 +204,7 @@ class Command(BaseCommand):
                 donor_name=donor_name,
                 amount=amount,
                 currency='GMD',
-                provider=random.choices(['wave', 'aps'], weights=[70, 30], k=1)[0],
+                provider=random.choices(['wave', 'aps', 'afrimoney'], weights=[60, 25, 15], k=1)[0],
                 phone=phone,
                 payment_reference=make_donation_ref(),
                 status=status,

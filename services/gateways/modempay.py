@@ -70,11 +70,11 @@ class ModemPayGateway(PaymentGateway):
 
     @property
     def supported_donation_methods(self):
-        # wave/aps are the only two Donation.Provider choices ModemPay's
+        # wave/aps/afrimoney are the Donation.Provider choices ModemPay's
         # checkout actually offers — card isn't in this set (that's Stripe's).
         # Each is individually admin-toggleable (PlatformSettings.wave_enabled/
-        # aps_enabled) — e.g. flip APS off on its own if it starts failing,
-        # without taking Wave down too.
+        # aps_enabled/afrimoney_enabled) — e.g. flip APS off on its own if it
+        # starts failing, without taking Wave or Afrimoney down too.
         from apps.payments.models import PlatformSettings
         platform = PlatformSettings.get_solo()
         methods = set()
@@ -82,17 +82,22 @@ class ModemPayGateway(PaymentGateway):
             methods.add('wave')
         if platform.aps_enabled:
             methods.add('aps')
+        if platform.afrimoney_enabled:
+            methods.add('afrimoney')
         return methods
 
     @property
     def supported_payout_methods(self):
-        # Payouts are wave-only already (SUPPORTED_PAYOUT_NETWORKS), so this
-        # only needs to gate on wave_enabled -- aps_enabled has no effect
-        # here since aps was never a payout network.
+        # Payouts are wave/afrimoney (SUPPORTED_PAYOUT_NETWORKS) -- aps was
+        # never a payout network, so aps_enabled has no effect here.
         from apps.payments.models import PlatformSettings
-        if not PlatformSettings.get_solo().wave_enabled:
-            return set()
-        return modempay_service.SUPPORTED_PAYOUT_NETWORKS
+        platform = PlatformSettings.get_solo()
+        methods = set(modempay_service.SUPPORTED_PAYOUT_NETWORKS)
+        if not platform.wave_enabled:
+            methods.discard('wave')
+        if not platform.afrimoney_enabled:
+            methods.discard('afrimoney')
+        return methods
 
     def get_balance(self):
         return modempay_service.get_balance()

@@ -12,12 +12,13 @@ class Donation(BaseModel):
 
     class Provider(models.TextChoices):
         # The payment *method* within whichever gateway processed this
-        # donation (see `gateway` below) — wave/aps are ModemPay's mobile-
-        # money networks; card is Stripe's. ModemPay itself doesn't support
-        # card (confirmed 2026-07-14) — ModemPay donations are always
-        # wave/aps, Stripe donations are always card.
+        # donation (see `gateway` below) — wave/aps/afrimoney are ModemPay's
+        # mobile-money networks; card is Stripe's. ModemPay itself doesn't
+        # support card (confirmed 2026-07-14) — ModemPay donations are always
+        # wave/aps/afrimoney, Stripe donations are always card.
         WAVE = 'wave', 'Wave'
         APS = 'aps', 'APS Wallet'
+        AFRIMONEY = 'afrimoney', 'Afrimoney'
         CARD = 'card', 'Card'
 
     campaign = models.ForeignKey(

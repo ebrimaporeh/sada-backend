@@ -59,6 +59,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         # the underlying networks it processes payments through.
         WAVE = 'wave', 'Wave'
         APS = 'aps', 'APS Wallet'
+        AFRIMONEY = 'afrimoney', 'Afrimoney'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     email = models.EmailField(unique=True)

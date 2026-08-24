@@ -51,11 +51,12 @@ class Payout(BaseModel):
         # Model-level choices mirror what ModemPay processes generally;
         # which of these are actually payable-out right now is enforced
         # separately by get_gateway('modempay').supported_payout_methods
-        # (wave-only today — ModemPay's payout docs don't list aps as a
+        # (wave/afrimoney — ModemPay's payout docs don't list aps as a
         # transfer network). Payouts are modempay-only, full stop — no other
         # gateway can disburse to a Gambian mobile-money wallet.
         WAVE = 'wave', 'Wave'
         APS = 'aps', 'APS Wallet'
+        AFRIMONEY = 'afrimoney', 'Afrimoney'
 
     campaign = models.ForeignKey(
         'campaigns.Campaign',
@@ -113,11 +114,11 @@ class PlatformSettings(BaseModel):
     )
     modempay_enabled = models.BooleanField(
         default=True,
-        help_text='Whether donors/campaign owners can use ModemPay (Wave/APS mobile money).',
+        help_text='Whether donors/campaign owners can use ModemPay (Wave/APS/Afrimoney mobile money).',
     )
     # Per-network switches within ModemPay -- e.g. flip APS off on its own
     # when it's misbehaving without taking Wave (or ModemPay payouts, which
-    # are wave-only) down with it. Read by ModemPayGateway.supported_*_methods
+    # are wave/afrimoney) down with it. Read by ModemPayGateway.supported_*_methods
     # (services/gateways/modempay.py), not modempay_enabled itself -- both
     # gates apply (the gateway as a whole must also be on).
     wave_enabled = models.BooleanField(
@@ -127,6 +128,10 @@ class PlatformSettings(BaseModel):
     aps_enabled = models.BooleanField(
         default=True,
         help_text='Whether APS Wallet is offered as a donation method (requires ModemPay enabled above).',
+    )
+    afrimoney_enabled = models.BooleanField(
+        default=True,
+        help_text='Whether Afrimoney is offered as a donation and withdrawal method (requires ModemPay enabled above).',
     )
     stripe_enabled = models.BooleanField(
         default=False,

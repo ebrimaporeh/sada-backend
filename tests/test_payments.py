@@ -142,8 +142,8 @@ class GatewayListViewTest(APITestCase):
         self.assertTrue(modempay['supports_payouts'])
         self.assertTrue(modempay['requires_phone'])
         self.assertIsNone(modempay['default_method'])
-        self.assertEqual(set(modempay['donation_methods']), {'wave', 'aps'})
-        self.assertEqual(set(modempay['payout_methods']), {'wave'})
+        self.assertEqual(set(modempay['donation_methods']), {'wave', 'aps', 'afrimoney'})
+        self.assertEqual(set(modempay['payout_methods']), {'wave', 'afrimoney'})
 
     def test_lists_both_when_stripe_enabled(self):
         set_platform_settings(stripe_enabled=True, stripe_settlement_currency='usd')
@@ -170,22 +170,29 @@ class GatewayListViewTest(APITestCase):
         set_platform_settings(aps_enabled=False)
         response = self.client.get('/api/v1/payments/gateways/')
         modempay = response.data['data']['gateways'][0]
-        self.assertEqual(set(modempay['donation_methods']), {'wave'})
+        self.assertEqual(set(modempay['donation_methods']), {'wave', 'afrimoney'})
         # aps was never a payout network, so turning it off changes nothing there.
+        self.assertEqual(set(modempay['payout_methods']), {'wave', 'afrimoney'})
+
+    def test_disabling_afrimoney_removes_it_from_donations_and_payouts(self):
+        set_platform_settings(afrimoney_enabled=False)
+        response = self.client.get('/api/v1/payments/gateways/')
+        modempay = response.data['data']['gateways'][0]
+        self.assertEqual(set(modempay['donation_methods']), {'wave', 'aps'})
         self.assertEqual(set(modempay['payout_methods']), {'wave'})
 
     def test_disabling_wave_removes_it_from_donations_and_payouts(self):
         set_platform_settings(wave_enabled=False)
         response = self.client.get('/api/v1/payments/gateways/')
         modempay = response.data['data']['gateways'][0]
-        self.assertEqual(set(modempay['donation_methods']), {'aps'})
-        self.assertEqual(set(modempay['payout_methods']), set())
+        self.assertEqual(set(modempay['donation_methods']), {'aps', 'afrimoney'})
+        self.assertEqual(set(modempay['payout_methods']), {'afrimoney'})
 
-    def test_disabling_both_wave_and_aps_still_lists_modempay_with_no_methods(self):
+    def test_disabling_all_three_networks_still_lists_modempay_with_no_methods(self):
         # modempay_enabled is still True -- the gateway itself stays "on",
         # it just has nothing to offer. GatewayListView shouldn't crash or
         # hide the whole entry over this.
-        set_platform_settings(wave_enabled=False, aps_enabled=False)
+        set_platform_settings(wave_enabled=False, aps_enabled=False, afrimoney_enabled=False)
         response = self.client.get('/api/v1/payments/gateways/')
         gateways = response.data['data']['gateways']
         self.assertEqual([g['code'] for g in gateways], ['modempay'])
@@ -262,6 +269,21 @@ class DonationCreateGatewayTest(APITestCase):
         modempay_service.create_payment_intent(donation)
         params = mock_get_client.return_value.payment_intents.create.call_args.kwargs['params']
         self.assertEqual(params['network'], 'wave')
+        self.assertEqual(params['account_number'], '7000000')
+
+    @patch('services.modempay_service.get_client')
+    def test_afrimoney_donation_includes_direct_charge_network_param(self, mock_get_client):
+        mock_get_client.return_value.payment_intents.create.return_value = {
+            'status': True, 'data': {'payment_link': 'https://pay.modempay.com/afrimoney', 'intent_secret': 'sec_afri'},
+        }
+        donation = Donation.objects.create(
+            campaign=self.campaign, amount=Decimal('100.00'), currency='GMD',
+            provider='afrimoney', phone='+2207000000', payment_reference='SD-AFRI1', gateway='modempay',
+        )
+        import services.modempay_service as modempay_service
+        modempay_service.create_payment_intent(donation)
+        params = mock_get_client.return_value.payment_intents.create.call_args.kwargs['params']
+        self.assertEqual(params['network'], 'afrimoney')
         self.assertEqual(params['account_number'], '7000000')
 
     def _enable_stripe(self, rate=Decimal('70.0000'), currency='usd'):
@@ -350,6 +372,30 @@ class DonationCreateGatewayTest(APITestCase):
             'phone': '+2207000000',
         })
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    @patch('services.modempay_service.create_payment_intent')
+    def test_donation_api_accepts_afrimoney(self, mock_create):
+        mock_create.return_value = {
+            'status': True,
+            'data': {'payment_link': 'https://pay.modempay.com/afrimoney', 'intent_secret': 'sec_afri2'},
+        }
+        response = self.client.post('/api/v1/donations/', {
+            'campaign_id': str(self.campaign.id),
+            'amount': '25.00',
+            'provider': 'afrimoney',
+            'phone': '+2207000000',
+        })
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_donation_api_rejects_afrimoney_when_disabled(self):
+        set_platform_settings(afrimoney_enabled=False)
+        response = self.client.post('/api/v1/donations/', {
+            'campaign_id': str(self.campaign.id),
+            'amount': '25.00',
+            'provider': 'afrimoney',
+            'phone': '+2207000000',
+        })
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
 class DonationWebhookGatewayTest(APITestCase):
@@ -1162,6 +1208,21 @@ class PlatformSettingsGatewayAdminTest(APITestCase):
         self.assertFalse(settings_obj.aps_enabled)
         self.assertTrue(settings_obj.wave_enabled)
         self.assertTrue(settings_obj.modempay_enabled)
+
+    def test_afrimoney_defaults_to_enabled(self):
+        self.assertTrue(PlatformSettings.get_solo().afrimoney_enabled)
+
+    def test_admin_can_disable_afrimoney_independently(self):
+        from apps.payments.serializers import PlatformSettingsSerializer
+        serializer = PlatformSettingsSerializer(
+            PlatformSettings.get_solo(), data={'afrimoney_enabled': False}, partial=True,
+        )
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        serializer.save()
+        settings_obj = PlatformSettings.get_solo()
+        self.assertFalse(settings_obj.afrimoney_enabled)
+        self.assertTrue(settings_obj.wave_enabled)
+        self.assertTrue(settings_obj.aps_enabled)
 
 
 class PublicCampaignDonorSortTest(APITestCase):
