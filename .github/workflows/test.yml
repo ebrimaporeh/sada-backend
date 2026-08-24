@@ -66,6 +66,14 @@ jobs:
         run: |
           coverage run manage.py test tests
           coverage report
+          coverage xml
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.xml
+          flags: backend
 
       - name: Check OpenAPI schema hasn't drifted from the committed baseline
         run: |
