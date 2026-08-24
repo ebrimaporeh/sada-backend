@@ -238,7 +238,15 @@ class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
         user_service.admin_update_user(serializer.instance, self.request.user, **serializer.validated_data)
 
     def perform_destroy(self, instance):
-        user_service.deactivate_user(instance, requesting_user=self.request.user)
+        # Captured before admin_delete_user() runs -- it anonymizes the
+        # target's name/email as part of the deletion itself, so logging
+        # after would record the entry against already-scrubbed fields.
+        name, email = instance.full_name, instance.email
+        user_service.admin_delete_user(instance, requesting_user=self.request.user)
+        audit_service.log(
+            self.request.user, AuditLog.Action.USER_ACCOUNT_DELETED, None,
+            f"{self.request.user.full_name} deleted {name}'s account ({email})",
+        )
 
 
 @extend_schema(tags=['Verification'], summary='Submit a government ID for identity verification')

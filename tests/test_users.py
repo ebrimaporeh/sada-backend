@@ -120,6 +120,84 @@ class UserDetailViewResourceResolutionTest(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
 
+class AdminDeleteUserViewTest(APITestCase):
+    """DELETE on UserDetailView, admin-initiated -- anonymizes rather than
+    hard-deletes (see services/user_service.py::_anonymize_account), same
+    guarantee as self-service account deletion."""
+
+    def setUp(self):
+        self.admin = User.objects.create_user(email='admin-del@example.com', password='pass', is_staff=True, role=User.Role.ADMIN)
+        self.client.force_authenticate(user=self.admin)
+
+    def test_admin_can_delete_a_regular_user(self):
+        target = User.objects.create_user(email='regular-del@example.com', password='pass', first_name='Amie', last_name='Jallow')
+        response = self.client.delete(reverse('user-detail', args=[target.pk]))
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+        target.refresh_from_db()
+        self.assertFalse(target.is_active)
+        self.assertFalse(target.has_usable_password())
+        self.assertEqual(target.email, f'deleted-{target.id}@deleted.sada.gm')
+        self.assertEqual(target.first_name, 'Deleted')
+        self.assertTrue(User.objects.filter(pk=target.pk).exists())
+
+    def test_admin_can_delete_an_organization_account(self):
+        from apps.users.models import Organization
+        target = User.objects.create_user(email='org-del@example.com', password='pass', account_type=User.AccountType.ORGANIZATION)
+        Organization.objects.create(user=target, organization_name='Real Org Name', organization_type='community', contact_person_name='Contact', phone_2='7000000')
+
+        response = self.client.delete(reverse('user-detail', args=[target.pk]))
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+        target.organization.refresh_from_db()
+        self.assertEqual(target.organization.organization_name, f'Deleted Organization {target.id}')
+        self.assertEqual(target.organization.contact_person_name, '')
+
+    def test_deleting_a_staff_member_resets_their_role_and_group(self):
+        target = User.objects.create_user(email='staff-del@example.com', password='pass', role='moderator')
+        self.assertEqual(list(target.groups.values_list('name', flat=True)), ['moderator'])
+
+        response = self.client.delete(reverse('user-detail', args=[target.pk]))
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+        target.refresh_from_db()
+        self.assertEqual(target.role, User.Role.USER)
+        self.assertEqual(list(target.groups.values_list('name', flat=True)), [])
+
+    def test_admin_cannot_delete_their_own_account(self):
+        response = self.client.delete(reverse('user-detail', args=[self.admin.pk]))
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.admin.refresh_from_db()
+        self.assertTrue(self.admin.is_active)
+
+    def test_cannot_delete_another_admin_account(self):
+        other_admin = User.objects.create_user(email='admin2-del@example.com', password='pass', is_staff=True, role=User.Role.ADMIN)
+        response = self.client.delete(reverse('user-detail', args=[other_admin.pk]))
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        other_admin.refresh_from_db()
+        self.assertTrue(other_admin.is_active)
+
+    def test_deletion_is_audit_logged(self):
+        from apps.audit.models import AuditLog
+        target = User.objects.create_user(email='audit-del@example.com', password='pass', first_name='Ousman', last_name='Camara')
+        self.client.delete(reverse('user-detail', args=[target.pk]))
+        entry = AuditLog.objects.get(action=AuditLog.Action.USER_ACCOUNT_DELETED)
+        self.assertIn('Ousman Camara', entry.description)
+        self.assertIn('audit-del@example.com', entry.description)
+
+    def test_a_moderator_without_users_delete_cannot_delete_a_regular_user(self):
+        from permissions.roles import Resource, set_role_resources
+        set_role_resources('moderator', [Resource.USERS_VIEW])
+        moderator = User.objects.create_user(email='mod-nodelete@example.com', password='pass', role='moderator')
+        self.client.force_authenticate(user=moderator)
+
+        target = User.objects.create_user(email='safe-target@example.com', password='pass')
+        response = self.client.delete(reverse('user-detail', args=[target.pk]))
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        target.refresh_from_db()
+        self.assertTrue(target.is_active)
+
+
 class DeleteOwnAccountTest(APITestCase):
     """Self-service account deletion anonymizes rather than hard-deletes --
     Campaign.owner is CASCADE, so an actual delete would destroy every

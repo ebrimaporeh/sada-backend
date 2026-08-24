@@ -113,42 +113,31 @@ def update_user(user: User, **data) -> User:
     return user
 
 
-def delete_own_account(user: User, password: str = '') -> None:
-    """Self-service account deletion.
+def _anonymize_account(user: User, *, reset_role: bool = False) -> None:
+    """Shared by delete_own_account (self-service) and admin_delete_user
+    (staff-initiated): scrubs personally-identifying fields and locks the
+    account out, without hard-deleting the User row.
 
-    Doesn't hard-delete the User row: Campaign.owner is CASCADE, so an
-    actual `user.delete()` would destroy every campaign this user owns
-    and, via Donation.campaign's own CASCADE, every donation ever made to
-    them — the Privacy Policy explicitly promises "legally required
-    financial records will be retained even after deletion," so that's
-    not optional. Anonymizes the personally-identifying fields instead
-    and deactivates the account. is_active=False plus an unusable
-    password is enough on its own to lock the account out entirely --
-    SimpleJWT's JWTAuthentication checks is_active on every request, so
-    every existing token stops working immediately, not just future
-    logins.
+    Doesn't hard-delete: Campaign.owner is CASCADE, so an actual
+    `user.delete()` would destroy every campaign this user owns and, via
+    Donation.campaign's own CASCADE, every donation ever made to them —
+    the Privacy Policy explicitly promises "legally required financial
+    records will be retained even after deletion," so that's not
+    optional. is_active=False plus an unusable password is enough on its
+    own to lock the account out entirely -- SimpleJWT's JWTAuthentication
+    checks is_active on every request, so every existing token stops
+    working immediately, not just future logins.
 
     Government-issued ID photos submitted for verification have no such
     retention requirement, so those are deleted outright (file and row),
     not just unlinked from the user.
 
-    Raises ValidationError if `password` doesn't match — skipped entirely
-    for an account with no usable password (Google-only sign-in), where
-    the caller already being authenticated is the only credential that
-    exists to check.
+    `reset_role` additionally demotes the account to a plain User and
+    drops it from any staff Group (via the usual role-change signal) --
+    only relevant for admin-initiated deletes of a staff member; a
+    self-deleting user is never staff in practice, and delete_own_account
+    doesn't need this.
     """
-    if user.has_usable_password() and not user.check_password(password):
-        raise ValidationError('Incorrect password.')
-
-    # Sent to the real address before it gets overwritten below.
-    from services import notification_service
-    notification_service.notify_user(
-        user, 'Your account has been deleted',
-        'This confirms your SADA account and personal information have been deleted, '
-        'as requested. Campaign and donation records are retained as required for '
-        'financial record-keeping, with your personal details removed from them.',
-    )
-
     with transaction.atomic():
         if user.avatar:
             user.avatar.delete(save=False)
@@ -190,8 +179,63 @@ def delete_own_account(user: User, password: str = '') -> None:
         user.default_payment_phone = ''
         user.google_sub = None
         user.is_active = False
+        if reset_role:
+            user.role = User.Role.USER
         user.set_unusable_password()
         user.save()
+
+
+def delete_own_account(user: User, password: str = '') -> None:
+    """Self-service account deletion.
+
+    Raises ValidationError if `password` doesn't match — skipped entirely
+    for an account with no usable password (Google-only sign-in), where
+    the caller already being authenticated is the only credential that
+    exists to check.
+    """
+    if user.has_usable_password() and not user.check_password(password):
+        raise ValidationError('Incorrect password.')
+
+    # Sent to the real address before it gets overwritten below.
+    from services import notification_service
+    notification_service.notify_user(
+        user, 'Your account has been deleted',
+        'This confirms your SADA account and personal information have been deleted, '
+        'as requested. Campaign and donation records are retained as required for '
+        'financial record-keeping, with your personal details removed from them.',
+    )
+
+    _anonymize_account(user)
+
+
+def admin_delete_user(user: User, requesting_user: User) -> None:
+    """Admin-initiated deletion of a user, organization, or staff account —
+    same anonymize-not-hard-delete guarantee as delete_own_account (see
+    _anonymize_account), just without a password check since the admin
+    isn't the account owner.
+
+    Refuses to delete an Admin account (that stays a deliberate, separate
+    action outside this UI, same reasoning as promoting someone *to*
+    Admin) or the requesting user's own account.
+    """
+    if not (requesting_user.is_staff or requesting_user.role == User.Role.ADMIN):
+        raise PermissionDenied('Only admins can delete accounts.')
+    if user.id == requesting_user.id:
+        raise ValidationError('You cannot delete your own account.')
+    if user.role == User.Role.ADMIN:
+        raise ValidationError('Admin accounts cannot be deleted here.')
+
+    was_staff = is_staff_role(user.role)
+
+    from services import notification_service
+    notification_service.notify_user(
+        user, 'Your account has been deleted',
+        'This confirms your SADA account and personal information have been deleted '
+        'by an administrator. Campaign and donation records are retained as required '
+        'for financial record-keeping, with your personal details removed from them.',
+    )
+
+    _anonymize_account(user, reset_role=was_staff)
 
 
 def upload_avatar(user: User, image_file) -> User:
@@ -285,20 +329,6 @@ def change_staff_role(user: User, role: str, requesting_user: User) -> User:
     user.role = role
     user.save(update_fields=['role'])
     return user
-
-
-def deactivate_user(user: User, requesting_user: User) -> None:
-    if not requesting_user.is_staff:
-        raise PermissionDenied('Only admins can deactivate users.')
-    user.is_active = False
-    user.save(update_fields=['is_active'])
-
-
-def activate_user(user: User, requesting_user: User) -> None:
-    if not requesting_user.is_staff:
-        raise PermissionDenied('Only admins can activate users.')
-    user.is_active = True
-    user.save(update_fields=['is_active'])
 
 
 def _public_campaigner_base_queryset():
