@@ -79,6 +79,13 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_staff = models.BooleanField(default=False)
     email_verified = models.BooleanField(default=False)
     is_verified = models.BooleanField(default=False)
+    # Set only by _anonymize_account (services/user_service.py) -- distinct
+    # from is_active, which also covers a plain deactivation an admin can
+    # reverse. A deleted account is never reactivated, so admin list views
+    # (get_regular_users/get_staff_users) filter this out permanently
+    # instead of relying on matching the deleted-{id}@deleted.sada.gm email
+    # pattern those accounts get renamed to.
+    is_deleted = models.BooleanField(default=False)
     # Google's unique, stable subject identifier for this account — set on
     # Google sign-in/link, null for accounts that have never used Google.
     # Distinct from email match: lets an account keep working with Google

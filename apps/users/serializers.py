@@ -122,6 +122,22 @@ class AdminUserSerializer(serializers.ModelSerializer):
         return OrganizationSerializer(org, context=self.context).data
 
 
+class AdminUserListSerializer(serializers.ModelSerializer):
+    """Lean projection for the admin Campaigners table (UserListView) --
+    that table only ever renders name/email/status/verification/joined (+
+    org type on the Organizations tab), not the full profile AdminUserSerializer
+    carries (bio, payment defaults, every notification preference, ...).
+    Same reasoning as AdminCampaignListSerializer for the campaigns table.
+    UserDetailView (the full profile page) still uses AdminUserSerializer --
+    this is list-only."""
+    full_name = serializers.ReadOnlyField()
+    organization_type = serializers.CharField(source='organization.organization_type', read_only=True, default=None)
+
+    class Meta:
+        model = User
+        fields = ['id', 'full_name', 'email', 'organization_type', 'is_active', 'is_verified', 'created_at']
+
+
 class AdminUserCreateSerializer(serializers.ModelSerializer):
     # Not a static ChoiceField — the set of assignable roles is the live
     # Role table (an admin can create new ones at runtime), so validity has

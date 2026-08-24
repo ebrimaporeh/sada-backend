@@ -14,7 +14,7 @@ import services.audit_service as audit_service
 from apps.audit.models import AuditLog
 from .models import User
 from .serializers import (
-    UserSerializer, UserUpdateSerializer, AdminUserSerializer, AdminUserCreateSerializer,
+    UserSerializer, UserUpdateSerializer, AdminUserSerializer, AdminUserListSerializer, AdminUserCreateSerializer,
     IdentityVerificationSerializer, IdentityVerificationCreateSerializer, PublicCampaignerSerializer,
     OrganizationVerificationSerializer, OrganizationVerificationCreateSerializer,
     OrganizationChangeRequestSerializer, OrganizationChangeRequestCreateSerializer,
@@ -133,7 +133,7 @@ class PublicCampaignerDetailView(generics.RetrieveAPIView):
     parameters=[OpenApiParameter('account_type', str, description='Filter by individual or organization')],
 )
 class UserListView(generics.ListAPIView):
-    serializer_class = AdminUserSerializer
+    serializer_class = AdminUserListSerializer
     permission_classes = [HasResourceAccess]
     required_resource = Resource.USERS_VIEW
     pagination_class = StandardResultsPagination

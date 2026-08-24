@@ -179,6 +179,7 @@ def _anonymize_account(user: User, *, reset_role: bool = False) -> None:
         user.default_payment_phone = ''
         user.google_sub = None
         user.is_active = False
+        user.is_deleted = True
         if reset_role:
             user.role = User.Role.USER
         user.set_unusable_password()
@@ -292,8 +293,10 @@ def is_staff_role(role: str) -> bool:
 
 
 def get_regular_users(filters: dict = None) -> 'QuerySet[User]':
-    """Everyone who isn't staff — the audience for the admin Users page."""
-    qs = User.objects.exclude(role__in=staff_roles())
+    """Everyone who isn't staff — the audience for the admin Users page.
+    Excludes deleted accounts permanently (see User.is_deleted) -- they're
+    kept in the DB for financial record-keeping, not to clutter this list."""
+    qs = User.objects.exclude(role__in=staff_roles()).filter(is_deleted=False).select_related('organization')
     if filters:
         filters = dict(filters)
         search = filters.pop('search', None)
@@ -308,8 +311,12 @@ def get_regular_users(filters: dict = None) -> 'QuerySet[User]':
 
 
 def get_staff_users(filters: dict = None) -> 'QuerySet[User]':
-    """Admins plus every runtime-defined staff role — the audience for the Staff page."""
-    qs = User.objects.filter(role__in=staff_roles())
+    """Admins plus every runtime-defined staff role — the audience for the
+    Staff page. Excludes deleted accounts (see get_regular_users) --
+    admin_delete_user always resets a staff target's role away from staff_
+    roles() on delete, so this exclusion is defense-in-depth, not the
+    primary guard."""
+    qs = User.objects.filter(role__in=staff_roles(), is_deleted=False)
     if filters:
         qs = qs.filter(**filters)
     return qs

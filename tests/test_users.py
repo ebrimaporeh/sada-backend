@@ -75,6 +75,74 @@ class UserListViewTest(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['results'], [])
 
+    def test_row_shape_is_the_lean_table_projection(self):
+        # The admin Campaigners table only ever renders name/email/status/
+        # verification/joined (+org type on the Organizations tab) -- this
+        # pins that the list endpoint stopped shipping the full profile
+        # (bio, payment defaults, every notification flag, ...) per row.
+        self.client.force_authenticate(user=self.admin)
+        response = self.client.get(self.url)
+        row = next(u for u in response.data['results'] if u['email'] == 'regular@example.com')
+
+        self.assertEqual(
+            set(row.keys()),
+            {'id', 'full_name', 'email', 'organization_type', 'is_active', 'is_verified', 'created_at'},
+        )
+        for field in ('bio', 'phone', 'region', 'avatar', 'default_payment_provider', 'default_payment_phone',
+                      'notify_donations_received', 'notify_marketing', 'role', 'account_type', 'organization'):
+            self.assertNotIn(field, row)
+
+    def test_organization_type_resolves_for_org_accounts(self):
+        org_user = User.objects.create_user(
+            email='org@example.com', password='pass', account_type=User.AccountType.ORGANIZATION,
+        )
+        Organization.objects.create(user=org_user, organization_type=Organization.OrgType.COMMUNITY)
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.get(self.url, {'account_type': 'organization'})
+
+        row = next(u for u in response.data['results'] if u['email'] == 'org@example.com')
+        self.assertEqual(row['organization_type'], 'community')
+
+    def test_organization_type_is_null_for_individual_accounts(self):
+        self.client.force_authenticate(user=self.admin)
+        response = self.client.get(self.url)
+        row = next(u for u in response.data['results'] if u['email'] == 'regular@example.com')
+        self.assertIsNone(row['organization_type'])
+
+
+class BackfillIsDeletedQueryTest(APITestCase):
+    """Same email__startswith/endswith filter migration 0018 runs to backfill
+    is_deleted=True on accounts anonymized before that field existed --
+    exercised here against the real (non-historical) model since this repo
+    has no migration-test harness, just to pin the query is actually
+    selective (doesn't false-match a real, non-deleted email)."""
+
+    def test_query_matches_deleted_emails_and_nothing_else(self):
+        deleted_user = User.objects.create_user(email='deleted-abc123@deleted.sada.gm', password='pass')
+        real_user = User.objects.create_user(email='real-person@deleted.sada.gm.evil.com', password='pass')
+        another_real_user = User.objects.create_user(email='notdeleted-abc@deleted.sada.gm', password='pass')
+
+        matched = User.objects.filter(email__startswith='deleted-', email__endswith='@deleted.sada.gm')
+
+        self.assertIn(deleted_user, matched)
+        self.assertNotIn(real_user, matched)
+        self.assertNotIn(another_real_user, matched)
+
+
+class GetStaffUsersDeletedFilterTest(APITestCase):
+    """Defense-in-depth: admin_delete_user always resets a staff target's
+    role away from staff_roles() (see AdminDeleteUserViewTest), so this
+    exclusion shouldn't normally be load-bearing -- but get_staff_users
+    should never surface an is_deleted=True row regardless."""
+
+    def test_a_deleted_row_that_somehow_kept_a_staff_role_is_still_excluded(self):
+        ghost = User.objects.create_user(email='ghost-staff@example.com', password='pass', role='moderator')
+        ghost.is_deleted = True
+        ghost.save(update_fields=['is_deleted'])
+
+        self.assertNotIn(ghost, list(user_service.get_staff_users()))
+
 
 class UserDetailViewResourceResolutionTest(APITestCase):
     """UserDetailView is one endpoint for both regular users and staff (same
@@ -136,10 +204,22 @@ class AdminDeleteUserViewTest(APITestCase):
 
         target.refresh_from_db()
         self.assertFalse(target.is_active)
+        self.assertTrue(target.is_deleted)
         self.assertFalse(target.has_usable_password())
         self.assertEqual(target.email, f'deleted-{target.id}@deleted.sada.gm')
         self.assertEqual(target.first_name, 'Deleted')
         self.assertTrue(User.objects.filter(pk=target.pk).exists())
+
+    def test_deleted_user_is_excluded_from_the_admin_campaigners_list(self):
+        target = User.objects.create_user(email='soon-deleted@example.com', password='pass')
+        self.client.delete(reverse('user-detail', args=[target.pk]))
+
+        response = self.client.get(reverse('user-list'))
+
+        emails = [u['email'] for u in response.data['results']]
+        self.assertNotIn(target.email, emails)  # already anonymized by here, but belt-and-suspenders
+        ids = [u['id'] for u in response.data['results']]
+        self.assertNotIn(str(target.pk), ids)
 
     def test_admin_can_delete_an_organization_account(self):
         from apps.users.models import Organization
