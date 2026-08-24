@@ -72,10 +72,26 @@ class ModemPayGateway(PaymentGateway):
     def supported_donation_methods(self):
         # wave/aps are the only two Donation.Provider choices ModemPay's
         # checkout actually offers — card isn't in this set (that's Stripe's).
-        return {'wave', 'aps'}
+        # Each is individually admin-toggleable (PlatformSettings.wave_enabled/
+        # aps_enabled) — e.g. flip APS off on its own if it starts failing,
+        # without taking Wave down too.
+        from apps.payments.models import PlatformSettings
+        platform = PlatformSettings.get_solo()
+        methods = set()
+        if platform.wave_enabled:
+            methods.add('wave')
+        if platform.aps_enabled:
+            methods.add('aps')
+        return methods
 
     @property
     def supported_payout_methods(self):
+        # Payouts are wave-only already (SUPPORTED_PAYOUT_NETWORKS), so this
+        # only needs to gate on wave_enabled -- aps_enabled has no effect
+        # here since aps was never a payout network.
+        from apps.payments.models import PlatformSettings
+        if not PlatformSettings.get_solo().wave_enabled:
+            return set()
         return modempay_service.SUPPORTED_PAYOUT_NETWORKS
 
     def get_balance(self):

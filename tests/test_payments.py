@@ -166,6 +166,32 @@ class GatewayListViewTest(APITestCase):
         response = self.client.get('/api/v1/payments/gateways/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
+    def test_disabling_aps_removes_it_from_donation_methods_only(self):
+        set_platform_settings(aps_enabled=False)
+        response = self.client.get('/api/v1/payments/gateways/')
+        modempay = response.data['data']['gateways'][0]
+        self.assertEqual(set(modempay['donation_methods']), {'wave'})
+        # aps was never a payout network, so turning it off changes nothing there.
+        self.assertEqual(set(modempay['payout_methods']), {'wave'})
+
+    def test_disabling_wave_removes_it_from_donations_and_payouts(self):
+        set_platform_settings(wave_enabled=False)
+        response = self.client.get('/api/v1/payments/gateways/')
+        modempay = response.data['data']['gateways'][0]
+        self.assertEqual(set(modempay['donation_methods']), {'aps'})
+        self.assertEqual(set(modempay['payout_methods']), set())
+
+    def test_disabling_both_wave_and_aps_still_lists_modempay_with_no_methods(self):
+        # modempay_enabled is still True -- the gateway itself stays "on",
+        # it just has nothing to offer. GatewayListView shouldn't crash or
+        # hide the whole entry over this.
+        set_platform_settings(wave_enabled=False, aps_enabled=False)
+        response = self.client.get('/api/v1/payments/gateways/')
+        gateways = response.data['data']['gateways']
+        self.assertEqual([g['code'] for g in gateways], ['modempay'])
+        self.assertEqual(gateways[0]['donation_methods'], [])
+        self.assertEqual(gateways[0]['payout_methods'], [])
+
 
 class DonationCreateGatewayTest(APITestCase):
     def setUp(self):
@@ -292,6 +318,38 @@ class DonationCreateGatewayTest(APITestCase):
                 'provider': 'card',
                 'phone': '',
             })
+
+    def test_donation_api_rejects_aps_when_aps_disabled(self):
+        # Regression guard for the real incident that prompted per-network
+        # toggles: APS was failing in production, and until this, the only
+        # way to stop new APS donations was to disable ModemPay entirely
+        # (taking Wave down too). The provider-vs-supported_donation_methods
+        # check lives in DonationCreateSerializer.validate(), so it's only
+        # exercised through the actual API view, not donation_service directly.
+        set_platform_settings(aps_enabled=False)
+        response = self.client.post('/api/v1/donations/', {
+            'campaign_id': str(self.campaign.id),
+            'amount': '25.00',
+            'provider': 'aps',
+            'phone': '+2207000000',
+        })
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('provider', response.data.get('errors', response.data))
+
+    @patch('services.modempay_service.create_payment_intent')
+    def test_donation_api_accepts_wave_when_only_aps_disabled(self, mock_create):
+        mock_create.return_value = {
+            'status': True,
+            'data': {'payment_link': 'https://pay.modempay.com/wave', 'intent_secret': 'sec_wave2'},
+        }
+        set_platform_settings(aps_enabled=False)
+        response = self.client.post('/api/v1/donations/', {
+            'campaign_id': str(self.campaign.id),
+            'amount': '25.00',
+            'provider': 'wave',
+            'phone': '+2207000000',
+        })
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
 
 class DonationWebhookGatewayTest(APITestCase):
@@ -1087,6 +1145,23 @@ class PlatformSettingsGatewayAdminTest(APITestCase):
     def test_platform_settings_endpoint_requires_admin_to_patch(self):
         response = self.client.patch('/api/v1/payments/settings/', {'stripe_enabled': True})
         self.assertIn(response.status_code, (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN))
+
+    def test_wave_and_aps_default_to_enabled(self):
+        settings_obj = PlatformSettings.get_solo()
+        self.assertTrue(settings_obj.wave_enabled)
+        self.assertTrue(settings_obj.aps_enabled)
+
+    def test_admin_can_disable_aps_independently_of_wave(self):
+        from apps.payments.serializers import PlatformSettingsSerializer
+        serializer = PlatformSettingsSerializer(
+            PlatformSettings.get_solo(), data={'aps_enabled': False}, partial=True,
+        )
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        serializer.save()
+        settings_obj = PlatformSettings.get_solo()
+        self.assertFalse(settings_obj.aps_enabled)
+        self.assertTrue(settings_obj.wave_enabled)
+        self.assertTrue(settings_obj.modempay_enabled)
 
 
 class PublicCampaignDonorSortTest(APITestCase):

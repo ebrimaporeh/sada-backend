@@ -65,8 +65,8 @@ class PlatformSettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model = PlatformSettings
         fields = [
-            'platform_fee_percent', 'modempay_enabled', 'stripe_enabled',
-            'stripe_settlement_currency', 'gmd_to_settlement_rate',
+            'platform_fee_percent', 'modempay_enabled', 'wave_enabled', 'aps_enabled',
+            'stripe_enabled', 'stripe_settlement_currency', 'gmd_to_settlement_rate',
         ]
 
     def validate_platform_fee_percent(self, value):

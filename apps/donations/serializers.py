@@ -64,6 +64,11 @@ class DonationCreateSerializer(serializers.ModelSerializer):
         gateway = get_gateway(data.get('gateway') or 'modempay')
         if gateway.default_method:
             data['provider'] = gateway.default_method
+        else:
+            provider = data.get('provider') or Donation.Provider.WAVE
+            if provider not in gateway.supported_donation_methods:
+                raise serializers.ValidationError({'provider': f'"{provider}" is not currently available.'})
+            data['provider'] = provider
         if gateway.requires_phone and not data.get('phone'):
             raise serializers.ValidationError({'phone': 'Phone number is required for this payment method.'})
         return data

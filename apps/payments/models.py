@@ -115,6 +115,19 @@ class PlatformSettings(BaseModel):
         default=True,
         help_text='Whether donors/campaign owners can use ModemPay (Wave/APS mobile money).',
     )
+    # Per-network switches within ModemPay -- e.g. flip APS off on its own
+    # when it's misbehaving without taking Wave (or ModemPay payouts, which
+    # are wave-only) down with it. Read by ModemPayGateway.supported_*_methods
+    # (services/gateways/modempay.py), not modempay_enabled itself -- both
+    # gates apply (the gateway as a whole must also be on).
+    wave_enabled = models.BooleanField(
+        default=True,
+        help_text='Whether Wave is offered as a donation and withdrawal method (requires ModemPay enabled above).',
+    )
+    aps_enabled = models.BooleanField(
+        default=True,
+        help_text='Whether APS Wallet is offered as a donation method (requires ModemPay enabled above).',
+    )
     stripe_enabled = models.BooleanField(
         default=False,
         help_text='Whether donors can pay by card via Stripe. Requires Stripe API keys to '
