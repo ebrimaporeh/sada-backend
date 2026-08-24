@@ -1,0 +1,14 @@
+[run]
+source = .
+omit =
+    venv/*
+    */migrations/*
+    manage.py
+    config/*
+    settings/*
+    tests/*
+    */admin.py
+    */apps.py
+
+[report]
+skip_empty = True

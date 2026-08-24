@@ -1,4 +1,4 @@
-name: Backend tests
+name: Backend CI
 
 on:
   push:
@@ -9,23 +9,81 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+
+    # Disposable Postgres for this job only -- torn down when the job ends,
+    # never touches the real Supabase database. Version chosen to match
+    # what Supabase currently runs in production; bump alongside it if that
+    # ever changes. No PostGIS extension needed -- the app doesn't use
+    # django.contrib.gis or any geo field anywhere.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: sada_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     env:
       DJANGO_SETTINGS_MODULE: settings.testing
-      # A throwaway value -- settings.testing runs against an in-memory
-      # sqlite DB with no real secrets in play, this just satisfies
-      # SECRET_KEY = config('SECRET_KEY') having no default.
+      # Throwaway values -- this job never touches production data or
+      # services. The real Supabase URL, Resend key, and payment provider
+      # keys are never referenced here.
       SECRET_KEY: ci-test-secret-key-not-for-production
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/sada_test
+      RESEND_API_KEY: test-key
+      RESEND_API_NAME: dolelma
+      DEFAULT_FROM_EMAIL: "Dolelma <noreply@dolelma.org>"
+      EMAIL_REPLY_TO: info@dolelma.org
 
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
-          cache: 'pip'
+          python-version: "3.12.9"
+          cache: "pip"
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: pip install -r requirements-dev.txt
 
-      - name: Run tests
-        run: python manage.py test tests
+      - name: Django system checks
+        run: python manage.py check
+
+      - name: Apply migrations
+        run: python manage.py migrate --noinput
+
+      - name: Run tests with coverage
+        run: |
+          coverage run manage.py test tests
+          coverage report
+
+      - name: Check OpenAPI schema hasn't drifted from the committed baseline
+        run: |
+          python manage.py spectacular --file schema_generated.yml
+          if ! diff -q schema.yml schema_generated.yml > /dev/null; then
+            echo "::error::schema.yml is out of date. An API change in this PR isn't reflected in the committed schema."
+            echo "Run 'python manage.py spectacular --file schema.yml' locally and commit the result."
+            diff schema.yml schema_generated.yml || true
+            exit 1
+          fi
+
+      - name: Upload coverage HTML report
+        if: always()
+        run: coverage html
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-coverage-html
+          path: htmlcov/
+          retention-days: 14

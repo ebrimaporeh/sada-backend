@@ -1,0 +1,5381 @@
+openapi: 3.0.3
+info:
+  title: Dolelma API
+  version: 1.0.0
+  description: Crowdfunding for The Gambia
+paths:
+  /api/v1/analytics/campaign-status/:
+    get:
+      operationId: v1_analytics_campaign_status_retrieve
+      description: Get campaign distribution by status
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/analytics/donations-by-day/:
+    get:
+      operationId: v1_analytics_donations_by_day_retrieve
+      description: Get donations aggregated by day for chart
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/analytics/finance-summary/:
+    get:
+      operationId: v1_analytics_finance_summary_retrieve
+      description: |-
+        Get all figures for the admin Finances page, fully aggregated for a period.
+
+        `period` is one of week|month|year|custom (default week). For `custom`,
+        `start_date`/`end_date` (YYYY-MM-DD) are required.
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/analytics/recent-donations/:
+    get:
+      operationId: v1_analytics_recent_donations_retrieve
+      description: Get recent donations
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/analytics/stats/:
+    get:
+      operationId: v1_analytics_stats_retrieve
+      description: Get aggregated dashboard stats for a date range
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/analytics/top-campaigns/:
+    get:
+      operationId: v1_analytics_top_campaigns_retrieve
+      description: Get top campaigns by amount raised
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/analytics/top-donors/:
+    get:
+      operationId: v1_analytics_top_donors_retrieve
+      description: Get top donors by total amount
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/audit/admin/:
+    get:
+      operationId: v1_audit_admin_list
+      summary: '[Admin] List audit log entries'
+      parameters:
+      - in: query
+        name: action
+        schema:
+          type: string
+        description: One of AuditLog.Action, e.g. campaign.created
+      - in: query
+        name: actor
+        schema:
+          type: string
+        description: Filter by acting user id
+      - in: query
+        name: search
+        schema:
+          type: string
+        description: Matches description, actor email, or target
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AuditLog'
+          description: ''
+  /api/v1/audit/admin/actions/:
+    get:
+      operationId: v1_audit_admin_actions_retrieve
+      description: |-
+        Backs the admin Audit page's action filter dropdown -- one source of
+        truth (AuditLog.Action) instead of a hand-copied list on the frontend.
+      summary: '[Admin] List possible audit action types'
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/audit/admin/actors/:
+    get:
+      operationId: v1_audit_admin_actors_retrieve
+      description: |-
+        Backs the admin Activity page's "User" filter dropdown -- only
+        users who've actually done something audited, not every user.
+      summary: '[Admin] List users who appear as an actor in the audit log'
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/change-password/:
+    post:
+      operationId: v1_auth_change_password_create
+      tags:
+      - Authentication
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePassword'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ChangePassword'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ChangePassword'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/google/:
+    post:
+      operationId: v1_auth_google_create
+      tags:
+      - Authentication
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GoogleOAuth'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/GoogleOAuth'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/GoogleOAuth'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/google/link/:
+    post:
+      operationId: v1_auth_google_link_create
+      description: |-
+        Explicitly attach a Google account to the current (already logged-in)
+        user, e.g. a 'Connect Google' button in account settings.
+      tags:
+      - Authentication
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GoogleOAuth'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/GoogleOAuth'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/GoogleOAuth'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+  /api/v1/auth/login/:
+    post:
+      operationId: v1_auth_login_create
+      tags:
+      - Authentication
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Login'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Login'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Login'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/logout/:
+    post:
+      operationId: v1_auth_logout_create
+      tags:
+      - Authentication
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/password-reset/:
+    post:
+      operationId: v1_auth_password_reset_create
+      description: |-
+        Shadows django_rest_passwordreset's own request-token endpoint at the
+        same URL (see apps/authentication/urls.py) so an organization's recovery
+        emails work here too, with zero change for individual accounts.
+      tags:
+      - Authentication
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RequestPasswordReset'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RequestPasswordReset'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RequestPasswordReset'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/password-reset/confirm/:
+    post:
+      operationId: v1_auth_password_reset_confirm_create
+      description: An Api View which provides a method to reset a password based on
+        a unique token
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordToken'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PasswordToken'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PasswordToken'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasswordToken'
+          description: ''
+  /api/v1/auth/password-reset/validate_token/:
+    post:
+      operationId: v1_auth_password_reset_validate_token_create
+      description: An Api View which provides a method to verify that a token is valid
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetToken'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ResetToken'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ResetToken'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResetToken'
+          description: ''
+  /api/v1/auth/refresh/:
+    post:
+      operationId: v1_auth_refresh_create
+      description: |-
+        Takes a refresh type JSON web token and returns an access type JSON web
+        token if the refresh token is valid.
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenRefresh'
+          description: ''
+  /api/v1/auth/register/:
+    post:
+      operationId: v1_auth_register_create
+      tags:
+      - Authentication
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Register'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Register'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Register'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+  /api/v1/auth/resend-verification/:
+    post:
+      operationId: v1_auth_resend_verification_create
+      tags:
+      - Authentication
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/set-password/:
+    post:
+      operationId: v1_auth_set_password_create
+      description: |-
+        For accounts with no usable password yet (Google-only signups) —
+        see ChangePasswordView for accounts that already have one.
+      tags:
+      - Authentication
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetPassword'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SetPassword'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SetPassword'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/verify-email/:
+    post:
+      operationId: v1_auth_verify_email_create
+      tags:
+      - Authentication
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/campaigns/:
+    get:
+      operationId: v1_campaigns_list
+      summary: List public campaigns
+      parameters:
+      - in: query
+        name: category
+        schema:
+          type: string
+        description: Filter by category slug
+      - in: query
+        name: owner
+        schema:
+          type: string
+        description: Filter by owner id (a campaigner's public profile)
+      - in: query
+        name: region
+        schema:
+          type: string
+        description: Filter by region
+      - in: query
+        name: search
+        schema:
+          type: string
+        description: Search term
+      - in: query
+        name: urgent
+        schema:
+          type: boolean
+        description: Filter urgent only
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CampaignList'
+          description: ''
+  /api/v1/campaigns/{slug}/:
+    get:
+      operationId: v1_campaigns_retrieve
+      summary: Get campaign detail by slug
+      parameters:
+      - in: path
+        name: slug
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CampaignDetail'
+          description: ''
+  /api/v1/campaigns/{slug}/report/:
+    post:
+      operationId: v1_campaigns_report_create
+      summary: Report a campaign
+      parameters:
+      - in: path
+        name: slug
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CampaignReportCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CampaignReportCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CampaignReportCreate'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/campaigns/{slug}/view/:
+    post:
+      operationId: v1_campaigns_view_create
+      description: |-
+        Explicit view-tracking beacon — fired by the frontend only when the
+        public campaign detail page is actually shown, not by every fetch of
+        campaign data (donate/donate-success pages reuse the same GET above
+        without inflating the count).
+      summary: Record a view of a campaign
+      parameters:
+      - in: path
+        name: slug
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/campaigns/admin/{id}/:
+    get:
+      operationId: v1_campaigns_admin_retrieve
+      summary: '[Admin] Get campaign detail by ID'
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminCampaign'
+          description: ''
+  /api/v1/campaigns/admin/{id}/action/{action}/:
+    post:
+      operationId: v1_campaigns_admin_action_create
+      summary: '[Admin] Approve, reject, or suspend a campaign'
+      parameters:
+      - in: path
+        name: action
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/campaigns/admin/{id}/media/:
+    post:
+      operationId: v1_campaigns_admin_media_create
+      summary: '[Admin] Upload cover and gallery images for any campaign'
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/campaigns/admin/{id}/status-change/:
+    post:
+      operationId: v1_campaigns_admin_status_change_create
+      summary: '[Admin] Change campaign status and send email notification'
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          type:
+            schema:
+              type: object
+              additionalProperties: {}
+              description: Unspecified request body
+          properties:
+            schema:
+              status:
+                type: string
+                description: New campaign status
+              reason:
+                type: string
+                description: Reason for status change (optional)
+          required:
+            schema:
+              type: object
+              additionalProperties: {}
+              description: Unspecified request body
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/campaigns/admin/{id}/update/:
+    patch:
+      operationId: v1_campaigns_admin_update_partial_update
+      summary: '[Admin] Update campaign details'
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedAdminCampaignUpdate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedAdminCampaignUpdate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedAdminCampaignUpdate'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/campaigns/admin/all/:
+    get:
+      operationId: v1_campaigns_admin_all_list
+      summary: '[Admin] List all campaigns'
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AdminCampaignList'
+          description: ''
+  /api/v1/campaigns/admin/categories/:
+    post:
+      operationId: v1_campaigns_admin_categories_create
+      summary: '[Admin] Create a new category'
+      tags:
+      - v1
+      requestBody:
+        content:
+          type:
+            schema:
+              type: object
+              additionalProperties: {}
+              description: Unspecified request body
+          properties:
+            schema:
+              name:
+                type: string
+              description:
+                type: string
+              icon:
+                type: string
+          required:
+            schema:
+              type: object
+              additionalProperties: {}
+              description: Unspecified request body
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+          description: ''
+  /api/v1/campaigns/admin/reports/:
+    get:
+      operationId: v1_campaigns_admin_reports_list
+      summary: '[Admin] List all campaign reports'
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CampaignReport'
+          description: ''
+  /api/v1/campaigns/admin/reports/{id}/update/:
+    patch:
+      operationId: v1_campaigns_admin_reports_update_partial_update
+      summary: '[Admin] Update campaign report'
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedCampaignReportUpdate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedCampaignReportUpdate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedCampaignReportUpdate'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/campaigns/admin/reports/campaigns/:
+    get:
+      operationId: v1_campaigns_admin_reports_campaigns_retrieve
+      description: |-
+        Backs the admin Reports table's "Campaign" filter dropdown -- only
+        campaigns that actually have a report, not every campaign.
+      summary: '[Admin] List campaigns that have at least one report'
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/campaigns/admin/reports/stats/:
+    get:
+      operationId: v1_campaigns_admin_reports_stats_retrieve
+      summary: '[Admin] Campaign report stats'
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/campaigns/admin/stats/:
+    get:
+      operationId: v1_campaigns_admin_stats_retrieve
+      summary: '[Admin] Campaign stats'
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/campaigns/categories/:
+    get:
+      operationId: v1_campaigns_categories_list
+      summary: List all active categories
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Category'
+          description: ''
+  /api/v1/campaigns/categories/{id}/:
+    get:
+      operationId: v1_campaigns_categories_retrieve
+      summary: '[Admin] Get category detail'
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+          description: ''
+    patch:
+      operationId: v1_campaigns_categories_partial_update
+      summary: '[Admin] Update category details'
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          type:
+            schema:
+              type: object
+              additionalProperties: {}
+              description: Unspecified request body
+          properties:
+            schema:
+              name:
+                type: string
+              description:
+                type: string
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    delete:
+      operationId: v1_campaigns_categories_destroy
+      summary: '[Admin] Delete a category'
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/campaigns/categories/{id}/upload-image/:
+    post:
+      operationId: v1_campaigns_categories_upload_image_create
+      summary: '[Admin] Upload category image'
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/campaigns/create/:
+    post:
+      operationId: v1_campaigns_create_create
+      summary: Create a new campaign
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CampaignCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CampaignCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CampaignCreate'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CampaignDetail'
+          description: ''
+  /api/v1/campaigns/featured/:
+    get:
+      operationId: v1_campaigns_featured_list
+      summary: Get up to 4 featured campaigns
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CampaignList'
+          description: ''
+  /api/v1/campaigns/my/:
+    get:
+      operationId: v1_campaigns_my_list
+      summary: List my campaigns
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CampaignList'
+          description: ''
+  /api/v1/campaigns/my/{slug}/:
+    get:
+      operationId: v1_campaigns_my_retrieve
+      summary: Get my campaign detail
+      parameters:
+      - in: path
+        name: slug
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CampaignDetail'
+          description: ''
+    patch:
+      operationId: v1_campaigns_my_partial_update
+      summary: Update my campaign
+      parameters:
+      - in: path
+        name: slug
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedCampaignCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedCampaignCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedCampaignCreate'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    delete:
+      operationId: v1_campaigns_my_destroy
+      summary: Delete my campaign
+      parameters:
+      - in: path
+        name: slug
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/campaigns/my/{slug}/cover/:
+    post:
+      operationId: v1_campaigns_my_cover_create
+      summary: Upload campaign cover image
+      parameters:
+      - in: path
+        name: slug
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/campaigns/my/{slug}/media/:
+    post:
+      operationId: v1_campaigns_my_media_create
+      summary: Upload cover and/or gallery images for my campaign
+      parameters:
+      - in: path
+        name: slug
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/campaigns/my/{slug}/media/{image_id}/:
+    delete:
+      operationId: v1_campaigns_my_media_destroy
+      summary: Delete a gallery image from my campaign
+      parameters:
+      - in: path
+        name: image_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: slug
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/campaigns/my/{slug}/pause/:
+    post:
+      operationId: v1_campaigns_my_pause_create
+      summary: Pause or resume my campaign
+      parameters:
+      - in: path
+        name: slug
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/campaigns/my/{slug}/updates/:
+    post:
+      operationId: v1_campaigns_my_updates_create
+      summary: Add a campaign update
+      parameters:
+      - in: path
+        name: slug
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CampaignUpdateCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CampaignUpdateCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CampaignUpdateCreate'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/campaigns/my/{slug}/updates/{update_id}/:
+    patch:
+      operationId: v1_campaigns_my_updates_partial_update
+      summary: Update a campaign update
+      parameters:
+      - in: path
+        name: slug
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: update_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    delete:
+      operationId: v1_campaigns_my_updates_destroy
+      summary: Delete a campaign update
+      parameters:
+      - in: path
+        name: slug
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: update_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/campaigns/stats/public/:
+    get:
+      operationId: v1_campaigns_stats_public_retrieve
+      summary: Public homepage trust-badge stats (real numbers, not fabricated)
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/donations/:
+    post:
+      operationId: v1_donations_create
+      summary: Initiate a donation
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DonationCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DonationCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DonationCreate'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Donation'
+          description: ''
+  /api/v1/donations/admin/{id}/refund/:
+    post:
+      operationId: v1_donations_admin_refund_create
+      summary: '[Admin] Refund a paid donation'
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminDonationRefund'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AdminDonationRefund'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AdminDonationRefund'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/donations/admin/{id}/update/:
+    patch:
+      operationId: v1_donations_admin_update_partial_update
+      summary: '[Admin] Update donation details'
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedAdminDonationUpdate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedAdminDonationUpdate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedAdminDonationUpdate'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/donations/admin/all/:
+    get:
+      operationId: v1_donations_admin_all_list
+      summary: '[Admin] List all donations'
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AdminDonation'
+          description: ''
+  /api/v1/donations/admin/stats/:
+    get:
+      operationId: v1_donations_admin_stats_retrieve
+      summary: '[Admin] Donation stats'
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/donations/campaign/{slug}/:
+    get:
+      operationId: v1_donations_campaign_list
+      summary: List donors for my campaign
+      parameters:
+      - in: path
+        name: slug
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Donation'
+          description: ''
+  /api/v1/donations/campaign/{slug}/public/:
+    get:
+      operationId: v1_donations_campaign_public_list
+      summary: List donors for a public campaign page
+      parameters:
+      - in: path
+        name: slug
+        schema:
+          type: string
+        required: true
+      - in: query
+        name: sort
+        schema:
+          type: string
+        description: latest (default) or highest
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Donation'
+          description: ''
+  /api/v1/donations/my/:
+    get:
+      operationId: v1_donations_my_list
+      summary: List my donations
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Donation'
+          description: ''
+  /api/v1/donations/verify/{reference}/:
+    get:
+      operationId: v1_donations_verify_retrieve
+      summary: Reconcile a donation status directly with ModemPay
+      parameters:
+      - in: path
+        name: reference
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Donation'
+          description: ''
+  /api/v1/events/track/:
+    post:
+      operationId: v1_events_track_create
+      description: |-
+        Public ingestion point for product-engagement events (campaign
+        views/shares/clicks, donation funnel steps) -- see apps/events/models.py
+        for the full Type list. Anonymous by design: most of what's tracked
+        here happens before/without a donor ever creating an account.
+      summary: Record a product-engagement event
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrackEvent'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TrackEvent'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TrackEvent'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/notifications/:
+    get:
+      operationId: v1_notifications_list
+      summary: List my notifications
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Notification'
+          description: ''
+  /api/v1/notifications/{id}/read/:
+    post:
+      operationId: v1_notifications_read_create
+      summary: Mark notification as read
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/notifications/mark-all-read/:
+    post:
+      operationId: v1_notifications_mark_all_read_create
+      summary: Mark all notifications as read
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/notifications/unread-count/:
+    get:
+      operationId: v1_notifications_unread_count_retrieve
+      summary: Get unread notification count
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/payments/admin/campaign/{campaign_id}/payouts/:
+    get:
+      operationId: v1_payments_admin_campaign_payouts_list
+      description: |-
+        Admin view of a specific campaign's payout history -- unlike
+        MyCampaignPayoutListView, not restricted to the campaign's own owner.
+      summary: '[Admin] List payouts for a campaign'
+      parameters:
+      - in: path
+        name: campaign_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Payout'
+          description: ''
+  /api/v1/payments/admin/campaigner/{owner_id}/payouts/:
+    get:
+      operationId: v1_payments_admin_campaigner_payouts_list
+      description: |-
+        Admin view of every payout a campaigner has requested, across all of
+        their campaigns -- backs the campaigner detail page's Payouts tab.
+      summary: '[Admin] List a campaigner''s payouts across all their campaigns'
+      parameters:
+      - in: path
+        name: owner_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Payout'
+          description: ''
+  /api/v1/payments/gateways/:
+    get:
+      operationId: v1_payments_gateways_retrieve
+      description: |-
+        Which payment gateways/methods are currently enabled — the donation
+        and withdrawal forms build their provider picker from this instead of a
+        hardcoded frontend constant, so enabling Stripe (or disabling it) is a
+        backend settings change, not a frontend deploy.
+      summary: List enabled payment gateways
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/payments/payouts/:
+    post:
+      operationId: v1_payments_payouts_create
+      summary: Request a payout for a campaign
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PayoutCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PayoutCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PayoutCreate'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payout'
+          description: ''
+  /api/v1/payments/payouts/{slug}/:
+    get:
+      operationId: v1_payments_payouts_list
+      summary: List payouts for my campaign
+      parameters:
+      - in: path
+        name: slug
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Payout'
+          description: ''
+  /api/v1/payments/payouts/fee-preview/:
+    get:
+      operationId: v1_payments_payouts_fee_preview_retrieve
+      description: |-
+        Live fee breakdown for the withdrawal form, before the owner
+        submits — uses the exact same calculation request_payout does, so the
+        preview never drifts from what's actually charged.
+      summary: Preview payout fees for an amount/provider
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/payments/settings/:
+    get:
+      operationId: v1_payments_settings_retrieve
+      description: |-
+        Public read — the platform fee is already shown to anonymous
+        visitors on the public Terms/Help pages (via the {{platform_fee_percent}}
+        legal-content variable) and to campaign owners previewing a payout, so
+        there's nothing sensitive here worth gating behind login. Only admins
+        can change it.
+      summary: Get current platform settings
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlatformSettings'
+          description: ''
+    patch:
+      operationId: v1_payments_settings_partial_update
+      description: |-
+        Public read — the platform fee is already shown to anonymous
+        visitors on the public Terms/Help pages (via the {{platform_fee_percent}}
+        legal-content variable) and to campaign owners previewing a payout, so
+        there's nothing sensitive here worth gating behind login. Only admins
+        can change it.
+      summary: '[Admin] Update platform settings'
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedPlatformSettings'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedPlatformSettings'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedPlatformSettings'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/permissions/roles/:
+    get:
+      operationId: v1_permissions_roles_retrieve
+      description: |-
+        Backs the Staff page's Roles & Permissions tab: every runtime role's
+        current resource set (grouped by entity for the checklist UI), plus the
+        full catalog of grantable resources.
+      summary: '[Admin] List roles and their current resource permissions'
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: v1_permissions_roles_create
+      description: |-
+        Backs the Staff page's Roles & Permissions tab: every runtime role's
+        current resource set (grouped by entity for the checklist UI), plus the
+        full catalog of grantable resources.
+      summary: '[Admin] Create a new staff role'
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoleCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RoleCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RoleCreate'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/permissions/roles/{role}/:
+    patch:
+      operationId: v1_permissions_roles_partial_update
+      description: |-
+        Admin-editable at runtime — replaces a role's Group permissions
+        wholesale with whatever set the request sends, taking effect
+        immediately for every user holding that role (no deploy, no restart).
+        DELETE removes the role entirely, refused while any staff member still
+        holds it.
+      summary: '[Admin] Replace a role''s resource permissions'
+      parameters:
+      - in: path
+        name: role
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedRoleResourcesUpdate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedRoleResourcesUpdate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedRoleResourcesUpdate'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    delete:
+      operationId: v1_permissions_roles_destroy
+      description: |-
+        Admin-editable at runtime — replaces a role's Group permissions
+        wholesale with whatever set the request sends, taking effect
+        immediately for every user holding that role (no deploy, no restart).
+        DELETE removes the role entirely, refused while any staff member still
+        holds it.
+      summary: '[Admin] Delete a staff role'
+      parameters:
+      - in: path
+        name: role
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/settings/:
+    get:
+      operationId: v1_settings_retrieve
+      description: |-
+        Public read so the logo/name/description can render before login;
+        only admins can change them.
+      summary: Get current site branding settings
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteSettings'
+          description: ''
+    patch:
+      operationId: v1_settings_partial_update
+      description: |-
+        Public read so the logo/name/description can render before login;
+        only admins can change them.
+      summary: '[Admin] Update site branding settings'
+      tags:
+      - v1
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedSiteSettings'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedSiteSettings'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedSiteSettings'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/settings/legal/:
+    get:
+      operationId: v1_settings_legal_retrieve
+      description: |-
+        Public read so the Help/Trust & Safety/Privacy/Terms pages can
+        render their markdown for anyone; only admins can edit it.
+      summary: Get legal/help page markdown content
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegalContent'
+          description: ''
+    patch:
+      operationId: v1_settings_legal_partial_update
+      description: |-
+        Public read so the Help/Trust & Safety/Privacy/Terms pages can
+        render their markdown for anyone; only admins can edit it.
+      summary: '[Admin] Update legal/help page markdown content'
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedLegalContent'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedLegalContent'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedLegalContent'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/users/:
+    get:
+      operationId: v1_users_list
+      summary: '[Admin] List regular (non-staff) users'
+      parameters:
+      - in: query
+        name: account_type
+        schema:
+          type: string
+        description: Filter by individual or organization
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - Users
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAdminUserList'
+          description: ''
+  /api/v1/users/{id}/:
+    get:
+      operationId: v1_users_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Users
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUser'
+          description: ''
+    put:
+      operationId: v1_users_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUser'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AdminUser'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AdminUser'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUser'
+          description: ''
+    patch:
+      operationId: v1_users_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedAdminUser'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedAdminUser'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedAdminUser'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUser'
+          description: ''
+    delete:
+      operationId: v1_users_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Users
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/users/admin/{id}/avatar/:
+    post:
+      operationId: v1_users_admin_avatar_create
+      summary: '[Admin] Upload any user''s avatar'
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Users
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUser'
+          description: ''
+  /api/v1/users/admin/{id}/organization-logo/:
+    post:
+      operationId: v1_users_admin_organization_logo_create
+      summary: '[Admin] Upload any organization''s logo'
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Users
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUser'
+          description: ''
+  /api/v1/users/admin/create/:
+    post:
+      operationId: v1_users_admin_create_create
+      summary: '[Admin] Onboard a new staff member'
+      tags:
+      - Users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUserCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AdminUserCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AdminUserCreate'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/users/admin/organization-change-requests/:
+    get:
+      operationId: v1_users_admin_organization_change_requests_list
+      summary: '[Admin] List all organization change requests'
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - Verification
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedOrganizationChangeRequestList'
+          description: ''
+  /api/v1/users/admin/organization-change-requests/{id}/{action}/:
+    post:
+      operationId: v1_users_admin_organization_change_requests_create
+      summary: '[Admin] Approve or reject an organization change request'
+      parameters:
+      - in: path
+        name: action
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Verification
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/users/admin/organization-verifications/:
+    get:
+      operationId: v1_users_admin_organization_verifications_list
+      summary: '[Admin] List all organization verification requests'
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - Verification
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedOrganizationVerificationList'
+          description: ''
+  /api/v1/users/admin/organization-verifications/{id}/{action}/:
+    post:
+      operationId: v1_users_admin_organization_verifications_create
+      summary: '[Admin] Approve or reject an organization verification request'
+      parameters:
+      - in: path
+        name: action
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Verification
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/users/admin/staff/:
+    get:
+      operationId: v1_users_admin_staff_list
+      summary: '[Admin] List staff (admin/moderator/finance officer)'
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - Users
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAdminUserList'
+          description: ''
+  /api/v1/users/admin/staff/{id}/role/:
+    post:
+      operationId: v1_users_admin_staff_role_create
+      summary: '[Admin] Change a staff member''s role'
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Users
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/users/admin/verifications/:
+    get:
+      operationId: v1_users_admin_verifications_list
+      summary: '[Admin] List all identity verification requests'
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - Verification
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedIdentityVerificationList'
+          description: ''
+  /api/v1/users/admin/verifications/{id}/{action}/:
+    post:
+      operationId: v1_users_admin_verifications_create
+      summary: '[Admin] Approve or reject a verification request'
+      parameters:
+      - in: path
+        name: action
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Verification
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/users/campaigners/:
+    get:
+      operationId: v1_users_campaigners_list
+      description: |-
+        Anyone with at least one public, non-anonymous campaign — the
+        browsable directory. No auth required, nothing sensitive returned.
+      summary: List public campaigner profiles
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: query
+        name: region
+        schema:
+          type: string
+        description: Filter by region
+      - in: query
+        name: search
+        schema:
+          type: string
+        description: Search by name
+      tags:
+      - Users
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPublicCampaignerList'
+          description: ''
+  /api/v1/users/campaigners/{id}/:
+    get:
+      operationId: v1_users_campaigners_retrieve
+      summary: Get a public campaigner profile
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Users
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicCampaigner'
+          description: ''
+  /api/v1/users/me/:
+    get:
+      operationId: v1_users_me_retrieve
+      tags:
+      - Users
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+    put:
+      operationId: v1_users_me_update
+      tags:
+      - Users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UserUpdate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UserUpdate'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserUpdate'
+          description: ''
+    patch:
+      operationId: v1_users_me_partial_update
+      tags:
+      - Users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedUserUpdate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedUserUpdate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedUserUpdate'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserUpdate'
+          description: ''
+    delete:
+      operationId: v1_users_me_destroy
+      summary: Delete my account
+      tags:
+      - Users
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/users/me/avatar/:
+    post:
+      operationId: v1_users_me_avatar_create
+      summary: Upload my avatar
+      tags:
+      - Users
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+  /api/v1/users/organization-change-requests/:
+    post:
+      operationId: v1_users_organization_change_requests_create
+      description: |-
+        Phone/phone_2/recovery emails are never editable directly — see
+        OrganizationChangeRequest's docstring for why. This queues a proposed
+        change for admin approval instead of applying it immediately.
+      summary: Request a change to a recovery-critical organization field
+      tags:
+      - Verification
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/users/organization-change-requests/mine/:
+    get:
+      operationId: v1_users_organization_change_requests_mine_retrieve
+      summary: Get your organization's change requests
+      tags:
+      - Verification
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/users/organization-verification/:
+    post:
+      operationId: v1_users_organization_verification_create
+      summary: Submit organization verification (contact ID + registration docs)
+      tags:
+      - Verification
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/users/organization-verification/me/:
+    get:
+      operationId: v1_users_organization_verification_me_retrieve
+      summary: Get your organization's latest verification request
+      tags:
+      - Verification
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/users/stats/:
+    get:
+      operationId: v1_users_stats_retrieve
+      summary: '[Admin] User stats'
+      tags:
+      - Users
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/users/verification/:
+    post:
+      operationId: v1_users_verification_create
+      summary: Submit a government ID for identity verification
+      tags:
+      - Verification
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/users/verification/me/:
+    get:
+      operationId: v1_users_verification_me_retrieve
+      summary: Get your own latest verification request
+      tags:
+      - Verification
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/vision/:
+    get:
+      operationId: v1_vision_list
+      description: Public index -- published topics only, lean fields.
+      summary: List published vision topics
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/VisionTopicList'
+          description: ''
+  /api/v1/vision/{slug}/:
+    get:
+      operationId: v1_vision_retrieve
+      description: |-
+        Public detail by slug -- 404s for a draft or unknown slug, same as
+        a draft/rejected campaign isn't reachable at its public URL.
+      summary: Get a published vision topic
+      parameters:
+      - in: path
+        name: slug
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisionTopicDetail'
+          description: ''
+  /api/v1/vision/admin/:
+    get:
+      operationId: v1_vision_admin_list
+      summary: '[Admin] List all vision topics'
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AdminVisionTopic'
+          description: ''
+    post:
+      operationId: v1_vision_admin_create
+      summary: '[Admin] Create a vision topic'
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminVisionTopic'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AdminVisionTopic'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AdminVisionTopic'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/vision/admin/{slug}/:
+    get:
+      operationId: v1_vision_admin_retrieve
+      summary: '[Admin] Get a vision topic'
+      parameters:
+      - in: path
+        name: slug
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminVisionTopic'
+          description: ''
+    patch:
+      operationId: v1_vision_admin_partial_update
+      summary: '[Admin] Update a vision topic'
+      parameters:
+      - in: path
+        name: slug
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedAdminVisionTopic'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedAdminVisionTopic'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedAdminVisionTopic'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    delete:
+      operationId: v1_vision_admin_destroy
+      summary: '[Admin] Delete a vision topic'
+      parameters:
+      - in: path
+        name: slug
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/zakat/calculate/:
+    post:
+      operationId: v1_zakat_calculate_create
+      description: |-
+        Anyone — including guests — can calculate Zakat; it's not tied to
+        an account or a donation.
+      summary: Calculate Zakat owed from asset/liability inputs
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ZakatCalculationInput'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ZakatCalculationInput'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ZakatCalculationInput'
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/zakat/recommended-campaigns/:
+    get:
+      operationId: v1_zakat_recommended_campaigns_list
+      description: |-
+        Public shortlist of campaigns screened for Zakat eligibility —
+        see services/zakat_recommendation.py for the ranking algorithm.
+      summary: Get campaigns recommended for Zakat
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CampaignList'
+          description: ''
+  /api/v1/zakat/settings/:
+    get:
+      operationId: v1_zakat_settings_retrieve
+      description: |-
+        Public read so the calculator can show the current nisab/percentage
+        before a donor does anything; only admins can change them.
+      summary: Get current Zakat calculation settings
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ZakatSettings'
+          description: ''
+    patch:
+      operationId: v1_zakat_settings_partial_update
+      description: |-
+        Public read so the calculator can show the current nisab/percentage
+        before a donor does anything; only admins can change them.
+      summary: '[Admin] Update Zakat calculation settings'
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedZakatSettings'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedZakatSettings'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedZakatSettings'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+components:
+  schemas:
+    AccountTypeEnum:
+      enum:
+      - individual
+      - organization
+      type: string
+      description: |-
+        * `individual` - Individual
+        * `organization` - Organization
+    ActionEnum:
+      enum:
+      - user.logged_in
+      - user.registered
+      - user.password_reset
+      - user.profile_updated
+      - user.role_changed
+      - user.account_deleted
+      - staff.created
+      - campaign.created
+      - campaign.updated
+      - campaign.deleted
+      - campaign.published
+      - campaign.unpublished
+      - campaign.rejected
+      - report.status_changed
+      - verification.approved
+      - verification.rejected
+      - donation.created
+      - donation.status_changed
+      - payment.refunded
+      - payout.requested
+      - payout.status_changed
+      type: string
+      description: |-
+        * `user.logged_in` - Logged In
+        * `user.registered` - Registered
+        * `user.password_reset` - Reset Password
+        * `user.profile_updated` - Updated Profile
+        * `user.role_changed` - Changed User's Role
+        * `user.account_deleted` - Deleted Account
+        * `staff.created` - Created Staff Account
+        * `campaign.created` - Created Campaign
+        * `campaign.updated` - Updated Campaign
+        * `campaign.deleted` - Deleted Campaign
+        * `campaign.published` - Published Campaign
+        * `campaign.unpublished` - Unpublished Campaign
+        * `campaign.rejected` - Rejected Campaign
+        * `report.status_changed` - Updated Report
+        * `verification.approved` - Approved Verification
+        * `verification.rejected` - Rejected Verification
+        * `donation.created` - Created Donation
+        * `donation.status_changed` - Donation Status Changed
+        * `payment.refunded` - Refunded Payment
+        * `payout.requested` - Requested Payout
+        * `payout.status_changed` - Payout Status Changed
+    AdminCampaign:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        title:
+          type: string
+          maxLength: 200
+        slug:
+          type: string
+          maxLength: 220
+          pattern: ^[-a-zA-Z0-9_]+$
+        status:
+          $ref: '#/components/schemas/Status598Enum'
+        goal:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        raised:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        currency:
+          type: string
+          maxLength: 3
+        donors_count:
+          type: integer
+        views_count:
+          type: integer
+        progress_percent:
+          type: string
+          readOnly: true
+        region:
+          oneOf:
+          - $ref: '#/components/schemas/RegionEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        is_urgent:
+          type: boolean
+        is_featured:
+          type: boolean
+        is_anonymous:
+          type: boolean
+        cover_image_url:
+          type: string
+          readOnly: true
+        images:
+          type: array
+          items:
+            $ref: '#/components/schemas/CampaignImage'
+          readOnly: true
+        updates:
+          type: array
+          items:
+            $ref: '#/components/schemas/CampaignUpdate'
+          readOnly: true
+        updates_count:
+          type: string
+          readOnly: true
+        category_name:
+          type: string
+          readOnly: true
+        category_slug:
+          type: string
+          readOnly: true
+        owner_id:
+          type: string
+          readOnly: true
+        owner_email:
+          type: string
+          readOnly: true
+        owner_name:
+          type: string
+          readOnly: true
+        owner_phone:
+          type: string
+          readOnly: true
+        owner_joined_at:
+          type: string
+          format: date-time
+          readOnly: true
+        story:
+          type: string
+        beneficiary:
+          type: string
+          maxLength: 200
+        beneficiary_relationship:
+          type: string
+          maxLength: 100
+        deadline:
+          type: string
+          format: date
+          nullable: true
+        short_description:
+          type: string
+          maxLength: 500
+        rejection_reason:
+          type: string
+        admin_notes:
+          type: string
+        total_withdrawn:
+          type: string
+          readOnly: true
+        available_balance:
+          type: string
+          readOnly: true
+        reports_count:
+          type: string
+          readOnly: true
+        pending_reports_count:
+          type: string
+          readOnly: true
+        approved_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - available_balance
+      - category_name
+      - category_slug
+      - cover_image_url
+      - created_at
+      - goal
+      - id
+      - images
+      - owner_email
+      - owner_id
+      - owner_joined_at
+      - owner_name
+      - owner_phone
+      - pending_reports_count
+      - progress_percent
+      - reports_count
+      - short_description
+      - slug
+      - story
+      - title
+      - total_withdrawn
+      - updated_at
+      - updates
+      - updates_count
+    AdminCampaignList:
+      type: object
+      description: |-
+        Minimal projection for the admin campaigns list table + summary
+        sheet. AdminCampaignSerializer below is what those two only actually
+        need a handful of fields from, but it also serializes full
+        story/images/updates and runs 4 extra aggregate queries per row
+        (reports_count, pending_reports_count, total_withdrawn,
+        available_balance) -- multiplied by every row on the page, that's
+        what was making this list slow. The full projection is still
+        fetched, once, by the admin campaign detail page
+        (AdminCampaignDetailView) for the one campaign actually being
+        viewed.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        title:
+          type: string
+          maxLength: 200
+        slug:
+          type: string
+          maxLength: 220
+          pattern: ^[-a-zA-Z0-9_]+$
+        status:
+          $ref: '#/components/schemas/Status598Enum'
+        goal:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        raised:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        region:
+          oneOf:
+          - $ref: '#/components/schemas/RegionEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        beneficiary:
+          type: string
+          maxLength: 200
+        category_name:
+          type: string
+          readOnly: true
+        deadline:
+          type: string
+          format: date
+          nullable: true
+      required:
+      - category_name
+      - goal
+      - id
+      - slug
+      - title
+    AdminDonation:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        currency:
+          type: string
+          maxLength: 3
+        gateway:
+          type: string
+          maxLength: 20
+        provider:
+          $ref: '#/components/schemas/ProviderC51Enum'
+        phone:
+          type: string
+          maxLength: 20
+        status:
+          $ref: '#/components/schemas/Status4caEnum'
+        is_anonymous:
+          type: boolean
+        message:
+          type: string
+        fee:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        net_amount:
+          type: string
+          readOnly: true
+        donor_name:
+          type: string
+          readOnly: true
+        donor_email:
+          type: string
+          readOnly: true
+        campaign_title:
+          type: string
+          readOnly: true
+        payment_reference:
+          type: string
+          nullable: true
+          maxLength: 200
+        provider_reference:
+          type: string
+          maxLength: 200
+        paid_at:
+          type: string
+          format: date-time
+          nullable: true
+        refunded_at:
+          type: string
+          format: date-time
+          nullable: true
+        refund_reason:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - amount
+      - campaign_title
+      - created_at
+      - donor_email
+      - donor_name
+      - id
+      - net_amount
+    AdminDonationRefund:
+      type: object
+      properties:
+        reason:
+          type: string
+          default: ''
+    AdminUser:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        full_name:
+          type: string
+          readOnly: true
+        role:
+          $ref: '#/components/schemas/RoleEnum'
+        account_type:
+          allOf:
+          - $ref: '#/components/schemas/AccountTypeEnum'
+          readOnly: true
+        organization:
+          type: string
+          readOnly: true
+        avatar:
+          type: string
+          readOnly: true
+        phone:
+          type: string
+          maxLength: 20
+        bio:
+          type: string
+        region:
+          oneOf:
+          - $ref: '#/components/schemas/RegionEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        default_payment_provider:
+          oneOf:
+          - $ref: '#/components/schemas/DefaultPaymentProviderEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        default_payment_phone:
+          type: string
+          maxLength: 20
+        is_active:
+          type: boolean
+        email_verified:
+          type: boolean
+        is_verified:
+          type: boolean
+        notify_donations_received:
+          type: boolean
+        notify_campaign_approved:
+          type: boolean
+        notify_campaign_rejected:
+          type: boolean
+        notify_goal_reached:
+          type: boolean
+        notify_new_comment:
+          type: boolean
+        notify_new_update:
+          type: boolean
+        notify_marketing:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - account_type
+      - avatar
+      - created_at
+      - email
+      - full_name
+      - id
+      - organization
+      - updated_at
+    AdminUserCreate:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        phone:
+          type: string
+          maxLength: 20
+        role:
+          type: string
+      required:
+      - email
+      - role
+    AdminVisionTopic:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        slug:
+          type: string
+          maxLength: 120
+          pattern: ^[-a-zA-Z0-9_]+$
+        title:
+          type: string
+          maxLength: 200
+        summary:
+          type: string
+          maxLength: 300
+        order:
+          type: integer
+        is_published:
+          type: boolean
+        current_state:
+          type: string
+        implementation:
+          type: string
+        short_term_vision:
+          type: string
+        long_term_vision:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - slug
+      - title
+      - updated_at
+    AuditLog:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        actor:
+          type: string
+          format: uuid
+          nullable: true
+        actor_name:
+          type: string
+          maxLength: 255
+        actor_email:
+          type: string
+          maxLength: 255
+        action:
+          $ref: '#/components/schemas/ActionEnum'
+        action_display:
+          type: string
+          readOnly: true
+        verb:
+          type: string
+          readOnly: true
+        target_type:
+          type: string
+          maxLength: 50
+        target_id:
+          type: string
+          maxLength: 64
+        target_repr:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 500
+        metadata:
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - action
+      - action_display
+      - created_at
+      - description
+      - id
+      - verb
+    BlankEnum:
+      enum:
+      - ''
+    CampaignCreate:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 200
+        short_description:
+          type: string
+          maxLength: 500
+        story:
+          type: string
+        goal:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        deadline:
+          type: string
+          format: date
+          nullable: true
+        region:
+          oneOf:
+          - $ref: '#/components/schemas/RegionEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        beneficiary:
+          type: string
+          maxLength: 200
+        beneficiary_relationship:
+          type: string
+          maxLength: 100
+        is_urgent:
+          type: boolean
+        is_anonymous:
+          type: boolean
+        category_id:
+          type: string
+          format: uuid
+          writeOnly: true
+          nullable: true
+        category:
+          type: string
+          writeOnly: true
+          nullable: true
+      required:
+      - goal
+      - short_description
+      - story
+      - title
+    CampaignDetail:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        title:
+          type: string
+          maxLength: 200
+        slug:
+          type: string
+          maxLength: 220
+          pattern: ^[-a-zA-Z0-9_]+$
+        short_description:
+          type: string
+          maxLength: 500
+        story:
+          type: string
+        cover_image_url:
+          type: string
+          readOnly: true
+        goal:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        raised:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        currency:
+          type: string
+          maxLength: 3
+        donors_count:
+          type: integer
+        views_count:
+          type: integer
+        progress_percent:
+          type: string
+          readOnly: true
+        deadline:
+          type: string
+          format: date
+          nullable: true
+        status:
+          $ref: '#/components/schemas/Status598Enum'
+        region:
+          oneOf:
+          - $ref: '#/components/schemas/RegionEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        beneficiary:
+          type: string
+          maxLength: 200
+        beneficiary_relationship:
+          type: string
+          maxLength: 100
+        is_urgent:
+          type: boolean
+        is_featured:
+          type: boolean
+        is_anonymous:
+          type: boolean
+        category:
+          allOf:
+          - $ref: '#/components/schemas/Category'
+          readOnly: true
+        images:
+          type: array
+          items:
+            $ref: '#/components/schemas/CampaignImage'
+          readOnly: true
+        updates:
+          type: array
+          items:
+            $ref: '#/components/schemas/CampaignUpdate'
+          readOnly: true
+        owner_id:
+          type: string
+          readOnly: true
+        owner_name:
+          type: string
+          readOnly: true
+        owner_is_verified:
+          type: string
+          readOnly: true
+        total_withdrawn:
+          type: string
+          readOnly: true
+        available_balance:
+          type: string
+          readOnly: true
+        approved_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - available_balance
+      - category
+      - cover_image_url
+      - created_at
+      - goal
+      - id
+      - images
+      - owner_id
+      - owner_is_verified
+      - owner_name
+      - progress_percent
+      - short_description
+      - slug
+      - story
+      - title
+      - total_withdrawn
+      - updated_at
+      - updates
+    CampaignImage:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        image_url:
+          type: string
+          readOnly: true
+        order:
+          type: integer
+        is_cover:
+          type: boolean
+      required:
+      - id
+      - image_url
+    CampaignList:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        title:
+          type: string
+          maxLength: 200
+        slug:
+          type: string
+          maxLength: 220
+          pattern: ^[-a-zA-Z0-9_]+$
+        short_description:
+          type: string
+          maxLength: 500
+        cover_image_url:
+          type: string
+          readOnly: true
+        goal:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        raised:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        currency:
+          type: string
+          maxLength: 3
+        donors_count:
+          type: integer
+        progress_percent:
+          type: string
+          readOnly: true
+        deadline:
+          type: string
+          format: date
+          nullable: true
+        status:
+          $ref: '#/components/schemas/Status598Enum'
+        region:
+          oneOf:
+          - $ref: '#/components/schemas/RegionEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        is_urgent:
+          type: boolean
+        is_featured:
+          type: boolean
+        category_name:
+          type: string
+          readOnly: true
+        category_slug:
+          type: string
+          readOnly: true
+        owner_id:
+          type: string
+          readOnly: true
+        owner_name:
+          type: string
+          readOnly: true
+        owner_is_verified:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - category_name
+      - category_slug
+      - cover_image_url
+      - created_at
+      - goal
+      - id
+      - owner_id
+      - owner_is_verified
+      - owner_name
+      - progress_percent
+      - short_description
+      - slug
+      - title
+    CampaignReport:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        campaign_id:
+          type: string
+          readOnly: true
+        campaign:
+          type: string
+          readOnly: true
+        reason:
+          $ref: '#/components/schemas/ReasonEnum'
+        description:
+          type: string
+        status:
+          $ref: '#/components/schemas/StatusF90Enum'
+        reported_by_name:
+          type: string
+          readOnly: true
+        reported_by_email:
+          type: string
+          readOnly: true
+        reporter_phone:
+          type: string
+          maxLength: 20
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        admin_notes:
+          type: string
+      required:
+      - campaign
+      - campaign_id
+      - created_at
+      - description
+      - id
+      - reason
+      - reported_by_email
+      - reported_by_name
+    CampaignReportCreate:
+      type: object
+      properties:
+        reason:
+          $ref: '#/components/schemas/ReasonEnum'
+        description:
+          type: string
+        reporter_name:
+          type: string
+          maxLength: 200
+        reporter_phone:
+          type: string
+          maxLength: 20
+      required:
+      - description
+      - reason
+    CampaignUpdate:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        title:
+          type: string
+          maxLength: 200
+        content:
+          type: string
+        posted_by_name:
+          type: string
+          readOnly: true
+        images:
+          type: array
+          items:
+            $ref: '#/components/schemas/CampaignUpdateImage'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - content
+      - created_at
+      - id
+      - images
+      - posted_by_name
+      - title
+    CampaignUpdateCreate:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 200
+        content:
+          type: string
+      required:
+      - content
+      - title
+    CampaignUpdateImage:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        image_url:
+          type: string
+          readOnly: true
+        order:
+          type: integer
+      required:
+      - id
+      - image_url
+    Category:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          maxLength: 100
+        slug:
+          type: string
+          maxLength: 120
+          pattern: ^[-a-zA-Z0-9_]+$
+        description:
+          type: string
+        icon:
+          type: string
+          maxLength: 50
+        image_url:
+          type: string
+          readOnly: true
+        campaign_count:
+          type: string
+          readOnly: true
+        total_donated:
+          type: string
+          readOnly: true
+      required:
+      - campaign_count
+      - id
+      - image_url
+      - name
+      - slug
+      - total_donated
+    ChangePassword:
+      type: object
+      properties:
+        old_password:
+          type: string
+          writeOnly: true
+        new_password:
+          type: string
+          writeOnly: true
+        new_password_confirm:
+          type: string
+          writeOnly: true
+      required:
+      - new_password
+      - new_password_confirm
+      - old_password
+    ContactIdTypeEnum:
+      enum:
+      - national_id
+      - passport
+      - drivers_license
+      type: string
+      description: |-
+        * `national_id` - National ID Card
+        * `passport` - Passport
+        * `drivers_license` - Driver's License
+    DefaultPaymentProviderEnum:
+      enum:
+      - wave
+      - aps
+      type: string
+      description: |-
+        * `wave` - Wave
+        * `aps` - APS Wallet
+    Donation:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        currency:
+          type: string
+          maxLength: 3
+        gateway:
+          type: string
+          maxLength: 20
+        provider:
+          $ref: '#/components/schemas/ProviderC51Enum'
+        phone:
+          type: string
+          maxLength: 20
+        status:
+          $ref: '#/components/schemas/Status4caEnum'
+        is_anonymous:
+          type: boolean
+        message:
+          type: string
+        fee:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        net_amount:
+          type: string
+          readOnly: true
+        donor_name:
+          type: string
+          readOnly: true
+        campaign_title:
+          type: string
+          readOnly: true
+        campaign_slug:
+          type: string
+          readOnly: true
+        payment_reference:
+          type: string
+          nullable: true
+          maxLength: 200
+        paid_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - amount
+      - campaign_slug
+      - campaign_title
+      - created_at
+      - donor_name
+      - id
+      - net_amount
+    DonationCreate:
+      type: object
+      properties:
+        campaign_id:
+          type: string
+          format: uuid
+          writeOnly: true
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        gateway:
+          type: string
+          default: modempay
+        provider:
+          $ref: '#/components/schemas/ProviderC51Enum'
+        phone:
+          type: string
+          maxLength: 20
+        is_anonymous:
+          type: boolean
+        message:
+          type: string
+        donor_name:
+          type: string
+          description: Name for unauthenticated donors
+          maxLength: 300
+      required:
+      - amount
+      - campaign_id
+    FieldNameEnum:
+      enum:
+      - phone
+      - phone_2
+      - recovery_email_1
+      - recovery_email_2
+      type: string
+      description: |-
+        * `phone` - Primary Phone Number
+        * `phone_2` - Second Phone Number
+        * `recovery_email_1` - Recovery Email 1
+        * `recovery_email_2` - Recovery Email 2
+    GoogleOAuth:
+      type: object
+      properties:
+        id_token:
+          type: string
+        account_type:
+          $ref: '#/components/schemas/AccountTypeEnum'
+      required:
+      - id_token
+    IdTypeEnum:
+      enum:
+      - national_id
+      - passport
+      - drivers_license
+      type: string
+      description: |-
+        * `national_id` - National ID Card
+        * `passport` - Passport
+        * `drivers_license` - Driver's License
+    IdentityVerification:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        user_id:
+          type: string
+          readOnly: true
+        user_name:
+          type: string
+          readOnly: true
+        user_email:
+          type: string
+          readOnly: true
+        id_type:
+          $ref: '#/components/schemas/IdTypeEnum'
+        id_number:
+          type: string
+          maxLength: 50
+        id_photo_front:
+          type: string
+          readOnly: true
+        id_photo_back:
+          type: string
+          readOnly: true
+        status:
+          $ref: '#/components/schemas/Status968Enum'
+        rejection_reason:
+          type: string
+        reviewed_by_name:
+          type: string
+          readOnly: true
+        reviewed_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - id_number
+      - id_photo_back
+      - id_photo_front
+      - id_type
+      - reviewed_by_name
+      - user_email
+      - user_id
+      - user_name
+    LegalContent:
+      type: object
+      properties:
+        help_content:
+          type: string
+        trust_safety_content:
+          type: string
+        privacy_content:
+          type: string
+        terms_content:
+          type: string
+    Login:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          writeOnly: true
+      required:
+      - email
+      - password
+    Notification:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        notification_type:
+          $ref: '#/components/schemas/NotificationTypeEnum'
+        title:
+          type: string
+          maxLength: 200
+        message:
+          type: string
+        link:
+          type: string
+          maxLength: 500
+        is_read:
+          type: boolean
+        read_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - message
+      - notification_type
+      - title
+    NotificationTypeEnum:
+      enum:
+      - donation_received
+      - campaign_approved
+      - campaign_rejected
+      - campaign_suspended
+      - payout_processed
+      - campaign_update
+      - goal_reached
+      - donation_refunded
+      type: string
+      description: |-
+        * `donation_received` - Donation Received
+        * `campaign_approved` - Campaign Approved
+        * `campaign_rejected` - Campaign Rejected
+        * `campaign_suspended` - Campaign Suspended
+        * `payout_processed` - Payout Processed
+        * `campaign_update` - Campaign Update
+        * `goal_reached` - Goal Reached
+        * `donation_refunded` - Donation Refunded
+    OrganizationChangeRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        user_id:
+          type: string
+          readOnly: true
+        user_name:
+          type: string
+          readOnly: true
+        user_email:
+          type: string
+          readOnly: true
+        field_name:
+          $ref: '#/components/schemas/FieldNameEnum'
+        field_label:
+          type: string
+          readOnly: true
+        current_value:
+          type: string
+          maxLength: 255
+        proposed_value:
+          type: string
+          maxLength: 255
+        status:
+          $ref: '#/components/schemas/Status968Enum'
+        rejection_reason:
+          type: string
+        reviewed_by_name:
+          type: string
+          readOnly: true
+        reviewed_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - field_label
+      - field_name
+      - id
+      - proposed_value
+      - reviewed_by_name
+      - user_email
+      - user_id
+      - user_name
+    OrganizationVerification:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        user_id:
+          type: string
+          readOnly: true
+        user_name:
+          type: string
+          readOnly: true
+        user_email:
+          type: string
+          readOnly: true
+        organization_type:
+          type: string
+          readOnly: true
+        contact_id_type:
+          $ref: '#/components/schemas/ContactIdTypeEnum'
+        contact_id_number:
+          type: string
+          maxLength: 50
+        contact_id_photo_front:
+          type: string
+          readOnly: true
+        contact_id_photo_back:
+          type: string
+          readOnly: true
+        registration_document:
+          type: string
+          readOnly: true
+        organization_photo:
+          type: string
+          readOnly: true
+        status:
+          $ref: '#/components/schemas/Status968Enum'
+        rejection_reason:
+          type: string
+        reviewed_by_name:
+          type: string
+          readOnly: true
+        reviewed_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - contact_id_number
+      - contact_id_photo_back
+      - contact_id_photo_front
+      - contact_id_type
+      - created_at
+      - id
+      - organization_photo
+      - organization_type
+      - registration_document
+      - reviewed_by_name
+      - user_email
+      - user_id
+      - user_name
+    PaginatedAdminUserList:
+      type: object
+      properties:
+        success:
+          type: boolean
+        count:
+          type: integer
+        total_pages:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+        next:
+          type: string
+          nullable: true
+        previous:
+          type: string
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminUser'
+    PaginatedIdentityVerificationList:
+      type: object
+      properties:
+        success:
+          type: boolean
+        count:
+          type: integer
+        total_pages:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+        next:
+          type: string
+          nullable: true
+        previous:
+          type: string
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/IdentityVerification'
+    PaginatedOrganizationChangeRequestList:
+      type: object
+      properties:
+        success:
+          type: boolean
+        count:
+          type: integer
+        total_pages:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+        next:
+          type: string
+          nullable: true
+        previous:
+          type: string
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrganizationChangeRequest'
+    PaginatedOrganizationVerificationList:
+      type: object
+      properties:
+        success:
+          type: boolean
+        count:
+          type: integer
+        total_pages:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+        next:
+          type: string
+          nullable: true
+        previous:
+          type: string
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrganizationVerification'
+    PaginatedPublicCampaignerList:
+      type: object
+      properties:
+        success:
+          type: boolean
+        count:
+          type: integer
+        total_pages:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+        next:
+          type: string
+          nullable: true
+        previous:
+          type: string
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicCampaigner'
+    PasswordToken:
+      type: object
+      properties:
+        password:
+          type: string
+        token:
+          type: string
+      required:
+      - password
+      - token
+    PatchedAdminCampaignUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 200
+        short_description:
+          type: string
+          maxLength: 500
+        story:
+          type: string
+        goal:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        status:
+          $ref: '#/components/schemas/Status598Enum'
+        region:
+          oneOf:
+          - $ref: '#/components/schemas/RegionEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        beneficiary:
+          type: string
+          maxLength: 200
+        beneficiary_relationship:
+          type: string
+          maxLength: 100
+        is_urgent:
+          type: boolean
+        is_featured:
+          type: boolean
+        rejection_reason:
+          type: string
+        deadline:
+          type: string
+          format: date
+          nullable: true
+    PatchedAdminDonationUpdate:
+      type: object
+      properties:
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        status:
+          $ref: '#/components/schemas/Status4caEnum'
+        phone:
+          type: string
+          maxLength: 20
+        provider:
+          $ref: '#/components/schemas/ProviderC51Enum'
+        is_anonymous:
+          type: boolean
+        message:
+          type: string
+        fee:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+    PatchedAdminUser:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        full_name:
+          type: string
+          readOnly: true
+        role:
+          $ref: '#/components/schemas/RoleEnum'
+        account_type:
+          allOf:
+          - $ref: '#/components/schemas/AccountTypeEnum'
+          readOnly: true
+        organization:
+          type: string
+          readOnly: true
+        avatar:
+          type: string
+          readOnly: true
+        phone:
+          type: string
+          maxLength: 20
+        bio:
+          type: string
+        region:
+          oneOf:
+          - $ref: '#/components/schemas/RegionEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        default_payment_provider:
+          oneOf:
+          - $ref: '#/components/schemas/DefaultPaymentProviderEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        default_payment_phone:
+          type: string
+          maxLength: 20
+        is_active:
+          type: boolean
+        email_verified:
+          type: boolean
+        is_verified:
+          type: boolean
+        notify_donations_received:
+          type: boolean
+        notify_campaign_approved:
+          type: boolean
+        notify_campaign_rejected:
+          type: boolean
+        notify_goal_reached:
+          type: boolean
+        notify_new_comment:
+          type: boolean
+        notify_new_update:
+          type: boolean
+        notify_marketing:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+    PatchedAdminVisionTopic:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        slug:
+          type: string
+          maxLength: 120
+          pattern: ^[-a-zA-Z0-9_]+$
+        title:
+          type: string
+          maxLength: 200
+        summary:
+          type: string
+          maxLength: 300
+        order:
+          type: integer
+        is_published:
+          type: boolean
+        current_state:
+          type: string
+        implementation:
+          type: string
+        short_term_vision:
+          type: string
+        long_term_vision:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+    PatchedCampaignCreate:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 200
+        short_description:
+          type: string
+          maxLength: 500
+        story:
+          type: string
+        goal:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        deadline:
+          type: string
+          format: date
+          nullable: true
+        region:
+          oneOf:
+          - $ref: '#/components/schemas/RegionEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        beneficiary:
+          type: string
+          maxLength: 200
+        beneficiary_relationship:
+          type: string
+          maxLength: 100
+        is_urgent:
+          type: boolean
+        is_anonymous:
+          type: boolean
+        category_id:
+          type: string
+          format: uuid
+          writeOnly: true
+          nullable: true
+        category:
+          type: string
+          writeOnly: true
+          nullable: true
+    PatchedCampaignReportUpdate:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/StatusF90Enum'
+        admin_notes:
+          type: string
+        reason:
+          $ref: '#/components/schemas/ReasonEnum'
+        description:
+          type: string
+    PatchedLegalContent:
+      type: object
+      properties:
+        help_content:
+          type: string
+        trust_safety_content:
+          type: string
+        privacy_content:
+          type: string
+        terms_content:
+          type: string
+    PatchedPlatformSettings:
+      type: object
+      properties:
+        platform_fee_percent:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          description: Percentage the platform takes from each campaign payout.
+        modempay_enabled:
+          type: boolean
+          description: Whether donors/campaign owners can use ModemPay (Wave/APS mobile
+            money).
+        stripe_enabled:
+          type: boolean
+          description: Whether donors can pay by card via Stripe. Requires Stripe
+            API keys to already be configured in the environment — this switch only
+            controls whether the (already-configured) gateway is offered.
+        stripe_settlement_currency:
+          type: string
+          description: Currency Stripe actually charges the card in (Stripe does not
+            support GMD).
+          maxLength: 3
+        gmd_to_settlement_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,6}(?:\.\d{0,4})?$
+          description: How many GMD equal 1 unit of the Stripe settlement currency
+            above — e.g. 70 means D70 = 1 unit. Update this to match the real exchange
+            rate; a stale rate over/undercharges every card donation.
+    PatchedRoleResourcesUpdate:
+      type: object
+      properties:
+        resources:
+          type: array
+          items:
+            type: string
+    PatchedSiteSettings:
+      type: object
+      properties:
+        site_name:
+          type: string
+          maxLength: 100
+        site_description:
+          type: string
+          maxLength: 255
+        logo:
+          type: string
+          format: uri
+          nullable: true
+          description: Transparent logo, used on light and dark surfaces (nav, footer).
+        logo_with_background:
+          type: string
+          format: uri
+          nullable: true
+          description: Logo on its own solid background, used where a transparent
+            logo needs backing (e.g. social sharing).
+        contact_email:
+          type: string
+          format: email
+          maxLength: 254
+    PatchedUserUpdate:
+      type: object
+      properties:
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        phone:
+          type: string
+          maxLength: 20
+        bio:
+          type: string
+        region:
+          oneOf:
+          - $ref: '#/components/schemas/RegionEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        default_payment_provider:
+          oneOf:
+          - $ref: '#/components/schemas/DefaultPaymentProviderEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        default_payment_phone:
+          type: string
+          maxLength: 20
+        show_total_raised:
+          type: boolean
+          description: Whether total funds raised is shown on your public campaigner
+            profile.
+        notify_donations_received:
+          type: boolean
+        notify_campaign_approved:
+          type: boolean
+        notify_campaign_rejected:
+          type: boolean
+        notify_goal_reached:
+          type: boolean
+        notify_new_comment:
+          type: boolean
+        notify_new_update:
+          type: boolean
+        notify_marketing:
+          type: boolean
+    PatchedZakatSettings:
+      type: object
+      properties:
+        nisab_gold_grams:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,6}(?:\.\d{0,2})?$
+        nisab_silver_grams:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,6}(?:\.\d{0,2})?$
+        gold_price_per_gram:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        silver_price_per_gram:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        zakat_percentage:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          description: Percentage of zakatable wealth owed once it reaches nisab.
+            Classically fixed at 2.5%.
+        minimum_amount_override:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          nullable: true
+        nisab_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+    Payout:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        campaign_title:
+          type: string
+          readOnly: true
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        fee:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        provider_fee:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        net_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        currency:
+          type: string
+          maxLength: 3
+        provider:
+          $ref: '#/components/schemas/ProviderEecEnum'
+        phone:
+          type: string
+          maxLength: 20
+        reference:
+          type: string
+          nullable: true
+          maxLength: 200
+        status:
+          $ref: '#/components/schemas/PayoutStatusEnum'
+        notes:
+          type: string
+        processed_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - amount
+      - campaign_title
+      - created_at
+      - id
+      - phone
+      - provider
+    PayoutCreate:
+      type: object
+      properties:
+        campaign_id:
+          type: string
+          format: uuid
+          writeOnly: true
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        provider:
+          $ref: '#/components/schemas/ProviderEecEnum'
+        phone:
+          type: string
+          maxLength: 20
+      required:
+      - amount
+      - campaign_id
+      - phone
+      - provider
+    PayoutStatusEnum:
+      enum:
+      - pending
+      - processing
+      - completed
+      - failed
+      - cancelled
+      type: string
+      description: |-
+        * `pending` - Pending
+        * `processing` - Processing
+        * `completed` - Completed
+        * `failed` - Failed
+        * `cancelled` - Cancelled
+    PlatformSettings:
+      type: object
+      properties:
+        platform_fee_percent:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          description: Percentage the platform takes from each campaign payout.
+        modempay_enabled:
+          type: boolean
+          description: Whether donors/campaign owners can use ModemPay (Wave/APS mobile
+            money).
+        stripe_enabled:
+          type: boolean
+          description: Whether donors can pay by card via Stripe. Requires Stripe
+            API keys to already be configured in the environment — this switch only
+            controls whether the (already-configured) gateway is offered.
+        stripe_settlement_currency:
+          type: string
+          description: Currency Stripe actually charges the card in (Stripe does not
+            support GMD).
+          maxLength: 3
+        gmd_to_settlement_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,6}(?:\.\d{0,4})?$
+          description: How many GMD equal 1 unit of the Stripe settlement currency
+            above — e.g. 70 means D70 = 1 unit. Update this to match the real exchange
+            rate; a stale rate over/undercharges every card donation.
+    ProviderC51Enum:
+      enum:
+      - wave
+      - aps
+      - card
+      type: string
+      description: |-
+        * `wave` - Wave
+        * `aps` - APS Wallet
+        * `card` - Card
+    ProviderEecEnum:
+      enum:
+      - wave
+      - aps
+      type: string
+      description: |-
+        * `wave` - Wave
+        * `aps` - APS Wallet
+    PublicCampaigner:
+      type: object
+      description: |-
+        A campaign owner's public profile — deliberately minimal. Never add
+        email, phone, role, payment fields, or anything from IdentityVerification/
+        OrganizationVerification here; is_verified is the only verification-
+        related field ever exposed publicly (just the badge, never the
+        underlying ID/registration-document submission).
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        full_name:
+          type: string
+          readOnly: true
+        account_type:
+          allOf:
+          - $ref: '#/components/schemas/AccountTypeEnum'
+          readOnly: true
+        organization_type:
+          type: string
+          readOnly: true
+        avatar:
+          type: string
+          readOnly: true
+        bio:
+          type: string
+        region:
+          oneOf:
+          - $ref: '#/components/schemas/RegionEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        is_verified:
+          type: boolean
+        campaign_count:
+          type: integer
+          readOnly: true
+        total_raised:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - account_type
+      - avatar
+      - campaign_count
+      - created_at
+      - full_name
+      - id
+      - organization_type
+      - total_raised
+    ReasonEnum:
+      enum:
+      - fraudulent
+      - misleading
+      - inappropriate
+      - spam
+      - duplicate
+      - other
+      type: string
+      description: |-
+        * `fraudulent` - Fraudulent activity
+        * `misleading` - Misleading information
+        * `inappropriate` - Inappropriate content
+        * `spam` - Spam or scam
+        * `duplicate` - Duplicate campaign
+        * `other` - Other
+    RegionEnum:
+      enum:
+      - banjul
+      - kanifing
+      - brikama
+      - mansakonko
+      - kerewan
+      - kuntaur
+      - janjanbureh
+      - basse
+      type: string
+      description: |-
+        * `banjul` - Banjul
+        * `kanifing` - Kanifing
+        * `brikama` - Brikama
+        * `mansakonko` - Mansakonko
+        * `kerewan` - Kerewan
+        * `kuntaur` - Kuntaur
+        * `janjanbureh` - Janjanbureh
+        * `basse` - Basse
+    Register:
+      type: object
+      description: |-
+        Deliberately minimal — just enough to create the account. Name
+        (individual) and organization profile details (organization) are no
+        longer collected here; they're filled in during onboarding after
+        signup, via the existing profile/organization update endpoints.
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          writeOnly: true
+        password_confirm:
+          type: string
+          writeOnly: true
+        account_type:
+          allOf:
+          - $ref: '#/components/schemas/AccountTypeEnum'
+          default: individual
+        terms_accepted:
+          type: boolean
+          writeOnly: true
+      required:
+      - email
+      - password
+      - password_confirm
+      - terms_accepted
+    RequestPasswordReset:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+      required:
+      - email
+    ResetToken:
+      type: object
+      properties:
+        token:
+          type: string
+      required:
+      - token
+    RoleCreate:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 50
+        resources:
+          type: array
+          items:
+            type: string
+      required:
+      - name
+    RoleEnum:
+      enum:
+      - admin
+      - user
+      - premium
+      - moderator
+      - finance_officer
+      type: string
+      description: |-
+        * `admin` - Admin
+        * `user` - User
+        * `premium` - Premium User
+        * `moderator` - Moderator
+        * `finance_officer` - Finance Officer
+    SetPassword:
+      type: object
+      properties:
+        new_password:
+          type: string
+          writeOnly: true
+        new_password_confirm:
+          type: string
+          writeOnly: true
+      required:
+      - new_password
+      - new_password_confirm
+    SiteSettings:
+      type: object
+      properties:
+        site_name:
+          type: string
+          maxLength: 100
+        site_description:
+          type: string
+          maxLength: 255
+        logo:
+          type: string
+          format: uri
+          nullable: true
+          description: Transparent logo, used on light and dark surfaces (nav, footer).
+        logo_with_background:
+          type: string
+          format: uri
+          nullable: true
+          description: Logo on its own solid background, used where a transparent
+            logo needs backing (e.g. social sharing).
+        contact_email:
+          type: string
+          format: email
+          maxLength: 254
+    Status4caEnum:
+      enum:
+      - pending
+      - paid
+      - failed
+      - refunded
+      type: string
+      description: |-
+        * `pending` - Pending
+        * `paid` - Paid
+        * `failed` - Failed
+        * `refunded` - Refunded
+    Status598Enum:
+      enum:
+      - draft
+      - pending
+      - approved
+      - active
+      - completed
+      - rejected
+      - suspended
+      type: string
+      description: |-
+        * `draft` - Draft
+        * `pending` - Pending Review
+        * `approved` - Approved
+        * `active` - Active
+        * `completed` - Completed
+        * `rejected` - Rejected
+        * `suspended` - Suspended
+    Status968Enum:
+      enum:
+      - pending
+      - approved
+      - rejected
+      type: string
+      description: |-
+        * `pending` - Pending Review
+        * `approved` - Approved
+        * `rejected` - Rejected
+    StatusF90Enum:
+      enum:
+      - pending
+      - investigating
+      - resolved
+      - dismissed
+      type: string
+      description: |-
+        * `pending` - Pending Review
+        * `investigating` - Under Investigation
+        * `resolved` - Resolved
+        * `dismissed` - Dismissed
+    TokenRefresh:
+      type: object
+      properties:
+        access:
+          type: string
+          readOnly: true
+        refresh:
+          type: string
+      required:
+      - access
+      - refresh
+    TrackEvent:
+      type: object
+      properties:
+        type:
+          $ref: '#/components/schemas/TypeEnum'
+        campaign_slug:
+          type: string
+          pattern: ^[-a-zA-Z0-9_]+$
+        session_id:
+          type: string
+          maxLength: 64
+        metadata: {}
+      required:
+      - type
+    TypeEnum:
+      enum:
+      - campaign_viewed
+      - campaign_shared
+      - campaign_clicked
+      - donation_started
+      - donation_amount_selected
+      - donation_completed
+      type: string
+      description: |-
+        * `campaign_viewed` - Campaign Viewed
+        * `campaign_shared` - Campaign Shared
+        * `campaign_clicked` - Campaign Clicked
+        * `donation_started` - Donation Started
+        * `donation_amount_selected` - Donation Amount Selected
+        * `donation_completed` - Donation Completed
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        email:
+          type: string
+          format: email
+          readOnly: true
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        full_name:
+          type: string
+          readOnly: true
+        role:
+          allOf:
+          - $ref: '#/components/schemas/RoleEnum'
+          readOnly: true
+        account_type:
+          allOf:
+          - $ref: '#/components/schemas/AccountTypeEnum'
+          readOnly: true
+        organization:
+          type: string
+          readOnly: true
+        avatar:
+          type: string
+          readOnly: true
+        phone:
+          type: string
+          maxLength: 20
+        bio:
+          type: string
+        region:
+          oneOf:
+          - $ref: '#/components/schemas/RegionEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        default_payment_provider:
+          oneOf:
+          - $ref: '#/components/schemas/DefaultPaymentProviderEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        default_payment_phone:
+          type: string
+          maxLength: 20
+        email_verified:
+          type: boolean
+          readOnly: true
+        is_verified:
+          type: boolean
+          readOnly: true
+        is_moderator:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        show_total_raised:
+          type: boolean
+          description: Whether total funds raised is shown on your public campaigner
+            profile.
+        notify_donations_received:
+          type: boolean
+        notify_campaign_approved:
+          type: boolean
+        notify_campaign_rejected:
+          type: boolean
+        notify_goal_reached:
+          type: boolean
+        notify_new_comment:
+          type: boolean
+        notify_new_update:
+          type: boolean
+        notify_marketing:
+          type: boolean
+        has_usable_password:
+          type: string
+          readOnly: true
+        is_google_linked:
+          type: string
+          readOnly: true
+        resources:
+          type: string
+          readOnly: true
+      required:
+      - account_type
+      - avatar
+      - created_at
+      - email
+      - email_verified
+      - full_name
+      - has_usable_password
+      - id
+      - is_google_linked
+      - is_moderator
+      - is_verified
+      - organization
+      - resources
+      - role
+    UserUpdate:
+      type: object
+      properties:
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        phone:
+          type: string
+          maxLength: 20
+        bio:
+          type: string
+        region:
+          oneOf:
+          - $ref: '#/components/schemas/RegionEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        default_payment_provider:
+          oneOf:
+          - $ref: '#/components/schemas/DefaultPaymentProviderEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        default_payment_phone:
+          type: string
+          maxLength: 20
+        show_total_raised:
+          type: boolean
+          description: Whether total funds raised is shown on your public campaigner
+            profile.
+        notify_donations_received:
+          type: boolean
+        notify_campaign_approved:
+          type: boolean
+        notify_campaign_rejected:
+          type: boolean
+        notify_goal_reached:
+          type: boolean
+        notify_new_comment:
+          type: boolean
+        notify_new_update:
+          type: boolean
+        notify_marketing:
+          type: boolean
+    VisionTopicDetail:
+      type: object
+      properties:
+        slug:
+          type: string
+          maxLength: 120
+          pattern: ^[-a-zA-Z0-9_]+$
+        title:
+          type: string
+          maxLength: 200
+        summary:
+          type: string
+          maxLength: 300
+        order:
+          type: integer
+        current_state:
+          type: string
+        implementation:
+          type: string
+        short_term_vision:
+          type: string
+        long_term_vision:
+          type: string
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - slug
+      - title
+      - updated_at
+    VisionTopicList:
+      type: object
+      description: |-
+        Lean projection for the public index page -- title/summary/slug
+        only, same reasoning as AdminCampaignListSerializer: don't serialize
+        four markdown documents' worth of content for every topic just to
+        render a list of teasers.
+      properties:
+        slug:
+          type: string
+          maxLength: 120
+          pattern: ^[-a-zA-Z0-9_]+$
+        title:
+          type: string
+          maxLength: 200
+        summary:
+          type: string
+          maxLength: 300
+        order:
+          type: integer
+      required:
+      - slug
+      - title
+    ZakatCalculationInput:
+      type: object
+      description: |-
+        Assets/liabilities a donor enters — mirrors the classical zakatable
+        wealth categories: cash and savings, gold/silver holdings, business
+        trade goods, investments, money owed to them (receivables), minus
+        debts they owe (liabilities are deducted before comparing to nisab).
+      properties:
+        cash_and_savings:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          default: '0.00'
+        gold_and_silver_value:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          default: '0.00'
+        business_assets:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          default: '0.00'
+        investments:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          default: '0.00'
+        money_owed_to_you:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          default: '0.00'
+        debts_you_owe:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          default: '0.00'
+    ZakatSettings:
+      type: object
+      properties:
+        nisab_gold_grams:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,6}(?:\.\d{0,2})?$
+        nisab_silver_grams:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,6}(?:\.\d{0,2})?$
+        gold_price_per_gram:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        silver_price_per_gram:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        zakat_percentage:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          description: Percentage of zakatable wealth owed once it reaches nisab.
+            Classically fixed at 2.5%.
+        minimum_amount_override:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          nullable: true
+        nisab_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+      required:
+      - nisab_amount
+  securitySchemes:
+    jwtAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

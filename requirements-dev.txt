@@ -1,0 +1,6 @@
+# Dev/CI-only tooling -- not installed in production (Railway installs
+# requirements.txt only). Layered on top of it so CI installs both in one
+# `pip install -r requirements-dev.txt`.
+-r requirements.txt
+
+coverage==7.15.4
