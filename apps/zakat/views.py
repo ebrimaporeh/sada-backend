@@ -14,7 +14,7 @@ class ZakatSettingsView(APIView):
     """Public read so the calculator can show the current nisab/percentage
     before a donor does anything; only admins can change them."""
 
-    required_resource = Resource.SETTINGS
+    required_resource = Resource.SETTINGS_EDIT
 
     def get_permissions(self):
         if self.request.method == 'PATCH':

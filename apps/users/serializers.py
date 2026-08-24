@@ -123,7 +123,10 @@ class AdminUserSerializer(serializers.ModelSerializer):
 
 
 class AdminUserCreateSerializer(serializers.ModelSerializer):
-    role = serializers.ChoiceField(choices=[User.Role.MODERATOR, User.Role.FINANCE_OFFICER])
+    # Not a static ChoiceField — the set of assignable roles is the live
+    # Role table (an admin can create new ones at runtime), so validity has
+    # to be checked against the database, not a hardcoded pair.
+    role = serializers.CharField()
 
     class Meta:
         model = User
@@ -132,6 +135,12 @@ class AdminUserCreateSerializer(serializers.ModelSerializer):
     def validate_email(self, value):
         if User.objects.filter(email__iexact=value).exists():
             raise serializers.ValidationError('A user with this email already exists.')
+        return value
+
+    def validate_role(self, value):
+        from permissions.roles import get_managed_role_slugs
+        if value not in get_managed_role_slugs():
+            raise serializers.ValidationError('Role must be one of the runtime-editable staff roles.')
         return value
 
 

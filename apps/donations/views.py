@@ -118,7 +118,7 @@ class PublicCampaignDonorListView(APIView):
 
 class AdminDonationListView(APIView):
     permission_classes = [HasResourceAccess]
-    required_resource = Resource.DONATIONS
+    required_resource = Resource.DONATIONS_VIEW
 
     @extend_schema(summary='[Admin] List all donations', responses={200: AdminDonationSerializer(many=True)})
     def get(self, request):
@@ -131,7 +131,7 @@ class AdminDonationListView(APIView):
 
 class AdminDonationStatsView(APIView):
     permission_classes = [HasResourceAccess]
-    required_resource = Resource.DONATIONS
+    required_resource = Resource.DONATIONS_VIEW
 
     @extend_schema(summary='[Admin] Donation stats')
     def get(self, request):
@@ -140,7 +140,7 @@ class AdminDonationStatsView(APIView):
 
 class AdminDonationUpdateView(APIView):
     permission_classes = [HasResourceAccess]
-    required_resource = Resource.DONATIONS
+    required_resource = Resource.DONATIONS_EDIT
 
     @extend_schema(summary='[Admin] Update donation details', request=AdminDonationUpdateSerializer)
     def patch(self, request, pk):
@@ -156,7 +156,7 @@ class AdminDonationUpdateView(APIView):
 
 class AdminDonationRefundView(APIView):
     permission_classes = [HasResourceAccess]
-    required_resource = Resource.DONATIONS
+    required_resource = Resource.DONATIONS_EDIT
 
     @extend_schema(summary='[Admin] Refund a paid donation', request=AdminDonationRefundSerializer)
     def post(self, request, pk):

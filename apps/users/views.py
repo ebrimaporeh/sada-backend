@@ -72,7 +72,7 @@ class MyAvatarUploadView(APIView):
 @extend_schema(tags=['Users'], summary='[Admin] Upload any user\'s avatar', responses={200: AdminUserSerializer})
 class AdminUserAvatarUploadView(APIView):
     permission_classes = [HasResourceAccess]
-    required_resource = Resource.USERS
+    required_resource = Resource.USERS_EDIT
 
     def post(self, request, pk):
         target = get_object_or_404(User, pk=pk)
@@ -84,7 +84,7 @@ class AdminUserAvatarUploadView(APIView):
 @extend_schema(tags=['Users'], summary="[Admin] Upload any organization's logo", responses={200: AdminUserSerializer})
 class AdminOrganizationLogoUploadView(APIView):
     permission_classes = [HasResourceAccess]
-    required_resource = Resource.USERS
+    required_resource = Resource.USERS_EDIT
 
     def post(self, request, pk):
         target = get_object_or_404(User, pk=pk)
@@ -135,7 +135,7 @@ class PublicCampaignerDetailView(generics.RetrieveAPIView):
 class UserListView(generics.ListAPIView):
     serializer_class = AdminUserSerializer
     permission_classes = [HasResourceAccess]
-    required_resource = Resource.USERS
+    required_resource = Resource.USERS_VIEW
     pagination_class = StandardResultsPagination
 
     def get_queryset(self):
@@ -153,16 +153,16 @@ class UserListView(generics.ListAPIView):
 class AdminStaffListView(generics.ListAPIView):
     serializer_class = AdminUserSerializer
     permission_classes = [HasResourceAccess]
-    required_resource = Resource.STAFF
+    required_resource = Resource.STAFF_VIEW
 
     def get_queryset(self):
         return user_service.get_staff_users()
 
 
-@extend_schema(tags=['Users'], summary='[Admin] Onboard a new staff member (moderator or finance officer)', request=AdminUserCreateSerializer)
+@extend_schema(tags=['Users'], summary='[Admin] Onboard a new staff member', request=AdminUserCreateSerializer)
 class AdminUserCreateView(APIView):
     permission_classes = [HasResourceAccess]
-    required_resource = Resource.STAFF
+    required_resource = Resource.STAFF_CREATE
 
     def post(self, request):
         serializer = AdminUserCreateSerializer(data=request.data)
@@ -185,7 +185,7 @@ class AdminUserCreateView(APIView):
 @extend_schema(tags=['Users'], summary='[Admin] Change a staff member\'s role')
 class AdminStaffRoleChangeView(APIView):
     permission_classes = [HasResourceAccess]
-    required_resource = Resource.STAFF
+    required_resource = Resource.STAFF_EDIT
 
     def post(self, request, pk):
         user = user_service.get_user_by_id(pk)
@@ -204,20 +204,35 @@ class AdminStaffRoleChangeView(APIView):
 @extend_schema(tags=['Users'], summary='[Admin] User stats')
 class UserStatsView(generics.GenericAPIView):
     permission_classes = [HasResourceAccess]
-    required_resource = Resource.USERS
+    required_resource = Resource.USERS_VIEW
 
     def get(self, request):
         return Response({'success': True, 'data': user_service.get_user_stats()})
 
 
+def _user_detail_resource(request, obj):
+    """One endpoint serves both regular users and staff (same `User` model),
+    so which resource applies depends on the *target* row, not just the
+    HTTP method — a staff target needs the staff_* resources, a regular
+    user needs the users_* ones."""
+    is_staff_target = user_service.is_staff_role(obj.role)
+    if request.method == 'GET':
+        return Resource.STAFF_VIEW if is_staff_target else Resource.USERS_VIEW
+    if request.method == 'DELETE':
+        return Resource.STAFF_DELETE if is_staff_target else Resource.USERS_DELETE
+    return Resource.STAFF_EDIT if is_staff_target else Resource.USERS_EDIT
+
+
 @extend_schema(tags=['Users'])
 class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [HasResourceAccess]
-    required_resource = Resource.USERS
+    resource_by_target = staticmethod(_user_detail_resource)
     serializer_class = AdminUserSerializer
 
     def get_object(self):
-        return user_service.get_user_by_id(self.kwargs['pk'])
+        obj = user_service.get_user_by_id(self.kwargs['pk'])
+        self.check_object_permissions(self.request, obj)
+        return obj
 
     def perform_update(self, serializer):
         user_service.admin_update_user(serializer.instance, self.request.user, **serializer.validated_data)
@@ -256,7 +271,7 @@ class MyVerificationView(APIView):
 class AdminVerificationListView(generics.ListAPIView):
     serializer_class = IdentityVerificationSerializer
     permission_classes = [HasResourceAccess]
-    required_resource = Resource.VERIFICATIONS
+    required_resource = Resource.VERIFICATIONS_VIEW
     pagination_class = StandardResultsPagination
 
     def get_queryset(self):
@@ -269,7 +284,7 @@ class AdminVerificationListView(generics.ListAPIView):
 @extend_schema(tags=['Verification'], summary='[Admin] Approve or reject a verification request')
 class AdminVerificationActionView(APIView):
     permission_classes = [HasResourceAccess]
-    required_resource = Resource.VERIFICATIONS
+    required_resource = Resource.VERIFICATIONS_EDIT
 
     def post(self, request, pk, action):
         if action == 'approve':
@@ -320,7 +335,7 @@ class MyOrganizationVerificationView(APIView):
 class AdminOrganizationVerificationListView(generics.ListAPIView):
     serializer_class = OrganizationVerificationSerializer
     permission_classes = [HasResourceAccess]
-    required_resource = Resource.VERIFICATIONS
+    required_resource = Resource.VERIFICATIONS_VIEW
     pagination_class = StandardResultsPagination
 
     def get_queryset(self):
@@ -333,7 +348,7 @@ class AdminOrganizationVerificationListView(generics.ListAPIView):
 @extend_schema(tags=['Verification'], summary='[Admin] Approve or reject an organization verification request')
 class AdminOrganizationVerificationActionView(APIView):
     permission_classes = [HasResourceAccess]
-    required_resource = Resource.VERIFICATIONS
+    required_resource = Resource.VERIFICATIONS_EDIT
 
     def post(self, request, pk, action):
         if action == 'approve':
@@ -386,7 +401,7 @@ class MyOrganizationChangeRequestsView(APIView):
 class AdminOrganizationChangeRequestListView(generics.ListAPIView):
     serializer_class = OrganizationChangeRequestSerializer
     permission_classes = [HasResourceAccess]
-    required_resource = Resource.VERIFICATIONS
+    required_resource = Resource.VERIFICATIONS_VIEW
     pagination_class = StandardResultsPagination
 
     def get_queryset(self):
@@ -399,7 +414,7 @@ class AdminOrganizationChangeRequestListView(generics.ListAPIView):
 @extend_schema(tags=['Verification'], summary='[Admin] Approve or reject an organization change request')
 class AdminOrganizationChangeRequestActionView(APIView):
     permission_classes = [HasResourceAccess]
-    required_resource = Resource.VERIFICATIONS
+    required_resource = Resource.VERIFICATIONS_EDIT
 
     def post(self, request, pk, action):
         if action == 'approve':

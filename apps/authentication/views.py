@@ -28,15 +28,14 @@ class RegisterView(APIView):
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        user, tokens = auth_service.register_user(**serializer.validated_data)
+        user = auth_service.register_user(**serializer.validated_data)
         consent_service.record_terms_acceptance(user, ip_address=consent_service.get_client_ip(request))
         audit_service.log(user, AuditLog.Action.USER_REGISTERED, user, f'{user.full_name} registered')
         return Response({
             'success': True,
-            'message': 'Registration successful. Please verify your email.',
+            'message': 'Registration successful. Please check your email to verify your account before logging in.',
             'data': {
                 'user': UserSerializer(user, context={'request': request}).data,
-                'tokens': tokens,
             },
         }, status=status.HTTP_201_CREATED)
 

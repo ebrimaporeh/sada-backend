@@ -34,7 +34,7 @@ class VisionTopicDetailView(APIView):
 
 class AdminVisionTopicListView(APIView):
     permission_classes = [HasResourceAccess]
-    required_resource = Resource.SETTINGS
+    required_resource = Resource.SETTINGS_EDIT
 
     @extend_schema(summary='[Admin] List all vision topics', responses={200: AdminVisionTopicSerializer(many=True)})
     def get(self, request):
@@ -53,7 +53,7 @@ class AdminVisionTopicListView(APIView):
 
 class AdminVisionTopicDetailView(APIView):
     permission_classes = [HasResourceAccess]
-    required_resource = Resource.SETTINGS
+    required_resource = Resource.SETTINGS_EDIT
 
     @extend_schema(summary='[Admin] Get a vision topic', responses={200: AdminVisionTopicSerializer})
     def get(self, request, slug):

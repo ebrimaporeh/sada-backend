@@ -56,18 +56,21 @@ def create_user(email: str, password: str, **kwargs) -> User:
 
 
 def admin_create_user(email: str, role: str, requesting_user: User, first_name: str = '', last_name: str = '', phone: str = '') -> User:
-    """Admin-initiated onboarding for a new staff member (moderator or finance
-    officer). Regular users self-register — this is exclusively for staff.
+    """Admin-initiated onboarding for a new staff member, in any
+    runtime-defined role (see permissions/roles.py::Role). Regular users
+    self-register — this is exclusively for staff.
 
     No password is set by the admin — a random unusable-to-guess one is
     generated and the new account is sent a password-reset link (reusing the
     existing django-rest-passwordreset flow) so they set their own password
     on first login, same as any self-service reset.
     """
+    from permissions.roles import get_managed_role_slugs
+
     if not (requesting_user.is_staff or requesting_user.role == User.Role.ADMIN):
         raise PermissionDenied('Only admins can create staff accounts.')
-    if role not in {User.Role.MODERATOR, User.Role.FINANCE_OFFICER}:
-        raise ValidationError('Role must be "moderator" or "finance_officer".')
+    if role not in get_managed_role_slugs():
+        raise ValidationError('Role must be one of the runtime-editable staff roles.')
 
     from django.utils.crypto import get_random_string
     random_password = get_random_string(32)
@@ -230,18 +233,23 @@ def admin_update_user(user: User, requesting_user: User, **data) -> User:
     return update_user(user, **data)
 
 
-STAFF_ROLES = {User.Role.ADMIN, User.Role.MODERATOR, User.Role.FINANCE_OFFICER}
+def staff_roles() -> set:
+    """Admin plus every runtime-defined role (apps.rbac.models.Role) —
+    dynamic now that roles aren't a hardcoded pair, so a newly created
+    custom role's members are correctly treated as staff everywhere this
+    is used (which page they show up on, group-sync, etc.) with no extra
+    code needed when the role is created."""
+    from permissions.roles import get_managed_role_slugs
+    return {User.Role.ADMIN} | get_managed_role_slugs()
 
-# Roles assignable via the staff role-change endpoint. Deliberately excludes
-# ADMIN — promoting someone to full admin is sensitive enough that it stays a
-# manual, deliberate action outside this UI, not a dropdown swap. Demoting an
-# existing admin down to one of these is allowed (that's a safe direction).
-STAFF_ASSIGNABLE_ROLES = {User.Role.USER, User.Role.MODERATOR, User.Role.FINANCE_OFFICER}
+
+def is_staff_role(role: str) -> bool:
+    return role in staff_roles()
 
 
 def get_regular_users(filters: dict = None) -> 'QuerySet[User]':
     """Everyone who isn't staff — the audience for the admin Users page."""
-    qs = User.objects.exclude(role__in=STAFF_ROLES)
+    qs = User.objects.exclude(role__in=staff_roles())
     if filters:
         filters = dict(filters)
         search = filters.pop('search', None)
@@ -256,18 +264,24 @@ def get_regular_users(filters: dict = None) -> 'QuerySet[User]':
 
 
 def get_staff_users(filters: dict = None) -> 'QuerySet[User]':
-    """Admins, moderators, and finance officers — the audience for the Staff page."""
-    qs = User.objects.filter(role__in=STAFF_ROLES)
+    """Admins plus every runtime-defined staff role — the audience for the Staff page."""
+    qs = User.objects.filter(role__in=staff_roles())
     if filters:
         qs = qs.filter(**filters)
     return qs
 
 
 def change_staff_role(user: User, role: str, requesting_user: User) -> User:
+    from permissions.roles import get_managed_role_slugs
+
     if not (requesting_user.is_staff or requesting_user.role == User.Role.ADMIN):
         raise PermissionDenied('Only admins can change staff roles.')
-    if role not in STAFF_ASSIGNABLE_ROLES:
-        raise ValidationError('Role must be "user", "moderator", or "finance_officer".')
+    # Deliberately excludes ADMIN — promoting someone to full admin is
+    # sensitive enough that it stays a manual, deliberate action outside
+    # this UI, not a dropdown swap. Demoting an existing admin down to a
+    # managed role is allowed (that's a safe direction).
+    if role != User.Role.USER and role not in get_managed_role_slugs():
+        raise ValidationError('Role must be "user" or one of the runtime-editable staff roles.')
     user.role = role
     user.save(update_fields=['role'])
     return user

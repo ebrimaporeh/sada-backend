@@ -12,7 +12,7 @@ class SiteSettingsView(APIView):
     """Public read so the logo/name/description can render before login;
     only admins can change them."""
 
-    required_resource = Resource.SETTINGS
+    required_resource = Resource.SETTINGS_EDIT
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_permissions(self):
@@ -38,7 +38,7 @@ class LegalContentView(APIView):
     """Public read so the Help/Trust & Safety/Privacy/Terms pages can
     render their markdown for anyone; only admins can edit it."""
 
-    required_resource = Resource.SETTINGS
+    required_resource = Resource.SETTINGS_EDIT
 
     def get_permissions(self):
         if self.request.method == 'PATCH':

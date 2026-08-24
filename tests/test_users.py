@@ -76,6 +76,50 @@ class UserListViewTest(APITestCase):
         self.assertEqual(response.data['results'], [])
 
 
+class UserDetailViewResourceResolutionTest(APITestCase):
+    """UserDetailView is one endpoint for both regular users and staff (same
+    User model) -- which resource applies has to depend on the target row,
+    not just the HTTP method. See _user_detail_resource in apps/users/views.py."""
+
+    def setUp(self):
+        self.regular_target = User.objects.create_user(email='plain@example.com', password='pass')
+        self.staff_target = User.objects.create_user(email='mod-target@example.com', password='pass', role='moderator')
+
+    def test_users_edit_does_not_grant_access_to_a_staff_target(self):
+        from permissions.roles import Resource, set_role_resources
+        set_role_resources('finance_officer', [Resource.USERS_VIEW, Resource.USERS_EDIT])
+        actor = User.objects.create_user(email='fo@example.com', password='pass', role='finance_officer')
+        self.client.force_authenticate(user=actor)
+
+        # Can edit the regular target (users_edit)...
+        response = self.client.patch(reverse('user-detail', args=[self.regular_target.pk]), {'bio': 'hi'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # ...but not the staff target, since that needs staff_edit, which this role doesn't have.
+        response = self.client.patch(reverse('user-detail', args=[self.staff_target.pk]), {'bio': 'hi'})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_staff_edit_does_not_grant_access_to_a_regular_target(self):
+        from permissions.roles import Resource, set_role_resources
+        set_role_resources('moderator', [Resource.STAFF_VIEW, Resource.STAFF_EDIT])
+        actor = User.objects.create_user(email='mod-actor@example.com', password='pass', role='moderator')
+        self.client.force_authenticate(user=actor)
+
+        response = self.client.patch(reverse('user-detail', args=[self.staff_target.pk]), {'bio': 'hi'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        response = self.client.patch(reverse('user-detail', args=[self.regular_target.pk]), {'bio': 'hi'})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_admin_can_edit_either(self):
+        admin = User.objects.create_user(email='admin2@example.com', password='pass', is_staff=True, role=User.Role.ADMIN)
+        self.client.force_authenticate(user=admin)
+        response = self.client.patch(reverse('user-detail', args=[self.staff_target.pk]), {'bio': 'hi'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        response = self.client.patch(reverse('user-detail', args=[self.regular_target.pk]), {'bio': 'hi'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
 class DeleteOwnAccountTest(APITestCase):
     """Self-service account deletion anonymizes rather than hard-deletes --
     Campaign.owner is CASCADE, so an actual delete would destroy every

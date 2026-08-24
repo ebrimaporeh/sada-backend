@@ -11,7 +11,7 @@ import services.audit_service as audit_service
 
 class AdminAuditLogListView(APIView):
     permission_classes = [HasResourceAccess]
-    required_resource = Resource.AUDIT
+    required_resource = Resource.AUDIT_VIEW
 
     @extend_schema(
         summary='[Admin] List audit log entries',
@@ -34,7 +34,7 @@ class AuditActionChoicesView(APIView):
     """Backs the admin Audit page's action filter dropdown -- one source of
     truth (AuditLog.Action) instead of a hand-copied list on the frontend."""
     permission_classes = [HasResourceAccess]
-    required_resource = Resource.AUDIT
+    required_resource = Resource.AUDIT_VIEW
 
     @extend_schema(summary='[Admin] List possible audit action types')
     def get(self, request):
@@ -46,7 +46,7 @@ class AuditActorsListView(APIView):
     """Backs the admin Activity page's "User" filter dropdown -- only
     users who've actually done something audited, not every user."""
     permission_classes = [HasResourceAccess]
-    required_resource = Resource.AUDIT
+    required_resource = Resource.AUDIT_VIEW
 
     @extend_schema(summary="[Admin] List users who appear as an actor in the audit log")
     def get(self, request):

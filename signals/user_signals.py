@@ -24,9 +24,9 @@ def sync_role_group_membership(user):
     on the far more common case of a save that didn't touch `role`.
     """
     from django.contrib.auth.models import Group
-    from permissions.roles import MANAGED_ROLES
+    from permissions.roles import get_managed_role_slugs
 
-    managed_group_names = set(MANAGED_ROLES)
+    managed_group_names = get_managed_role_slugs()
     current = set(user.groups.filter(name__in=managed_group_names).values_list('name', flat=True))
     target = {user.role} if user.role in managed_group_names else set()
     if current == target:

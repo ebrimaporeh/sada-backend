@@ -42,7 +42,7 @@ class PublicPlatformStatsView(APIView):
 
 class AdminCategoryCreateView(APIView):
     permission_classes = [HasResourceAccess]
-    required_resource = Resource.CATEGORIES
+    required_resource = Resource.CATEGORIES_CREATE
 
     @extend_schema(
         summary='[Admin] Create a new category',
@@ -77,7 +77,11 @@ class AdminCategoryCreateView(APIView):
 
 class AdminCategoryDetailView(APIView):
     permission_classes = [HasResourceAccess]
-    required_resource = Resource.CATEGORIES
+    resource_by_method = {
+        'GET': Resource.CATEGORIES_VIEW,
+        'PATCH': Resource.CATEGORIES_EDIT,
+        'DELETE': Resource.CATEGORIES_DELETE,
+    }
 
     @extend_schema(summary='[Admin] Get category detail', responses={200: CategorySerializer})
     def get(self, request, pk):
@@ -121,7 +125,7 @@ class AdminCategoryDetailView(APIView):
 
 class AdminCategoryImageUploadView(APIView):
     permission_classes = [HasResourceAccess]
-    required_resource = Resource.CATEGORIES
+    required_resource = Resource.CATEGORIES_EDIT
 
     @extend_schema(summary='[Admin] Upload category image')
     def post(self, request, pk):
@@ -515,7 +519,7 @@ class CampaignReportView(APIView):
 
 class AdminCampaignReportsView(APIView):
     permission_classes = [HasResourceAccess]
-    required_resource = Resource.REPORTS
+    required_resource = Resource.REPORTS_VIEW
 
     @extend_schema(summary='[Admin] List all campaign reports', responses={200: CampaignReportSerializer(many=True)})
     def get(self, request):
@@ -528,7 +532,7 @@ class AdminCampaignReportsView(APIView):
 
 class AdminCampaignReportStatsView(APIView):
     permission_classes = [HasResourceAccess]
-    required_resource = Resource.REPORTS
+    required_resource = Resource.REPORTS_VIEW
 
     @extend_schema(summary='[Admin] Campaign report stats')
     def get(self, request):
@@ -539,7 +543,7 @@ class AdminReportedCampaignsListView(APIView):
     """Backs the admin Reports table's "Campaign" filter dropdown -- only
     campaigns that actually have a report, not every campaign."""
     permission_classes = [HasResourceAccess]
-    required_resource = Resource.REPORTS
+    required_resource = Resource.REPORTS_VIEW
 
     @extend_schema(summary='[Admin] List campaigns that have at least one report')
     def get(self, request):
@@ -550,7 +554,7 @@ class AdminReportedCampaignsListView(APIView):
 
 class AdminCampaignReportUpdateView(APIView):
     permission_classes = [HasResourceAccess]
-    required_resource = Resource.REPORTS
+    required_resource = Resource.REPORTS_EDIT
 
     @extend_schema(summary='[Admin] Update campaign report', request=CampaignReportUpdateSerializer)
     def patch(self, request, pk):

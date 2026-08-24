@@ -15,7 +15,7 @@ from services.analytics_service import (
 
 class DashboardStatsView(APIView):
     permission_classes = [HasResourceAccess]
-    required_resource = Resource.DASHBOARD
+    required_resource = Resource.DASHBOARD_VIEW
 
     def get(self, request):
         """Get aggregated dashboard stats for a date range"""
@@ -28,7 +28,7 @@ class DashboardStatsView(APIView):
 
 class DonationsByDayView(APIView):
     permission_classes = [HasResourceAccess]
-    required_resource = Resource.DASHBOARD
+    required_resource = Resource.DASHBOARD_VIEW
 
     def get(self, request):
         """Get donations aggregated by day for chart"""
@@ -41,7 +41,7 @@ class DonationsByDayView(APIView):
 
 class CampaignStatusDistributionView(APIView):
     permission_classes = [HasResourceAccess]
-    required_resource = Resource.DASHBOARD
+    required_resource = Resource.DASHBOARD_VIEW
 
     def get(self, request):
         """Get campaign distribution by status"""
@@ -54,7 +54,7 @@ class CampaignStatusDistributionView(APIView):
 
 class TopCampaignsView(APIView):
     permission_classes = [HasResourceAccess]
-    required_resource = Resource.DASHBOARD
+    required_resource = Resource.DASHBOARD_VIEW
 
     def get(self, request):
         """Get top campaigns by amount raised"""
@@ -68,7 +68,7 @@ class TopCampaignsView(APIView):
 
 class TopDonorsView(APIView):
     permission_classes = [HasResourceAccess]
-    required_resource = Resource.DASHBOARD
+    required_resource = Resource.DASHBOARD_VIEW
 
     def get(self, request):
         """Get top donors by total amount"""
@@ -82,7 +82,7 @@ class TopDonorsView(APIView):
 
 class RecentDonationsView(APIView):
     permission_classes = [HasResourceAccess]
-    required_resource = Resource.DASHBOARD
+    required_resource = Resource.DASHBOARD_VIEW
 
     def get(self, request):
         """Get recent donations"""
@@ -96,7 +96,7 @@ class RecentDonationsView(APIView):
 
 class FinanceSummaryView(APIView):
     permission_classes = [HasResourceAccess]
-    required_resource = Resource.FINANCES
+    required_resource = Resource.FINANCES_VIEW
 
     def get(self, request):
         """Get all figures for the admin Finances page, fully aggregated for a period.

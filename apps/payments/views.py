@@ -74,7 +74,7 @@ class AdminCampaignPayoutListView(APIView):
     """Admin view of a specific campaign's payout history -- unlike
     MyCampaignPayoutListView, not restricted to the campaign's own owner."""
     permission_classes = [HasResourceAccess]
-    required_resource = Resource.FINANCES
+    required_resource = Resource.FINANCES_VIEW
 
     @extend_schema(summary='[Admin] List payouts for a campaign', responses={200: PayoutSerializer(many=True)})
     def get(self, request, campaign_id):
@@ -87,7 +87,7 @@ class AdminOwnerPayoutListView(APIView):
     """Admin view of every payout a campaigner has requested, across all of
     their campaigns -- backs the campaigner detail page's Payouts tab."""
     permission_classes = [HasResourceAccess]
-    required_resource = Resource.FINANCES
+    required_resource = Resource.FINANCES_VIEW
 
     @extend_schema(summary="[Admin] List a campaigner's payouts across all their campaigns", responses={200: PayoutSerializer(many=True)})
     def get(self, request, owner_id):
@@ -103,7 +103,7 @@ class PlatformSettingsView(APIView):
     there's nothing sensitive here worth gating behind login. Only admins
     can change it."""
 
-    required_resource = Resource.SETTINGS
+    required_resource = Resource.SETTINGS_EDIT
 
     def get_permissions(self):
         if self.request.method == 'PATCH':
