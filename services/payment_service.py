@@ -31,13 +31,14 @@ def list_enabled_gateways():
     copy of "which providers exist," so an admin flipping a gateway on/off
     in Settings is immediately reflected in the donation/payout UI with no
     frontend deploy needed."""
-    from services.gateways.registry import GATEWAYS, _is_enabled
+    from services.gateways.registry import GATEWAYS, _is_enabled, donation_amount_limits
 
     result = []
     for code in GATEWAYS:
         if not _is_enabled(code):
             continue
         gateway = get_gateway(code)
+        min_amount, max_amount = donation_amount_limits(code)
         entry = {
             'code': gateway.code,
             'supports_payouts': gateway.supports_payouts,
@@ -45,6 +46,11 @@ def list_enabled_gateways():
             'default_method': gateway.default_method,
             'donation_methods': sorted(gateway.supported_donation_methods),
             'payout_methods': sorted(gateway.supported_payout_methods),
+            # Admin-configurable (PlatformSettings) -- lets the donation
+            # form validate against the real, current per-gateway limit
+            # instead of a hand-maintained frontend constant.
+            'min_donation_amount': min_amount,
+            'max_donation_amount': max_amount,
         }
         result.append(entry)
     return result

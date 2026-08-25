@@ -1,16 +1,6 @@
 from rest_framework import serializers
 from .models import Donation
 
-# ModemPay rejects a single payment intent above this amount. This was
-# previously assumed to be 50,000 -- that figure was wrong (or ModemPay
-# lowered it since); a real donation attempt of D13,500 on 2026-08-23
-# 400'd with "Amount for payment intent cannot exceed GMD 10,000.00",
-# which is what ModemPay is actually enforcing. Validate here so it fails
-# cleanly at submission instead of after a wasted DB write + API round-trip
-# (see services/modempay_service.py::create_payment_intent for the case
-# where a request still slips through and ModemPay rejects it directly).
-MAX_DONATION_AMOUNT = 10000
-
 
 class DonationSerializer(serializers.ModelSerializer):
     donor_name = serializers.SerializerMethodField()
@@ -42,13 +32,12 @@ class DonationCreateSerializer(serializers.ModelSerializer):
         fields = ['campaign_id', 'amount', 'gateway', 'provider', 'phone', 'is_anonymous', 'message', 'donor_name']
 
     def validate_amount(self, value):
-        if value < 5:
-            raise serializers.ValidationError('Minimum donation is D5.')
-        if value > MAX_DONATION_AMOUNT:
-            raise serializers.ValidationError(
-                f'Maximum donation amount is D{MAX_DONATION_AMOUNT:,} per transaction. '
-                f'For larger amounts, please split into multiple donations.'
-            )
+        # The real min/max are per-gateway and admin-configurable
+        # (PlatformSettings.<code>_min/max_donation_amount) -- enforced in
+        # validate() below, once the gateway is resolved. This is just a
+        # basic sanity floor independent of which gateway ends up selected.
+        if value <= 0:
+            raise serializers.ValidationError('Donation amount must be greater than zero.')
         return value
 
     def validate_gateway(self, value):
@@ -65,8 +54,21 @@ class DonationCreateSerializer(serializers.ModelSerializer):
         return value
 
     def validate(self, data):
-        from services.gateways.registry import get_gateway
-        gateway = get_gateway(data.get('gateway') or 'modempay')
+        from services.gateways.registry import get_gateway, donation_amount_limits
+        gateway_code = data.get('gateway') or 'modempay'
+        gateway = get_gateway(gateway_code)
+
+        amount = data.get('amount')
+        if amount is not None:
+            min_amount, max_amount = donation_amount_limits(gateway_code)
+            if amount < min_amount:
+                raise serializers.ValidationError({'amount': f'Minimum donation is D{min_amount:,.0f}.'})
+            if amount > max_amount:
+                raise serializers.ValidationError({
+                    'amount': f'Maximum donation amount is D{max_amount:,.0f} per transaction. '
+                              f'For larger amounts, please split into multiple donations.',
+                })
+
         if gateway.default_method:
             data['provider'] = gateway.default_method
         else:

@@ -1408,6 +1408,121 @@ class PlatformSettingsGatewayAdminTest(APITestCase):
         self.assertTrue(settings_obj.wave_enabled)
         self.assertTrue(settings_obj.aps_enabled)
 
+    def test_modempay_donation_limits_default_to_confirmed_modempay_limit(self):
+        settings_obj = PlatformSettings.get_solo()
+        self.assertEqual(settings_obj.modempay_min_donation_amount, Decimal('5.00'))
+        self.assertEqual(settings_obj.modempay_max_donation_amount, Decimal('10000.00'))
+
+    def test_admin_can_update_modempay_donation_limits(self):
+        from apps.payments.serializers import PlatformSettingsSerializer
+        serializer = PlatformSettingsSerializer(
+            PlatformSettings.get_solo(),
+            data={'modempay_min_donation_amount': '10', 'modempay_max_donation_amount': '25000'},
+            partial=True,
+        )
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        serializer.save()
+        settings_obj = PlatformSettings.get_solo()
+        self.assertEqual(settings_obj.modempay_min_donation_amount, Decimal('10.00'))
+        self.assertEqual(settings_obj.modempay_max_donation_amount, Decimal('25000.00'))
+
+    def test_donation_max_must_be_greater_than_its_own_minimum(self):
+        from apps.payments.serializers import PlatformSettingsSerializer
+        serializer = PlatformSettingsSerializer(
+            PlatformSettings.get_solo(),
+            data={'modempay_min_donation_amount': '100', 'modempay_max_donation_amount': '50'},
+            partial=True,
+        )
+        self.assertFalse(serializer.is_valid())
+
+    def test_updating_only_the_max_still_validates_against_the_existing_min(self):
+        # partial=True means a lone max update arrives with no min in the
+        # payload at all -- validate() must compare it against the
+        # instance's *current* min, not silently skip the check because
+        # 'modempay_min_donation_amount' isn't a key in `data`.
+        from apps.payments.serializers import PlatformSettingsSerializer
+        serializer = PlatformSettingsSerializer(
+            PlatformSettings.get_solo(), data={'modempay_max_donation_amount': '2'}, partial=True,
+        )
+        self.assertFalse(serializer.is_valid())
+        self.assertIn('non_field_errors', serializer.errors)
+
+    def test_donation_minimum_must_be_positive(self):
+        from apps.payments.serializers import PlatformSettingsSerializer
+        serializer = PlatformSettingsSerializer(
+            PlatformSettings.get_solo(), data={'modempay_min_donation_amount': '0'}, partial=True,
+        )
+        self.assertFalse(serializer.is_valid())
+
+    def test_stripe_and_modempay_donation_limits_are_independent(self):
+        from apps.payments.serializers import PlatformSettingsSerializer
+        serializer = PlatformSettingsSerializer(
+            PlatformSettings.get_solo(), data={'stripe_min_donation_amount': '20', 'stripe_max_donation_amount': '30000'}, partial=True,
+        )
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        serializer.save()
+        settings_obj = PlatformSettings.get_solo()
+        self.assertEqual(settings_obj.stripe_min_donation_amount, Decimal('20.00'))
+        self.assertEqual(settings_obj.stripe_max_donation_amount, Decimal('30000.00'))
+        # Untouched by the stripe-only update above.
+        self.assertEqual(settings_obj.modempay_min_donation_amount, Decimal('5.00'))
+        self.assertEqual(settings_obj.modempay_max_donation_amount, Decimal('10000.00'))
+
+
+class DonationLimitsAreAdminConfigurableTest(APITestCase):
+    """The whole point of this feature: an admin can raise/lower a
+    gateway's donation min/max at runtime (Admin Settings > Payments)
+    without a code deploy, and DonationCreateSerializer enforces whatever
+    is currently configured -- not a hardcoded constant."""
+
+    def setUp(self):
+        self.campaign = make_campaign()
+
+    def test_donation_view_uses_the_configured_modempay_maximum_not_a_hardcoded_one(self):
+        set_platform_settings(modempay_max_donation_amount=Decimal('20000.00'))
+        # D13,500 -- over the *old* hardcoded 10,000, but under the newly
+        # configured 20,000 -- should now be accepted by validation (a
+        # mocked gateway still completes the actual intent creation).
+        with patch('services.modempay_service.create_payment_intent') as mock_create:
+            mock_create.return_value = {
+                'status': True,
+                'data': {'payment_link': 'https://pay.modempay.com/abc', 'intent_secret': 'sec_123'},
+            }
+            response = self.client.post('/api/v1/donations/', {
+                'campaign_id': str(self.campaign.id),
+                'amount': '13500.00',
+                'provider': 'wave',
+                'phone': '+2207000000',
+            })
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_donation_view_rejects_amount_over_a_lowered_configured_maximum(self):
+        set_platform_settings(modempay_max_donation_amount=Decimal('1000.00'))
+        response = self.client.post('/api/v1/donations/', {
+            'campaign_id': str(self.campaign.id),
+            'amount': '1500.00',
+            'provider': 'wave',
+            'phone': '+2207000000',
+        })
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_donation_view_rejects_amount_under_the_configured_minimum(self):
+        set_platform_settings(modempay_min_donation_amount=Decimal('50.00'))
+        response = self.client.post('/api/v1/donations/', {
+            'campaign_id': str(self.campaign.id),
+            'amount': '20.00',
+            'provider': 'wave',
+            'phone': '+2207000000',
+        })
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_gateway_list_exposes_the_configured_limits(self):
+        set_platform_settings(modempay_min_donation_amount=Decimal('15.00'), modempay_max_donation_amount=Decimal('12000.00'))
+        response = self.client.get('/api/v1/payments/gateways/')
+        modempay = next(g for g in response.data['data']['gateways'] if g['code'] == 'modempay')
+        self.assertEqual(Decimal(modempay['min_donation_amount']), Decimal('15.00'))
+        self.assertEqual(Decimal(modempay['max_donation_amount']), Decimal('12000.00'))
+
 
 class PublicCampaignDonorSortTest(APITestCase):
     """The public campaign page's donors tab sorts by latest (default) or
