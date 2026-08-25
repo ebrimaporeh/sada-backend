@@ -380,8 +380,10 @@ class AdminOrganizationVerificationActionView(APIView):
 @extend_schema(tags=['Verification'], summary='Request a change to a recovery-critical organization field')
 class OrganizationChangeRequestSubmitView(APIView):
     """Phone/phone_2/recovery emails are never editable directly — see
-    OrganizationChangeRequest's docstring for why. This queues a proposed
-    change for admin approval instead of applying it immediately."""
+    OrganizationChangeRequest's docstring for why. Phone changes queue for
+    admin approval; recovery-email changes instead get confirmed by the
+    proposed address itself (see ConfirmRecoveryEmailChangeView) — either
+    way nothing is applied until this resolves."""
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -389,10 +391,31 @@ class OrganizationChangeRequestSubmitView(APIView):
         serializer.is_valid(raise_exception=True)
         change_request = organization_change_service.submit_change_request(request.user, **serializer.validated_data)
         out = OrganizationChangeRequestSerializer(change_request)
+        is_email_field = change_request.field_name in organization_change_service.EMAIL_FIELDS
+        message = (
+            f'Confirmation link sent to {change_request.proposed_value}. The change applies as soon as it’s clicked.'
+            if is_email_field else 'Change request submitted. We’ll review it soon.'
+        )
         return Response(
-            {'success': True, 'message': 'Change request submitted. We’ll review it soon.', 'data': {'change_request': out.data}},
+            {'success': True, 'message': message, 'data': {'change_request': out.data}},
             status=status.HTTP_201_CREATED,
         )
+
+
+@extend_schema(tags=['Verification'], summary="Confirm a proposed recovery email by the token sent to it")
+class ConfirmRecoveryEmailChangeView(APIView):
+    """Public — the person clicking this link is proving control of the
+    *proposed* recovery email's inbox, not necessarily logged into SADA at
+    all (they may not even be a SADA user)."""
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        token = request.data.get('token')
+        if not token:
+            return Response({'success': False, 'message': 'Confirmation token required.'}, status=status.HTTP_400_BAD_REQUEST)
+        change_request = organization_change_service.confirm_recovery_email_change(token)
+        out = OrganizationChangeRequestSerializer(change_request)
+        return Response({'success': True, 'message': f'{change_request.get_field_name_display()} confirmed.', 'data': {'change_request': out.data}})
 
 
 @extend_schema(tags=['Verification'], summary="Get your organization's change requests")

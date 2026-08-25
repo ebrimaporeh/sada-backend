@@ -14,6 +14,7 @@ urlpatterns = [
     path('organization-verification/me/', views.MyOrganizationVerificationView.as_view(), name='organization-verification-me'),
     path('organization-change-requests/', views.OrganizationChangeRequestSubmitView.as_view(), name='organization-change-request-submit'),
     path('organization-change-requests/mine/', views.MyOrganizationChangeRequestsView.as_view(), name='organization-change-request-mine'),
+    path('organization-change-requests/confirm-recovery-email/', views.ConfirmRecoveryEmailChangeView.as_view(), name='organization-change-request-confirm-recovery-email'),
     path('admin/verifications/', views.AdminVerificationListView.as_view(), name='admin-verification-list'),
     path('admin/verifications/<uuid:pk>/<str:action>/', views.AdminVerificationActionView.as_view(), name='admin-verification-action'),
     path('admin/organization-verifications/', views.AdminOrganizationVerificationListView.as_view(), name='admin-organization-verification-list'),

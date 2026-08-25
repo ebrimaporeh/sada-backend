@@ -227,6 +227,22 @@ class EmailService:
             },
         )
 
+    def send_recovery_email_confirmation_email(self, change_request, confirm_url: str) -> bool:
+        """Sent to the *proposed* address itself (not the org's own login
+        email) -- clicking the link is what proves that address is real and
+        under this organization's control, which is the entire approval for
+        a recovery-email change. See organization_change_service.EMAIL_FIELDS."""
+        return self._send(
+            to=change_request.proposed_value,
+            subject=f'Confirm you\'re the {change_request.get_field_name_display()} for {change_request.user.organization.organization_name}',
+            template='emails/recovery_email_confirmation.html',
+            context={
+                'organization_name': change_request.user.organization.organization_name,
+                'field_label': change_request.get_field_name_display(),
+                'confirm_url': confirm_url,
+            },
+        )
+
     def send_organization_change_request_reviewed_email(self, user, change_request) -> bool:
         approved = change_request.status == 'approved'
         return self._send(

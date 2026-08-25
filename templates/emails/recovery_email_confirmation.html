@@ -1,0 +1,21 @@
+{% extends "emails/base.html" %}
+
+{% block subject %}Confirm you're the {{ field_label }} for {{ organization_name }}{% endblock %}
+
+{% block content %}
+<h2 style="margin: 0 0 4px; color: #18181b; font-size: 20px;">Confirm this recovery email</h2>
+<p>Hi,</p>
+
+<p>
+  <strong>{{ organization_name }}</strong> on {{ site_name }} has asked to set this address as their
+  <strong>{{ field_label }}</strong> — used to recover account access and receive withdrawal notifications
+  if their main login email is ever unavailable.
+</p>
+
+<p>Confirming proves this inbox is under your control, which is all that's needed to approve the change — no separate review step.</p>
+
+<a href="{{ confirm_url }}" class="btn">Confirm {{ field_label }}</a>
+
+<p class="muted">This link will expire in 7 days.</p>
+<p class="muted">If you don't recognize {{ organization_name }} or didn't expect this, you can safely ignore this email — nothing changes unless this link is clicked.</p>
+{% endblock %}
