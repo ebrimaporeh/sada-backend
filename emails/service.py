@@ -202,42 +202,59 @@ class EmailService:
     def send_new_organization_verification_notification_email(self, moderator, verification) -> bool:
         return self._send(
             to=moderator.email,
-            subject=f'New organization verification from {verification.user.full_name or verification.user.email}',
+            subject=f'New organization verification from {verification.submitted_by.full_name or verification.submitted_by.email}',
             template='emails/new_organization_verification_notification.html',
             context={
                 'moderator_name': moderator.full_name or moderator.email,
-                'submitter_name': verification.user.full_name or verification.user.email,
-                'submitter_email': verification.user.email,
-                'org_type_label': verification.user.organization.get_organization_type_display(),
+                'organization_name': verification.organization.organization_name,
+                'submitter_name': verification.submitted_by.full_name or verification.submitted_by.email,
+                'submitter_email': verification.submitted_by.email,
+                'org_type_label': verification.organization.organization_type.name,
             },
         )
 
     def send_new_organization_change_request_notification_email(self, moderator, change_request) -> bool:
         return self._send(
             to=moderator.email,
-            subject=f'New change request from {change_request.user.full_name or change_request.user.email}',
+            subject=f'New change request from {change_request.submitted_by.full_name or change_request.submitted_by.email}',
             template='emails/new_organization_change_request_notification.html',
             context={
                 'moderator_name': moderator.full_name or moderator.email,
-                'submitter_name': change_request.user.full_name or change_request.user.email,
-                'submitter_email': change_request.user.email,
+                'organization_name': change_request.organization.organization_name,
+                'submitter_name': change_request.submitted_by.full_name or change_request.submitted_by.email,
+                'submitter_email': change_request.submitted_by.email,
                 'field_label': change_request.get_field_name_display(),
                 'current_value': change_request.current_value,
                 'proposed_value': change_request.proposed_value,
             },
         )
 
+    def send_organization_invitation_email(self, invitation, invitation_url: str) -> bool:
+        inviter_name = invitation.invited_by.full_name if invitation.invited_by else 'Someone'
+        return self._send(
+            to=invitation.email,
+            subject=f'{inviter_name} invited you to join {invitation.organization.organization_name} on {self._site_name()}',
+            template='emails/organization_invitation.html',
+            context={
+                'organization_name': invitation.organization.organization_name,
+                'inviter_name': inviter_name,
+                'role_name': invitation.role.name,
+                'invitation_url': invitation_url,
+            },
+        )
+
     def send_recovery_email_confirmation_email(self, change_request, confirm_url: str) -> bool:
-        """Sent to the *proposed* address itself (not the org's own login
-        email) -- clicking the link is what proves that address is real and
-        under this organization's control, which is the entire approval for
-        a recovery-email change. See organization_change_service.EMAIL_FIELDS."""
+        """Sent to the *proposed* address itself (not the submitter's own
+        login email) -- clicking the link is what proves that address is
+        real and under this organization's control, which is the entire
+        approval for a recovery-email change. See
+        organization_change_service.EMAIL_FIELDS."""
         return self._send(
             to=change_request.proposed_value,
-            subject=f'Confirm you\'re the {change_request.get_field_name_display()} for {change_request.user.organization.organization_name}',
+            subject=f'Confirm you\'re the {change_request.get_field_name_display()} for {change_request.organization.organization_name}',
             template='emails/recovery_email_confirmation.html',
             context={
-                'organization_name': change_request.user.organization.organization_name,
+                'organization_name': change_request.organization.organization_name,
                 'field_label': change_request.get_field_name_display(),
                 'confirm_url': confirm_url,
             },

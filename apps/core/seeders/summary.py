@@ -1,5 +1,5 @@
 def print_summary(stdout, style, users, cats, campaigns):
-    from apps.users.models import User
+    from apps.users.models import User, Organization
     from apps.donations.models import Donation
     from apps.payments.models import Payout
     from apps.campaigns.models import Campaign
@@ -7,7 +7,7 @@ def print_summary(stdout, style, users, cats, campaigns):
     stdout.write('\n' + '─' * 50)
     stdout.write(style.SUCCESS('Seed Summary'))
     stdout.write(f'  Users:     {User.objects.count()}')
-    stdout.write(f'  Organizations: {User.objects.filter(account_type=User.AccountType.ORGANIZATION).count()}')
+    stdout.write(f'  Organizations: {Organization.objects.count()}')
     stdout.write(f'  Categories:{len(cats)}')
     stdout.write(f'  Campaigns: {Campaign.objects.count()}')
     stdout.write(f'  Donations: {Donation.objects.count()}')

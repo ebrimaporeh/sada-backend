@@ -95,15 +95,17 @@ def request_payout(user, validated_data):
     from apps.payments.models import Payout
     from apps.notifications.models import Notification
 
+    from apps.organizations.permissions import OrganizationPermission
+    from services.organization_service import check_campaign_access
+
     campaign_id = validated_data.pop('campaign_id')
 
     # Lock the campaign row to prevent concurrent over-withdrawals
-    campaign = Campaign.objects.select_for_update().filter(
-        pk=campaign_id, owner=user
-    ).first()
+    campaign = Campaign.objects.select_for_update().filter(pk=campaign_id).first()
     if campaign is None:
         from django.http import Http404
         raise Http404('Campaign not found.')
+    check_campaign_access(user, campaign, OrganizationPermission.WITHDRAW_FUNDS)
 
     # Sum all active (non-failed, non-cancelled) payouts against this campaign
     active_statuses = [Payout.Status.PENDING, Payout.Status.PROCESSING, Payout.Status.COMPLETED]
@@ -210,7 +212,10 @@ def request_payout(user, validated_data):
 def get_campaign_payouts(user, slug):
     from apps.campaigns.models import Campaign
     from apps.payments.models import Payout
-    campaign = get_object_or_404(Campaign, owner=user, slug=slug)
+    from services.organization_service import check_campaign_access
+
+    campaign = get_object_or_404(Campaign, slug=slug)
+    check_campaign_access(user, campaign)
     return Payout.objects.filter(campaign=campaign).order_by('-created_at')
 
 

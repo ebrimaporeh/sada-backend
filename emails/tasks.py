@@ -202,12 +202,12 @@ def send_organization_verification_reviewed_email_task(self, verification_id):
     from apps.users.models import OrganizationVerification
     from emails.service import email_service
     try:
-        verification = OrganizationVerification.objects.select_related('user').get(pk=verification_id)
+        verification = OrganizationVerification.objects.select_related('submitted_by').get(pk=verification_id)
     except OrganizationVerification.DoesNotExist:
         logger.warning('send_organization_verification_reviewed_email_task: verification %s not found', verification_id)
         return
     _retry_on_failure(
-        self, email_service.send_organization_verification_reviewed_email(verification.user, verification),
+        self, email_service.send_organization_verification_reviewed_email(verification.submitted_by, verification),
         f'organization verification reviewed email for verification {verification_id}',
     )
 
@@ -217,7 +217,7 @@ def send_new_organization_verification_notification_task(self, verification_id):
     from apps.users.models import OrganizationVerification
     from emails.service import email_service
     try:
-        verification = OrganizationVerification.objects.select_related('user', 'user__organization').get(pk=verification_id)
+        verification = OrganizationVerification.objects.select_related('submitted_by', 'organization', 'organization__organization_type').get(pk=verification_id)
     except OrganizationVerification.DoesNotExist:
         logger.warning('send_new_organization_verification_notification_task: verification %s not found', verification_id)
         return
@@ -231,12 +231,12 @@ def send_organization_change_request_reviewed_email_task(self, request_id):
     from apps.users.models import OrganizationChangeRequest
     from emails.service import email_service
     try:
-        change_request = OrganizationChangeRequest.objects.select_related('user').get(pk=request_id)
+        change_request = OrganizationChangeRequest.objects.select_related('submitted_by').get(pk=request_id)
     except OrganizationChangeRequest.DoesNotExist:
         logger.warning('send_organization_change_request_reviewed_email_task: request %s not found', request_id)
         return
     _retry_on_failure(
-        self, email_service.send_organization_change_request_reviewed_email(change_request.user, change_request),
+        self, email_service.send_organization_change_request_reviewed_email(change_request.submitted_by, change_request),
         f'organization change request reviewed email for request {request_id}',
     )
 
@@ -246,7 +246,7 @@ def send_new_organization_change_request_notification_task(self, request_id):
     from apps.users.models import OrganizationChangeRequest
     from emails.service import email_service
     try:
-        change_request = OrganizationChangeRequest.objects.select_related('user', 'user__organization').get(pk=request_id)
+        change_request = OrganizationChangeRequest.objects.select_related('submitted_by', 'organization').get(pk=request_id)
     except OrganizationChangeRequest.DoesNotExist:
         logger.warning('send_new_organization_change_request_notification_task: request %s not found', request_id)
         return
@@ -256,11 +256,26 @@ def send_new_organization_change_request_notification_task(self, request_id):
 
 
 @shared_task(**RETRY_KWARGS)
+def send_organization_invitation_email_task(self, invitation_id, invitation_url):
+    from apps.organizations.models import OrganizationInvitation
+    from emails.service import email_service
+    try:
+        invitation = OrganizationInvitation.objects.select_related('organization', 'role', 'invited_by').get(pk=invitation_id)
+    except OrganizationInvitation.DoesNotExist:
+        logger.warning('send_organization_invitation_email_task: invitation %s not found', invitation_id)
+        return
+    _retry_on_failure(
+        self, email_service.send_organization_invitation_email(invitation, invitation_url),
+        f'organization invitation email for invitation {invitation_id}',
+    )
+
+
+@shared_task(**RETRY_KWARGS)
 def send_recovery_email_confirmation_email_task(self, request_id, confirm_url):
     from apps.users.models import OrganizationChangeRequest
     from emails.service import email_service
     try:
-        change_request = OrganizationChangeRequest.objects.select_related('user', 'user__organization').get(pk=request_id)
+        change_request = OrganizationChangeRequest.objects.select_related('submitted_by', 'organization').get(pk=request_id)
     except OrganizationChangeRequest.DoesNotExist:
         logger.warning('send_recovery_email_confirmation_email_task: request %s not found', request_id)
         return

@@ -7,24 +7,29 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from apps.users.models import User, Organization, OrganizationChangeRequest
+from apps.organizations.models import OrganizationType, OrganizationRole, OrganizationMembership
+from apps.organizations.permissions import ALL_ORGANIZATION_PERMISSIONS
 import services.organization_change_service as organization_change_service
 
 
-def make_org_user(**kwargs):
+def make_org_and_owner(**kwargs):
+    """Returns (user, organization) -- user is the org's Owner-role member."""
     org_kwargs = kwargs.pop('org', {})
     user = User.objects.create_user(
         email=kwargs.pop('email', f'org{User.objects.count()}@example.com'),
         password='pass',
-        account_type=User.AccountType.ORGANIZATION,
         **kwargs,
     )
+    org_type, _ = OrganizationType.objects.get_or_create(slug='community', defaults={'name': 'Community-Based Organization'})
     org_defaults = {
-        'organization_name': 'Test Org', 'organization_type': Organization.OrgType.COMMUNITY,
-        'contact_person_name': 'Contact Person', 'phone_2': '7000001',
+        'organization_name': 'Test Org', 'organization_type': org_type,
+        'phone_2': '7000001', 'created_by': user,
     }
     org_defaults.update(org_kwargs)
-    Organization.objects.create(user=user, **org_defaults)
-    return user
+    org = Organization.objects.create(**org_defaults)
+    owner_role = OrganizationRole.objects.create(organization=org, name='Owner', permissions=list(ALL_ORGANIZATION_PERMISSIONS))
+    OrganizationMembership.objects.create(user=user, organization=org, role=owner_role, is_contact_person=True)
+    return user, org
 
 
 class SubmitChangeRequestNotificationTest(APITestCase):
@@ -39,9 +44,9 @@ class SubmitChangeRequestNotificationTest(APITestCase):
         self, mock_admin_notify, mock_confirm_email, mock_gen_url,
     ):
         mock_gen_url.return_value = 'https://dolelma.org/confirm-recovery-email?token=abc'
-        user = make_org_user()
+        user, org = make_org_and_owner()
 
-        request = organization_change_service.submit_change_request(user, 'recovery_email_1', 'new@example.com')
+        request = organization_change_service.submit_change_request(org, user, 'recovery_email_1', 'new@example.com')
 
         mock_confirm_email.assert_called_once_with(str(request.id), 'https://dolelma.org/confirm-recovery-email?token=abc')
         mock_admin_notify.assert_not_called()
@@ -52,19 +57,26 @@ class SubmitChangeRequestNotificationTest(APITestCase):
     def test_phone_change_still_notifies_admins_not_a_confirmation_email(
         self, mock_admin_notify, mock_confirm_email, mock_gen_url,
     ):
-        user = make_org_user()
+        user, org = make_org_and_owner()
 
-        request = organization_change_service.submit_change_request(user, 'phone_2', '7009999')
+        request = organization_change_service.submit_change_request(org, user, 'phone_2', '7009999')
 
         mock_admin_notify.assert_called_once_with(str(request.id))
         mock_confirm_email.assert_not_called()
 
+    def test_a_non_member_cannot_submit_a_change_request(self):
+        _, org = make_org_and_owner()
+        outsider = User.objects.create_user(email='outsider@example.com', password='pass')
+
+        with self.assertRaises(ValidationError):
+            organization_change_service.submit_change_request(org, outsider, 'phone_2', '7009999')
+
 
 class ConfirmRecoveryEmailChangeTest(APITestCase):
     def setUp(self):
-        self.user = make_org_user()
+        self.user, self.org = make_org_and_owner()
         self.request = OrganizationChangeRequest.objects.create(
-            user=self.user, field_name='recovery_email_1',
+            organization=self.org, submitted_by=self.user, field_name='recovery_email_1',
             current_value='', proposed_value='new-recovery@example.com',
         )
 
@@ -80,8 +92,8 @@ class ConfirmRecoveryEmailChangeTest(APITestCase):
         self.assertEqual(result.status, OrganizationChangeRequest.Status.APPROVED)
         self.assertIsNone(result.reviewed_by)
         self.assertIsNotNone(result.reviewed_at)
-        self.user.organization.refresh_from_db()
-        self.assertEqual(self.user.organization.recovery_email_1, 'new-recovery@example.com')
+        self.org.refresh_from_db()
+        self.assertEqual(self.org.recovery_email_1, 'new-recovery@example.com')
         mock_notify.assert_called_once_with(str(self.request.id))
 
     def test_invalid_token_is_rejected(self):
@@ -108,7 +120,7 @@ class ConfirmRecoveryEmailChangeTest(APITestCase):
         # Defense-in-depth: even if somehow a phone request's id were signed
         # with this salt, the field-type guard must still stop it.
         phone_request = OrganizationChangeRequest.objects.create(
-            user=self.user, field_name='phone_2', current_value='', proposed_value='7001234',
+            organization=self.org, submitted_by=self.user, field_name='phone_2', current_value='', proposed_value='7001234',
         )
         token = self._token(phone_request.id)
         with self.assertRaises(ValidationError):
@@ -121,8 +133,8 @@ class ConfirmRecoveryEmailChangeTest(APITestCase):
             reverse('organization-change-request-confirm-recovery-email'), {'token': self._token()},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.user.organization.refresh_from_db()
-        self.assertEqual(self.user.organization.recovery_email_1, 'new-recovery@example.com')
+        self.org.refresh_from_db()
+        self.assertEqual(self.org.recovery_email_1, 'new-recovery@example.com')
 
     def test_api_endpoint_requires_a_token(self):
         response = self.client.post(reverse('organization-change-request-confirm-recovery-email'), {})
@@ -137,39 +149,39 @@ class AdminCannotApproveRecoveryEmailChangesTest(APITestCase):
 
     def setUp(self):
         self.admin = User.objects.create_user(email='admin-orgchange@example.com', password='pass', is_staff=True, role=User.Role.ADMIN)
-        self.user = make_org_user()
+        self.user, self.org = make_org_and_owner()
         self.client.force_authenticate(user=self.admin)
 
     def test_admin_approve_is_rejected_for_a_recovery_email_request(self):
         request = OrganizationChangeRequest.objects.create(
-            user=self.user, field_name='recovery_email_2', current_value='', proposed_value='admin-tried@example.com',
+            organization=self.org, submitted_by=self.user, field_name='recovery_email_2', current_value='', proposed_value='admin-tried@example.com',
         )
         with self.assertRaises(ValidationError):
             organization_change_service.approve_change_request(request.id, self.admin)
         request.refresh_from_db()
         self.assertEqual(request.status, OrganizationChangeRequest.Status.PENDING)
-        self.user.organization.refresh_from_db()
-        self.assertNotEqual(self.user.organization.recovery_email_2, 'admin-tried@example.com')
+        self.org.refresh_from_db()
+        self.assertNotEqual(self.org.recovery_email_2, 'admin-tried@example.com')
 
     def test_admin_can_still_reject_a_recovery_email_request(self):
         request = OrganizationChangeRequest.objects.create(
-            user=self.user, field_name='recovery_email_1', current_value='', proposed_value='suspicious@example.com',
+            organization=self.org, submitted_by=self.user, field_name='recovery_email_1', current_value='', proposed_value='suspicious@example.com',
         )
         result = organization_change_service.reject_change_request(request.id, self.admin, reason='Looks suspicious')
         self.assertEqual(result.status, OrganizationChangeRequest.Status.REJECTED)
 
     def test_admin_can_still_approve_a_phone_request(self):
         request = OrganizationChangeRequest.objects.create(
-            user=self.user, field_name='phone_2', current_value='', proposed_value='7005555',
+            organization=self.org, submitted_by=self.user, field_name='phone_2', current_value='', proposed_value='7005555',
         )
         result = organization_change_service.approve_change_request(request.id, self.admin)
         self.assertEqual(result.status, OrganizationChangeRequest.Status.APPROVED)
-        self.user.organization.refresh_from_db()
-        self.assertEqual(self.user.organization.phone_2, '7005555')
+        self.org.refresh_from_db()
+        self.assertEqual(self.org.phone_2, '7005555')
 
     def test_api_endpoint_surfaces_the_same_rejection(self):
         request = OrganizationChangeRequest.objects.create(
-            user=self.user, field_name='recovery_email_1', current_value='', proposed_value='admin-tried2@example.com',
+            organization=self.org, submitted_by=self.user, field_name='recovery_email_1', current_value='', proposed_value='admin-tried2@example.com',
         )
         response = self.client.post(
             reverse('admin-organization-change-request-action', args=[request.id, 'approve']),

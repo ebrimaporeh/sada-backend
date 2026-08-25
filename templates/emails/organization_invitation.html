@@ -1,0 +1,19 @@
+{% extends "emails/base.html" %}
+
+{% block subject %}{{ inviter_name }} invited you to join {{ organization_name }} on {{ site_name }}{% endblock %}
+
+{% block content %}
+<h2 style="margin: 0 0 4px; color: #18181b; font-size: 20px;">You've been invited</h2>
+<p>Hi,</p>
+
+<p>
+  <strong>{{ inviter_name }}</strong> has invited you to join <strong>{{ organization_name }}</strong>
+  on {{ site_name }} as <strong>{{ role_name }}</strong>.
+</p>
+
+<a href="{{ invitation_url }}" class="btn">View Invitation</a>
+
+<p class="muted">If you don't have a {{ site_name }} account yet, you'll be asked to create one with this email address first, then you can accept or decline.</p>
+<p class="muted">This link will expire in 14 days.</p>
+<p class="muted">If you don't recognize {{ organization_name }} or weren't expecting this, you can safely ignore this email.</p>
+{% endblock %}

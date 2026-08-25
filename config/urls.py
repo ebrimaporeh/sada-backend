@@ -25,6 +25,7 @@ urlpatterns = [
     path('api/v1/audit/', include('apps.audit.urls')),
     path('api/v1/events/', include('apps.events.urls')),
     path('api/v1/permissions/', include('apps.rbac.urls')),
+    path('api/v1/organizations/', include('apps.organizations.urls')),
 
     # Password reset
     path('api/v1/auth/password-reset/', include('django_rest_passwordreset.urls', namespace='password_reset')),

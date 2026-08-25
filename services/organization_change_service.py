@@ -4,11 +4,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 
-from apps.users.models import User, OrganizationChangeRequest
-
-# phone lives on User itself; the other three live on the related Organization
-# profile — this map is how approve_change_request() knows where to write.
-USER_FIELDS = {OrganizationChangeRequest.Field.PHONE}
+from apps.users.models import User, Organization, OrganizationChangeRequest
 
 # Recovery emails skip admin review entirely -- the proposed address proving
 # it controls its own inbox (by clicking the confirmation link sent there)
@@ -26,27 +22,27 @@ def generate_recovery_email_confirm_url(change_request: OrganizationChangeReques
     return f'{settings.FRONTEND_URL}/confirm-recovery-email?token={token}'
 
 
-def _current_value(user: User, field_name: str) -> str:
-    if field_name in USER_FIELDS:
-        return user.phone or ''
-    return getattr(user.organization, field_name, '') or ''
+def submit_change_request(organization: Organization, submitted_by: User, field_name: str, proposed_value: str) -> OrganizationChangeRequest:
+    """`submitted_by` must be a current member of `organization` -- which
+    org this targets is no longer inferable from the user alone (a user can
+    belong to several), so both are required. Which *permission* a member
+    needs to submit one is enforced at the API layer (Phase 3), not here --
+    this only enforces the base "must actually be a member" invariant."""
+    if not organization.memberships.filter(user=submitted_by).exists():
+        raise ValidationError('You must be a member of this organization to request this change.')
 
-
-def submit_change_request(user: User, field_name: str, proposed_value: str) -> OrganizationChangeRequest:
-    if not user.is_organization:
-        raise ValidationError('Only organization accounts can request this change.')
-
-    current = _current_value(user, field_name)
+    current = getattr(organization, field_name, '') or ''
     if proposed_value == current:
         raise ValidationError('That is already the current value.')
 
-    if user.organization_change_requests.filter(
+    if organization.change_requests.filter(
         field_name=field_name, status=OrganizationChangeRequest.Status.PENDING,
     ).exists():
-        raise ValidationError('You already have a pending change request for this field.')
+        raise ValidationError('There is already a pending change request for this field.')
 
     request = OrganizationChangeRequest.objects.create(
-        user=user,
+        organization=organization,
+        submitted_by=submitted_by,
         field_name=field_name,
         current_value=current,
         proposed_value=proposed_value,
@@ -63,21 +59,21 @@ def submit_change_request(user: User, field_name: str, proposed_value: str) -> O
 
 
 def get_my_change_requests(user: User) -> 'QuerySet[OrganizationChangeRequest]':
-    return user.organization_change_requests.all()
+    return OrganizationChangeRequest.objects.filter(submitted_by=user)
 
 
-def get_all_change_requests(status: str = None, user_id: str = None) -> 'QuerySet[OrganizationChangeRequest]':
-    qs = OrganizationChangeRequest.objects.select_related('user', 'user__organization', 'reviewed_by')
+def get_all_change_requests(status: str = None, organization_id: str = None) -> 'QuerySet[OrganizationChangeRequest]':
+    qs = OrganizationChangeRequest.objects.select_related('organization', 'submitted_by', 'reviewed_by')
     if status:
         qs = qs.filter(status=status)
-    if user_id:
-        qs = qs.filter(user_id=user_id)
+    if organization_id:
+        qs = qs.filter(organization_id=organization_id)
     return qs
 
 
 def _get_pending(request_id: str) -> OrganizationChangeRequest:
     try:
-        request = OrganizationChangeRequest.objects.select_related('user', 'user__organization').get(id=request_id)
+        request = OrganizationChangeRequest.objects.select_related('organization', 'submitted_by').get(id=request_id)
     except OrganizationChangeRequest.DoesNotExist:
         raise ValidationError('Change request not found.')
     if request.status != OrganizationChangeRequest.Status.PENDING:
@@ -86,16 +82,8 @@ def _get_pending(request_id: str) -> OrganizationChangeRequest:
 
 
 def _write_proposed_value(request: OrganizationChangeRequest) -> None:
-    """Actually applies the change to the real User/Organization field --
-    shared by admin approval and the self-service email-confirm path below,
-    so the two can never drift on how a field gets written."""
-    if request.field_name in USER_FIELDS:
-        request.user.phone = request.proposed_value
-        request.user.save(update_fields=['phone'])
-    else:
-        org = request.user.organization
-        setattr(org, request.field_name, request.proposed_value)
-        org.save(update_fields=[request.field_name])
+    setattr(request.organization, request.field_name, request.proposed_value)
+    request.organization.save(update_fields=[request.field_name])
 
 
 def _mark_approved(request: OrganizationChangeRequest, reviewed_by: User = None) -> None:

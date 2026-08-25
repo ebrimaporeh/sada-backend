@@ -90,16 +90,14 @@ def _set_avatar_from_google(user: User, picture_url: str) -> None:
         logger.warning('Failed to fetch Google profile picture for %s', user.email, exc_info=True)
 
 
-def get_or_create_google_user(google_data: dict, account_type: str = None) -> tuple[User, bool]:
+def get_or_create_google_user(google_data: dict) -> tuple[User, bool]:
     """
-    Get or create a user from Google OAuth data.
+    Get or create a user from Google OAuth data. Every account this
+    creates is an individual (see User.AccountType docstring) -- there is
+    no account-type toggle on the signup path anymore.
 
     Args:
         google_data: dict with 'email', 'name', 'google_sub' keys
-        account_type: User.AccountType value — only consulted when this call
-            creates a brand-new user (e.g. from the signup page's
-            account-type toggle); ignored for an existing user, who keeps
-            whatever account_type they already have.
 
     Returns:
         (User instance, created) -- `created` is True only when this call
@@ -129,7 +127,7 @@ def get_or_create_google_user(google_data: dict, account_type: str = None) -> tu
                 # separate manual process regardless of signup method. Google
                 # proves email ownership only, not who someone actually is.
                 'google_sub': google_sub,
-                'account_type': account_type or User.AccountType.INDIVIDUAL,
+                'account_type': User.AccountType.INDIVIDUAL,
             }
         )
 
@@ -140,12 +138,6 @@ def get_or_create_google_user(google_data: dict, account_type: str = None) -> tu
             user.save(update_fields=['password'])
 
             _set_avatar_from_google(user, google_data.get('picture'))
-
-            if user.account_type == User.AccountType.ORGANIZATION:
-                # Google gives us no org details at all — every field is
-                # filled in later during onboarding.
-                from apps.users.models import Organization
-                Organization.objects.create(user=user)
         elif google_sub and user.google_sub != google_sub:
             # An existing email/password account signing in via Google for the
             # first time — link it the same way an explicit "Connect Google"
