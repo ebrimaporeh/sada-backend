@@ -25,6 +25,28 @@ def get_client():
 # Charge; they still pick/confirm APS there.
 DIRECT_CHARGE_NETWORKS = {'wave', 'afrimoney', 'qmoney'}
 
+# Keywords that would leak our own ModemPay account/operational state
+# (float balance, credentials, auth) rather than something the requester
+# can act on about the request they just sent. A ModemPay 4xx message is
+# otherwise safe to forward verbatim -- it's describing the specific
+# amount/network/phone this donation or payout request just supplied, not
+# anything about SADA's account -- but never forward one containing these
+# raw to a donor or campaign owner.
+_UNSAFE_MESSAGE_KEYWORDS = (
+    'balance', 'insufficient', 'credential', 'api key', 'apikey',
+    'unauthorized', 'wallet', 'internal', 'secret', 'token',
+)
+
+
+def _safe_message(raw_message, fallback):
+    """Only forward a gateway error message to the end user if it doesn't
+    look like it describes our own account state. Always logs the raw
+    message server-side either way -- callers log before this runs."""
+    if raw_message and not any(kw in raw_message.lower() for kw in _UNSAFE_MESSAGE_KEYWORDS):
+        return raw_message
+    logger.warning('Suppressed a ModemPay error message from a user-facing response: %s', raw_message)
+    return fallback
+
 
 def create_payment_intent(donation, return_url='', cancel_url=''):
     """Create a ModemPay Payment Intent for a donation.
@@ -34,13 +56,13 @@ def create_payment_intent(donation, return_url='', cancel_url=''):
     error, 5xx from ModemPay) the donor can only retry blindly.
 
     Raises django.core.exceptions.ValidationError instead, with ModemPay's
-    own message, when the rejection is a 4xx the donor can actually act on
-    (e.g. "Amount for payment intent cannot exceed GMD 10,000.00") --
-    without this split every such rejection looked identical to a real
-    gateway outage to the donor (a generic 502 "please try again", which
-    they'd retry with the same amount and fail again identically). See
-    donation_service._initiate_payment, the only caller, for how this
-    propagates into the actual API response.
+    own message (filtered through _safe_message -- see there), when the
+    rejection is a 4xx the donor can actually act on (e.g. "Amount for
+    payment intent cannot exceed GMD 10,000.00") -- without this split every
+    such rejection looked identical to a real gateway outage to the donor (a
+    generic 502 "please try again", which they'd retry with the same amount
+    and fail again identically). See donation_service._initiate_payment, the
+    only caller, for how this propagates into the actual API response.
     """
     params = {
         # ModemPay's amount field is an integer (whole GMD) — fractional
@@ -81,7 +103,10 @@ def create_payment_intent(donation, return_url='', cancel_url=''):
             donation.payment_reference, e, status_code,
         )
         if status_code is not None and 400 <= status_code < 500:
-            raise ValidationError(e.args[0] if e.args else str(e)) from e
+            raw = e.args[0] if e.args else str(e)
+            raise ValidationError(_safe_message(
+                raw, 'We could not process this donation with the details provided. Please check the amount and try again.',
+            )) from e
         return None
 
 
@@ -179,11 +204,12 @@ def request_disbursement(reference, net_amount, phone, provider, beneficiary_nam
     real via the `transfer.succeeded` webhook, this call only starts them.
 
     Raises django.core.exceptions.ValidationError instead, with ModemPay's
-    own message, when the rejection is a 4xx the campaign owner can act on
-    (e.g. an amount over ModemPay's transfer limit) — same split as
-    create_payment_intent, and for the same reason: without it, every such
-    rejection looked identical to a real gateway outage. See
-    payment_service.request_payout, the only caller.
+    own message (filtered through _safe_message -- see there), when the
+    rejection is a 4xx the campaign owner can act on (e.g. an amount over
+    ModemPay's transfer limit) — same split as create_payment_intent, and
+    for the same reason: without it, every such rejection looked identical
+    to a real gateway outage. See payment_service.request_payout, the only
+    caller.
     """
     if getattr(settings, 'DEMO_MODE', False):
         return {'id': f'DEMO-{reference}', 'status': 'completed'}
@@ -215,7 +241,10 @@ def request_disbursement(reference, net_amount, phone, provider, beneficiary_nam
             reference, e, status_code,
         )
         if status_code is not None and 400 <= status_code < 500:
-            raise ValidationError(e.args[0] if e.args else str(e)) from e
+            raw = e.args[0] if e.args else str(e)
+            raise ValidationError(_safe_message(
+                raw, 'We could not process this withdrawal with the details provided. Please try again or contact support.',
+            )) from e
         return None
 
 

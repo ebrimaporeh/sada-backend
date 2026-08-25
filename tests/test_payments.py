@@ -265,12 +265,11 @@ class DonationCreateGatewayTest(APITestCase):
         donation.refresh_from_db()
         self.assertEqual(donation.status, Donation.Status.FAILED)
 
-    @patch('services.modempay_service.get_client')
-    def test_create_donation_view_returns_400_not_502_for_amount_over_limit(self, mock_get_client):
-        from modempay.error import ModemPayError
-        mock_get_client.return_value.payment_intents.create.side_effect = ModemPayError(
-            'Amount for payment intent cannot exceed GMD 10,000.00', 400,
-        )
+    def test_create_donation_view_rejects_amount_over_limit_without_calling_gateway(self):
+        # MAX_DONATION_AMOUNT now matches ModemPay's real, confirmed limit
+        # (see apps/donations/serializers.py) -- an over-limit amount fails
+        # at our own serializer, before ever reaching ModemPay, so this
+        # never becomes an API round-trip in the first place.
         response = self.client.post('/api/v1/donations/', {
             'campaign_id': str(self.campaign.id),
             'amount': '13500.00',
@@ -278,7 +277,46 @@ class DonationCreateGatewayTest(APITestCase):
             'phone': '+2207000000',
         })
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.data['message'], 'Amount for payment intent cannot exceed GMD 10,000.00')
+
+    @patch('services.modempay_service.get_client')
+    def test_create_donation_view_returns_400_not_502_for_a_gateway_side_rejection(self, mock_get_client):
+        # A request that passes our own validation can still be rejected by
+        # ModemPay itself (e.g. a 4xx we haven't modeled client-side yet) --
+        # the view should still surface that as an actionable 400, not a
+        # generic 502.
+        from modempay.error import ModemPayError
+        mock_get_client.return_value.payment_intents.create.side_effect = ModemPayError(
+            'Network \'wave\' is temporarily unavailable for this account.', 400,
+        )
+        response = self.client.post('/api/v1/donations/', {
+            'campaign_id': str(self.campaign.id),
+            'amount': '5000.00',
+            'provider': 'wave',
+            'phone': '+2207000000',
+        })
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data['message'], 'Network \'wave\' is temporarily unavailable for this account.')
+
+    @patch('services.modempay_service.get_client')
+    def test_create_donation_suppresses_sensitive_gateway_message(self, mock_get_client):
+        # Never forward a raw ModemPay message that could leak our own
+        # account/operational state (e.g. its float balance) to a donor --
+        # only messages that are actually about the request just sent
+        # (amount, network, phone) are safe to show verbatim.
+        from modempay.error import ModemPayError
+        mock_get_client.return_value.payment_intents.create.side_effect = ModemPayError(
+            'Insufficient balance to cover this transaction fee.', 400,
+        )
+        donation, payment_link, error_message = donation_service.create_donation(None, {
+            'campaign_id': self.campaign.id,
+            'amount': Decimal('50.00'),
+            'provider': 'wave',
+            'phone': '+2207000000',
+        })
+        self.assertIsNone(payment_link)
+        self.assertIsNotNone(error_message)
+        self.assertNotIn('Insufficient balance', error_message)
+        self.assertNotIn('balance', error_message.lower())
 
     @patch('services.modempay_service.get_client')
     def test_create_donation_keeps_502_for_a_genuine_gateway_failure(self, mock_get_client):

@@ -1,10 +1,15 @@
 from rest_framework import serializers
 from .models import Donation
 
-# ModemPay rejects a single payment intent above this amount ("Amount for
-# payment intent cannot exceed GMD 50,000.00") — validate here so it fails
-# cleanly at submission instead of after a wasted DB write + API round-trip.
-MAX_DONATION_AMOUNT = 50000
+# ModemPay rejects a single payment intent above this amount. This was
+# previously assumed to be 50,000 -- that figure was wrong (or ModemPay
+# lowered it since); a real donation attempt of D13,500 on 2026-08-23
+# 400'd with "Amount for payment intent cannot exceed GMD 10,000.00",
+# which is what ModemPay is actually enforcing. Validate here so it fails
+# cleanly at submission instead of after a wasted DB write + API round-trip
+# (see services/modempay_service.py::create_payment_intent for the case
+# where a request still slips through and ModemPay rejects it directly).
+MAX_DONATION_AMOUNT = 10000
 
 
 class DonationSerializer(serializers.ModelSerializer):
