@@ -1079,6 +1079,89 @@ class RequestPayoutGatewayTest(APITestCase):
                 'phone': '+2207000000',
             })
 
+    @patch('services.modempay_service.get_client')
+    @patch('services.modempay_service.get_balance')
+    @patch('services.modempay_service.check_transfer_fee')
+    def test_request_payout_surfaces_amount_over_limit_as_actionable_note(self, mock_fee, mock_balance, mock_get_client):
+        # Same class of bug as the donation side (see
+        # PaymentGatewayTest.test_create_donation_surfaces_amount_over_limit_as_actionable_error):
+        # a 4xx ModemPay rejection used to disappear -- request_disbursement
+        # returned None, request_payout treated that as a real terminal
+        # failure with no message, and the campaign owner saw "Payout
+        # Requested ... is being processed" (the unconditional Notification
+        # below the old if/elif chain) even though nothing was actually
+        # happening. Mocking at the get_client() SDK boundary (not
+        # request_disbursement itself) so the real 4xx-classification logic
+        # in modempay_service.request_disbursement actually runs.
+        from modempay.error import ModemPayError
+        mock_fee.return_value = Decimal('1.00')
+        mock_balance.return_value = {'available_balance': 1000, 'payout_balance': 1000}
+        mock_get_client.return_value.transfers.initiate.side_effect = ModemPayError(
+            'Amount for transfer cannot exceed GMD 5,000.00', 400,
+        )
+
+        payout = payment_service.request_payout(self.owner, {
+            'campaign_id': self.campaign.id,
+            'amount': Decimal('100.00'),
+            'provider': 'wave',
+            'phone': '+2207000000',
+        })
+        self.assertEqual(payout.status, Payout.Status.FAILED)
+        self.assertEqual(payout.notes, 'Amount for transfer cannot exceed GMD 5,000.00')
+
+        from apps.notifications.models import Notification
+        notification = Notification.objects.filter(user=self.owner).latest('created_at')
+        self.assertEqual(notification.title, 'Payout Failed')
+        self.assertIn('Amount for transfer cannot exceed GMD 5,000.00', notification.message)
+
+    @patch('services.modempay_service.request_disbursement')
+    @patch('services.modempay_service.get_balance')
+    @patch('services.modempay_service.check_transfer_fee')
+    def test_request_payout_keeps_generic_notes_for_a_genuine_gateway_failure(self, mock_fee, mock_balance, mock_disburse):
+        # A 5xx (or any non-4xx) ModemPayError, or a None with no exception
+        # at all, is a real gateway/network problem, not something the
+        # campaign owner did wrong -- notes stays generic, unlike the 4xx
+        # case above.
+        mock_fee.return_value = Decimal('1.00')
+        mock_balance.return_value = {'available_balance': 1000, 'payout_balance': 1000}
+        mock_disburse.return_value = None
+
+        payout = payment_service.request_payout(self.owner, {
+            'campaign_id': self.campaign.id,
+            'amount': Decimal('100.00'),
+            'provider': 'wave',
+            'phone': '+2207000000',
+        })
+        self.assertEqual(payout.status, Payout.Status.FAILED)
+        self.assertEqual(payout.notes, 'The payment provider could not process this withdrawal.')
+
+    @patch('services.modempay_service.get_client')
+    @patch('services.modempay_service.get_balance')
+    @patch('services.modempay_service.check_transfer_fee')
+    def test_request_payout_view_returns_201_with_failed_status_and_notes(self, mock_fee, mock_balance, mock_get_client):
+        # The payout endpoint always returns 201 -- the Payout row (status +
+        # notes) is the real source of truth, not the HTTP status. This is
+        # what WithdrawTab.jsx's onSuccess handler now branches on instead
+        # of assuming success from the response code alone.
+        from modempay.error import ModemPayError
+        mock_fee.return_value = Decimal('1.00')
+        mock_balance.return_value = {'available_balance': 1000, 'payout_balance': 1000}
+        mock_get_client.return_value.transfers.initiate.side_effect = ModemPayError(
+            'Amount for transfer cannot exceed GMD 5,000.00', 400,
+        )
+
+        self.client.force_authenticate(self.owner)
+        response = self.client.post('/api/v1/payments/payouts/', {
+            'campaign_id': str(self.campaign.id),
+            'amount': '100.00',
+            'provider': 'wave',
+            'phone': '+2207000000',
+        })
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        payout_data = response.data['data']['payout']
+        self.assertEqual(payout_data['status'], 'failed')
+        self.assertEqual(payout_data['notes'], 'Amount for transfer cannot exceed GMD 5,000.00')
+
 
 class AdminDonationCampaignFilterTest(APITestCase):
     """get_all_donations()'s `campaign` param -- what the admin campaign
@@ -1326,3 +1409,40 @@ class PublicCampaignDonorSortTest(APITestCase):
         response = self.client.get(f'/api/v1/donations/campaign/{self.campaign.slug}/public/')
         self.assertEqual(len(response.data['results']), 20)
         self.assertEqual(response.data['count'], 27)
+
+
+class MyDonationsListTest(APITestCase):
+    """The dashboard's "Recent Donations" widget (donation_service.
+    get_user_donations) -- regression coverage for a real bug found while
+    testing on staging: a donor's own FAILED/PENDING attempts (e.g. an
+    amount ModemPay rejected) showed up identically to a real completed
+    donation, right next to "Total Raised: D0", with no status shown
+    anywhere to tell them apart."""
+
+    def setUp(self):
+        self.donor = User.objects.create_user(email='mydonations@example.com', password='pass')
+        self.campaign = make_campaign()
+        self.url = reverse('my-donations')
+
+    def test_only_paid_donations_are_listed(self):
+        paid = Donation.objects.create(
+            campaign=self.campaign, donor=self.donor, amount=Decimal('100.00'), currency='GMD',
+            provider='wave', phone='+2207000000', payment_reference='SD-MYD-PAID', gateway='modempay',
+            status=Donation.Status.PAID, paid_at=timezone.now(),
+        )
+        Donation.objects.create(
+            campaign=self.campaign, donor=self.donor, amount=Decimal('13500.00'), currency='GMD',
+            provider='wave', phone='+2207000000', payment_reference='SD-MYD-FAILED', gateway='modempay',
+            status=Donation.Status.FAILED,
+        )
+        Donation.objects.create(
+            campaign=self.campaign, donor=self.donor, amount=Decimal('50.00'), currency='GMD',
+            provider='wave', phone='+2207000000', payment_reference='SD-MYD-PENDING', gateway='modempay',
+            status=Donation.Status.PENDING,
+        )
+
+        self.client.force_authenticate(user=self.donor)
+        response = self.client.get(self.url)
+
+        ids = [d['id'] for d in response.data['results']]
+        self.assertEqual(ids, [str(paid.id)])

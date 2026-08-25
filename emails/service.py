@@ -283,8 +283,12 @@ class EmailService:
             'failed': f'Your withdrawal of D{payout.net_amount} could not be completed',
         }
         # Organizations' recovery emails are CC'd on withdrawal updates too —
-        # this is real money moving, so every registered contact should see it.
-        org = getattr(owner, 'organization', None)
+        # this is real money moving, so every registered contact should see
+        # it. The org (if any) belongs to the campaign, not the requesting
+        # member -- owner.organization stopped existing once Organization
+        # became a real multi-member entity (see apps.organizations); this
+        # silently CC'd nobody from the moment that landed until now.
+        org = payout.campaign.organization
         cc = [e for e in [getattr(org, 'recovery_email_1', ''), getattr(org, 'recovery_email_2', '')] if e] if org else []
         return self._send(
             to=owner.email,

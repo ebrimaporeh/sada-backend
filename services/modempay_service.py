@@ -170,13 +170,20 @@ def request_disbursement(reference, net_amount, phone, provider, beneficiary_nam
     transfer fee (via check_transfer_fee) from the requested amount, so
     this function doesn't recompute either.
 
-    Returns None on failure/error (including an unsupported network — caller
-    should really validate this before creating the Payout row, but we guard
-    here too since this is where real money would move), or a dict with a
-    real ModemPay `status` (pending/completed/...) when the transfer was
-    accepted. Caller decides COMPLETED vs PROCESSING from `result['status']`
-    — transfers are asynchronous and confirmed for real via the
-    `transfer.succeeded` webhook, this call only starts them.
+    Returns None on a generic/transient failure (including an unsupported
+    network — caller should really validate this before creating the
+    Payout row, but we guard here too since this is where real money would
+    move), or a dict with a real ModemPay `status` (pending/completed/...)
+    when the transfer was accepted. Caller decides COMPLETED vs PROCESSING
+    from `result['status']` — transfers are asynchronous and confirmed for
+    real via the `transfer.succeeded` webhook, this call only starts them.
+
+    Raises django.core.exceptions.ValidationError instead, with ModemPay's
+    own message, when the rejection is a 4xx the campaign owner can act on
+    (e.g. an amount over ModemPay's transfer limit) — same split as
+    create_payment_intent, and for the same reason: without it, every such
+    rejection looked identical to a real gateway outage. See
+    payment_service.request_payout, the only caller.
     """
     if getattr(settings, 'DEMO_MODE', False):
         return {'id': f'DEMO-{reference}', 'status': 'completed'}
@@ -202,10 +209,13 @@ def request_disbursement(reference, net_amount, phone, provider, beneficiary_nam
     try:
         return get_client().transfers.initiate(params=params, idempotency_key=reference)
     except ModemPayError as e:
+        status_code = getattr(e, 'status_code', None)
         logger.error(
             'ModemPay request_disbursement failed for payout %s: %s (status_code=%s)',
-            reference, e, getattr(e, 'status_code', None),
+            reference, e, status_code,
         )
+        if status_code is not None and 400 <= status_code < 500:
+            raise ValidationError(e.args[0] if e.args else str(e)) from e
         return None
 
 

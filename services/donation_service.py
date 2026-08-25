@@ -383,8 +383,19 @@ def sweep_pending_donations(older_than_minutes=15, limit=50):
 
 
 def get_user_donations(user):
+    """The dashboard's "Recent Donations" widget -- only donations that
+    actually went through. Unlike get_campaign_donors (also PAID-only),
+    this had no status filter at all until now: every attempt (PENDING
+    the moment it's created, FAILED if the gateway ever rejects it -- see
+    create_donation/_initiate_payment) showed up identically to a real
+    completed donation, with no status shown anywhere in this widget to
+    tell them apart. A donor whose payment failed (e.g. amount over the
+    gateway's limit) would see their own failed attempts listed next to
+    "Total Raised: D0" as if they'd actually given money."""
     from apps.donations.models import Donation
-    return Donation.objects.filter(donor=user).select_related('campaign').order_by('-created_at')
+    return Donation.objects.filter(
+        donor=user, status=Donation.Status.PAID,
+    ).select_related('campaign').order_by('-paid_at')
 
 
 def get_campaign_donors(user, slug):
