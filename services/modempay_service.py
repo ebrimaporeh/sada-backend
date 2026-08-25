@@ -2,6 +2,7 @@ import logging
 from decimal import Decimal
 from functools import lru_cache
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from modempay import ModemPay
 from modempay.error import ModemPayError
 
@@ -29,7 +30,17 @@ def create_payment_intent(donation, return_url='', cancel_url=''):
     """Create a ModemPay Payment Intent for a donation.
 
     Returns the SDK's parsed response dict (`{status, message, data: {...}}`)
-    on success, or None on failure — never raises.
+    on success, or None for a generic/transient gateway failure (network
+    error, 5xx from ModemPay) the donor can only retry blindly.
+
+    Raises django.core.exceptions.ValidationError instead, with ModemPay's
+    own message, when the rejection is a 4xx the donor can actually act on
+    (e.g. "Amount for payment intent cannot exceed GMD 10,000.00") --
+    without this split every such rejection looked identical to a real
+    gateway outage to the donor (a generic 502 "please try again", which
+    they'd retry with the same amount and fail again identically). See
+    donation_service._initiate_payment, the only caller, for how this
+    propagates into the actual API response.
     """
     params = {
         # ModemPay's amount field is an integer (whole GMD) — fractional
@@ -64,10 +75,13 @@ def create_payment_intent(donation, return_url='', cancel_url=''):
     try:
         return get_client().payment_intents.create(params=params)
     except ModemPayError as e:
+        status_code = getattr(e, 'status_code', None)
         logger.error(
             'ModemPay create_payment_intent failed for donation %s: %s (status_code=%s)',
-            donation.payment_reference, e, getattr(e, 'status_code', None),
+            donation.payment_reference, e, status_code,
         )
+        if status_code is not None and 400 <= status_code < 500:
+            raise ValidationError(e.args[0] if e.args else str(e)) from e
         return None
 
 

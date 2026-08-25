@@ -210,12 +210,13 @@ class DonationCreateGatewayTest(APITestCase):
             'status': True,
             'data': {'payment_link': 'https://pay.modempay.com/abc', 'intent_secret': 'sec_123'},
         }
-        donation, payment_link = donation_service.create_donation(None, {
+        donation, payment_link, error_message = donation_service.create_donation(None, {
             'campaign_id': self.campaign.id,
             'amount': Decimal('100.00'),
             'provider': 'wave',
             'phone': '+2207000000',
         })
+        self.assertIsNone(error_message)
         self.assertEqual(donation.gateway, 'modempay')
         self.assertEqual(payment_link, 'https://pay.modempay.com/abc')
         self.assertEqual(donation.provider_reference, 'sec_123')
@@ -225,13 +226,75 @@ class DonationCreateGatewayTest(APITestCase):
     @patch('services.modempay_service.create_payment_intent')
     def test_create_donation_marks_failed_when_intent_fails(self, mock_create):
         mock_create.return_value = None
-        donation, payment_link = donation_service.create_donation(None, {
+        donation, payment_link, error_message = donation_service.create_donation(None, {
             'campaign_id': self.campaign.id,
             'amount': Decimal('50.00'),
             'provider': 'wave',
             'phone': '+2207000000',
         })
         self.assertIsNone(payment_link)
+        # A generic/transient gateway failure (mocked as a bare None here)
+        # carries no error_message -- that's reserved for a classified,
+        # donor-actionable rejection (see the ModemPay amount-limit test
+        # below), so the view keeps this one as a 502 "try again".
+        self.assertIsNone(error_message)
+        donation.refresh_from_db()
+        self.assertEqual(donation.status, Donation.Status.FAILED)
+
+    @patch('services.modempay_service.get_client')
+    def test_create_donation_surfaces_amount_over_limit_as_actionable_error(self, mock_get_client):
+        # Regression guard: ModemPay 400s payment_intents.create when the
+        # amount exceeds its per-transaction limit ("Amount for payment
+        # intent cannot exceed GMD 10,000.00") -- this used to surface to
+        # the donor as a generic 502 "Could not start payment. Please try
+        # again.", which they'd retry with the same amount and fail
+        # identically forever. Confirmed via a live donation attempt on
+        # Railway staging.
+        from modempay.error import ModemPayError
+        mock_get_client.return_value.payment_intents.create.side_effect = ModemPayError(
+            'Amount for payment intent cannot exceed GMD 10,000.00', 400,
+        )
+        donation, payment_link, error_message = donation_service.create_donation(None, {
+            'campaign_id': self.campaign.id,
+            'amount': Decimal('13500.00'),
+            'provider': 'wave',
+            'phone': '+2207000000',
+        })
+        self.assertIsNone(payment_link)
+        self.assertEqual(error_message, 'Amount for payment intent cannot exceed GMD 10,000.00')
+        donation.refresh_from_db()
+        self.assertEqual(donation.status, Donation.Status.FAILED)
+
+    @patch('services.modempay_service.get_client')
+    def test_create_donation_view_returns_400_not_502_for_amount_over_limit(self, mock_get_client):
+        from modempay.error import ModemPayError
+        mock_get_client.return_value.payment_intents.create.side_effect = ModemPayError(
+            'Amount for payment intent cannot exceed GMD 10,000.00', 400,
+        )
+        response = self.client.post('/api/v1/donations/', {
+            'campaign_id': str(self.campaign.id),
+            'amount': '13500.00',
+            'provider': 'wave',
+            'phone': '+2207000000',
+        })
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data['message'], 'Amount for payment intent cannot exceed GMD 10,000.00')
+
+    @patch('services.modempay_service.get_client')
+    def test_create_donation_keeps_502_for_a_genuine_gateway_failure(self, mock_get_client):
+        # A 5xx (or any non-4xx) ModemPayError is a real gateway/network
+        # problem, not something the donor did wrong -- stays a generic
+        # 502, unlike the 4xx case above.
+        from modempay.error import ModemPayError
+        mock_get_client.return_value.payment_intents.create.side_effect = ModemPayError('Internal error', 500)
+        donation, payment_link, error_message = donation_service.create_donation(None, {
+            'campaign_id': self.campaign.id,
+            'amount': Decimal('50.00'),
+            'provider': 'wave',
+            'phone': '+2207000000',
+        })
+        self.assertIsNone(payment_link)
+        self.assertIsNone(error_message)
         donation.refresh_from_db()
         self.assertEqual(donation.status, Donation.Status.FAILED)
 
@@ -297,7 +360,7 @@ class DonationCreateGatewayTest(APITestCase):
     def test_create_donation_via_stripe_gateway_converts_and_returns_checkout_url(self, mock_create):
         mock_create.return_value = {'id': 'cs_test_123', 'url': 'https://checkout.stripe.com/pay/cs_test_123'}
         with self._enable_stripe(rate=Decimal('70.0000')):
-            donation, payment_link = donation_service.create_donation(None, {
+            donation, payment_link, _error_message = donation_service.create_donation(None, {
                 'campaign_id': self.campaign.id,
                 'amount': Decimal('100.00'),
                 'gateway': 'stripe',
