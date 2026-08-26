@@ -1130,7 +1130,12 @@ class RequestPayoutGatewayTest(APITestCase):
         # below the old if/elif chain) even though nothing was actually
         # happening. Mocking at the get_client() SDK boundary (not
         # request_disbursement itself) so the real 4xx-classification logic
-        # in modempay_service.request_disbursement actually runs.
+        # in modempay_service.request_disbursement actually runs. DEMO_MODE
+        # defaults True (settings/base.py) whenever the env var isn't set --
+        # request_disbursement short-circuits to a fake 'completed' result
+        # before ever touching get_client() when it's on, so it has to be
+        # forced off here or this test passes/fails depending on the host
+        # environment's .env rather than the code under test.
         from modempay.error import ModemPayError
         mock_fee.return_value = Decimal('1.00')
         mock_balance.return_value = {'available_balance': 1000, 'payout_balance': 1000}
@@ -1138,12 +1143,13 @@ class RequestPayoutGatewayTest(APITestCase):
             'Amount for transfer cannot exceed GMD 5,000.00', 400,
         )
 
-        payout = payment_service.request_payout(self.owner, {
-            'campaign_id': self.campaign.id,
-            'amount': Decimal('100.00'),
-            'provider': 'wave',
-            'phone': '+2207000000',
-        })
+        with self.settings(DEMO_MODE=False):
+            payout = payment_service.request_payout(self.owner, {
+                'campaign_id': self.campaign.id,
+                'amount': Decimal('100.00'),
+                'provider': 'wave',
+                'phone': '+2207000000',
+            })
         self.assertEqual(payout.status, Payout.Status.FAILED)
         self.assertEqual(payout.notes, 'Amount for transfer cannot exceed GMD 5,000.00')
 
@@ -1180,7 +1186,8 @@ class RequestPayoutGatewayTest(APITestCase):
         # The payout endpoint always returns 201 -- the Payout row (status +
         # notes) is the real source of truth, not the HTTP status. This is
         # what WithdrawTab.jsx's onSuccess handler now branches on instead
-        # of assuming success from the response code alone.
+        # of assuming success from the response code alone. DEMO_MODE forced
+        # off for the same reason as the service-level test above.
         from modempay.error import ModemPayError
         mock_fee.return_value = Decimal('1.00')
         mock_balance.return_value = {'available_balance': 1000, 'payout_balance': 1000}
@@ -1189,12 +1196,13 @@ class RequestPayoutGatewayTest(APITestCase):
         )
 
         self.client.force_authenticate(self.owner)
-        response = self.client.post('/api/v1/payments/payouts/', {
-            'campaign_id': str(self.campaign.id),
-            'amount': '100.00',
-            'provider': 'wave',
-            'phone': '+2207000000',
-        })
+        with self.settings(DEMO_MODE=False):
+            response = self.client.post('/api/v1/payments/payouts/', {
+                'campaign_id': str(self.campaign.id),
+                'amount': '100.00',
+                'provider': 'wave',
+                'phone': '+2207000000',
+            })
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         payout_data = response.data['data']['payout']
         self.assertEqual(payout_data['status'], 'failed')
