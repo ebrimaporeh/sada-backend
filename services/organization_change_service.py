@@ -26,8 +26,10 @@ def submit_change_request(organization: Organization, submitted_by: User, field_
     """`submitted_by` must be a current member of `organization` -- which
     org this targets is no longer inferable from the user alone (a user can
     belong to several), so both are required. Which *permission* a member
-    needs to submit one is enforced at the API layer (Phase 3), not here --
-    this only enforces the base "must actually be a member" invariant."""
+    needs to submit one is enforced at the API layer
+    (OrganizationChangeRequestSubmitView, requires MANAGE_ORGANIZATION) --
+    this only enforces the base "must actually be a member" invariant as a
+    defense-in-depth backstop, not the real authorization check."""
     if not organization.memberships.filter(user=submitted_by).exists():
         raise ValidationError('You must be a member of this organization to request this change.')
 

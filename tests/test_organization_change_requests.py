@@ -8,7 +8,7 @@ from rest_framework.test import APITestCase
 
 from apps.users.models import User, Organization, OrganizationChangeRequest
 from apps.organizations.models import OrganizationType, OrganizationRole, OrganizationMembership
-from apps.organizations.permissions import ALL_ORGANIZATION_PERMISSIONS
+from apps.organizations.permissions import ALL_ORGANIZATION_PERMISSIONS, OrganizationPermission
 import services.organization_change_service as organization_change_service
 
 
@@ -187,3 +187,83 @@ class AdminCannotApproveRecoveryEmailChangesTest(APITestCase):
             reverse('admin-organization-change-request-action', args=[request.id, 'approve']),
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class ChangeRequestRequiresManageOrganizationPermissionTest(APITestCase):
+    """Regression guard: submit_change_request() only ever checked base
+    membership, not any permission -- its own docstring said the real
+    check belonged at the API layer, but OrganizationChangeRequestSubmitView
+    never actually added it. A plain Member (default role: create_campaign
+    only) could submit a phone or -- worse -- a recovery-email change (which
+    self-confirms with zero admin review) with no org-level authorization
+    at all. Now gated on OrganizationPermission.MANAGE_ORGANIZATION."""
+
+    def setUp(self):
+        self.owner, self.org = make_org_and_owner()
+        self.member = User.objects.create_user(email='plain-member@example.com', password='pass')
+        member_role = OrganizationRole.objects.create(
+            organization=self.org, name='Member', permissions=[OrganizationPermission.CREATE_CAMPAIGN],
+        )
+        OrganizationMembership.objects.create(user=self.member, organization=self.org, role=member_role)
+
+    def test_plain_member_cannot_submit_a_change_request(self):
+        self.client.force_authenticate(user=self.member)
+        response = self.client.post(reverse('organization-change-request-submit'), {
+            'organization_id': str(self.org.id), 'field_name': 'phone_2', 'proposed_value': '7001234',
+        })
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertFalse(self.org.change_requests.exists())
+
+    def test_plain_member_cannot_submit_a_recovery_email_change_either(self):
+        # The self-confirming (no admin review) path is exactly the one a
+        # low-permission member could otherwise use to redirect the org's
+        # own recovery channel to an inbox they control.
+        self.client.force_authenticate(user=self.member)
+        response = self.client.post(reverse('organization-change-request-submit'), {
+            'organization_id': str(self.org.id), 'field_name': 'recovery_email_1', 'proposed_value': 'member-controlled@example.com',
+        })
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_owner_can_still_submit_a_change_request(self):
+        self.client.force_authenticate(user=self.owner)
+        response = self.client.post(reverse('organization-change-request-submit'), {
+            'organization_id': str(self.org.id), 'field_name': 'phone_2', 'proposed_value': '7001234',
+        })
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_member_granted_manage_organization_can_submit(self):
+        member_role = self.member.organization_memberships.get(organization=self.org).role
+        member_role.permissions = [OrganizationPermission.MANAGE_ORGANIZATION]
+        member_role.save()
+        self.client.force_authenticate(user=self.member)
+        response = self.client.post(reverse('organization-change-request-submit'), {
+            'organization_id': str(self.org.id), 'field_name': 'phone_2', 'proposed_value': '7001234',
+        })
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+
+class OwnerRoleBackfillMigrationTest(APITestCase):
+    """Regression guard for the 0004 data migration itself -- new orgs get
+    manage_organization "for free" via ALL_ORGANIZATION_PERMISSIONS at
+    creation time, but that doesn't retroactively touch an Owner role
+    created before this permission existed. Simulates that pre-migration
+    state and confirms the migration's own backfill function fixes it."""
+
+    def test_backfill_adds_manage_organization_to_existing_owner_roles(self):
+        import importlib
+        from django.apps import apps as real_apps
+        migration = importlib.import_module(
+            'apps.organizations.migrations.0004_backfill_owner_manage_organization_permission',
+        )
+
+        _, org = make_org_and_owner()
+        owner_role = org.roles.get(name='Owner')
+        owner_role.permissions = [
+            p for p in owner_role.permissions if p != OrganizationPermission.MANAGE_ORGANIZATION
+        ]
+        owner_role.save()
+
+        migration.backfill_manage_organization(real_apps, None)
+
+        owner_role.refresh_from_db()
+        self.assertIn(OrganizationPermission.MANAGE_ORGANIZATION, owner_role.permissions)

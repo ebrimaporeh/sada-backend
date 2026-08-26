@@ -9,7 +9,8 @@ from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiPara
 from permissions.base import HasResourceAccess
 from permissions.roles import Resource
 from pagination.base import StandardResultsPagination
-from services import user_service, verification_service, organization_change_service
+from services import user_service, verification_service, organization_change_service, organization_service
+from apps.organizations.permissions import OrganizationPermission
 import services.audit_service as audit_service
 from apps.audit.models import AuditLog
 from .models import User, Organization
@@ -397,6 +398,7 @@ class OrganizationChangeRequestSubmitView(APIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
         organization = get_object_or_404(Organization, pk=data.pop('organization_id'))
+        organization_service.require_permission(request.user, organization, OrganizationPermission.MANAGE_ORGANIZATION)
         change_request = organization_change_service.submit_change_request(organization, request.user, **data)
         out = OrganizationChangeRequestSerializer(change_request)
         is_email_field = change_request.field_name in organization_change_service.EMAIL_FIELDS

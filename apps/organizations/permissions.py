@@ -17,6 +17,7 @@ class OrganizationPermission(models.TextChoices):
     PAUSE_RESUME_CAMPAIGN = 'pause_resume_campaign', 'Pause/Resume Campaign'
     WITHDRAW_FUNDS = 'withdraw_funds', 'Withdraw Funds'
     MANAGE_MEMBERS = 'manage_members', 'Manage Members'
+    MANAGE_ORGANIZATION = 'manage_organization', 'Manage Organization'
 
 
 ALL_ORGANIZATION_PERMISSIONS = [choice.value for choice in OrganizationPermission]
