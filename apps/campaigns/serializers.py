@@ -84,6 +84,12 @@ class CampaignListSerializer(serializers.ModelSerializer):
     owner_is_verified = serializers.SerializerMethodField()
     progress_percent = serializers.ReadOnlyField()
     cover_image_url = serializers.SerializerMethodField()
+    # Read-only -- lets the frontend tell an org-owned campaign apart from
+    # an individual one (organization_id is null) so it can gate the
+    # edit/pause/withdraw actions on the active profile's own
+    # OrganizationMembership permissions instead of assuming owner=viewer.
+    organization_id = serializers.CharField(source='organization.id', read_only=True, default=None)
+    organization_name = serializers.CharField(source='organization.organization_name', read_only=True, default=None)
 
     class Meta:
         model = Campaign
@@ -91,7 +97,8 @@ class CampaignListSerializer(serializers.ModelSerializer):
             'id', 'title', 'slug', 'short_description', 'cover_image_url',
             'goal', 'raised', 'currency', 'donors_count', 'progress_percent',
             'deadline', 'status', 'region', 'is_urgent', 'is_featured',
-            'category_name', 'category_slug', 'owner_id', 'owner_name', 'owner_is_verified', 'created_at',
+            'category_name', 'category_slug', 'owner_id', 'owner_name', 'owner_is_verified',
+            'organization_id', 'organization_name', 'created_at',
         ]
 
     def get_owner_id(self, obj):
@@ -127,6 +134,10 @@ class CampaignDetailSerializer(serializers.ModelSerializer):
     cover_image_url = serializers.SerializerMethodField()
     total_withdrawn = serializers.SerializerMethodField()
     available_balance = serializers.SerializerMethodField()
+    # See CampaignListSerializer's organization_id for why this is read-only
+    # and separate from the write-only organization_id on CampaignCreateSerializer.
+    organization_id = serializers.CharField(source='organization.id', read_only=True, default=None)
+    organization_name = serializers.CharField(source='organization.organization_name', read_only=True, default=None)
 
     class Meta:
         model = Campaign
@@ -137,6 +148,7 @@ class CampaignDetailSerializer(serializers.ModelSerializer):
             'beneficiary', 'beneficiary_relationship',
             'is_urgent', 'is_featured', 'is_anonymous',
             'category', 'images', 'updates', 'owner_id', 'owner_name', 'owner_is_verified',
+            'organization_id', 'organization_name',
             'total_withdrawn', 'available_balance',
             'approved_at', 'created_at', 'updated_at',
         ]
@@ -187,13 +199,17 @@ class CampaignCreateSerializer(serializers.ModelSerializer):
         required=False,
         allow_null=True,
     )
+    # Not model-reflected: the view resolves this to a real Organization
+    # and checks create_campaign permission before ever calling the service
+    # layer -- see CampaignCreateView.
+    organization_id = serializers.UUIDField(write_only=True, required=False, allow_null=True)
 
     class Meta:
         model = Campaign
         fields = [
             'title', 'short_description', 'story', 'goal', 'deadline',
             'region', 'beneficiary', 'beneficiary_relationship',
-            'is_urgent', 'is_anonymous', 'category_id', 'category',
+            'is_urgent', 'is_anonymous', 'category_id', 'category', 'organization_id',
         ]
 
     def validate(self, data):

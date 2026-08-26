@@ -50,9 +50,25 @@ class Campaign(BaseModel):
         JANJANBUREH = 'janjanbureh', 'Janjanbureh'
         BASSE = 'basse', 'Basse'
 
+    # The individual who created this campaign -- always set, individual-
+    # owned or not. Kept as-is (not renamed) so every existing owner_id/
+    # owner_name/owner_email serializer field and admin/email call site
+    # needs no change: an individual-owned campaign is organization=None
+    # and behaves exactly as before this field existed.
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
+        related_name='campaigns',
+    )
+    # Set only when this campaign belongs to an organization -- when set,
+    # "who can edit/pause/delete/withdraw" is resolved via the acting
+    # user's OrganizationMembership + role permissions instead of
+    # owner==request.user (see campaign_service.get_owner_campaign(s)).
+    organization = models.ForeignKey(
+        'users.Organization',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name='campaigns',
     )
     category = models.ForeignKey(

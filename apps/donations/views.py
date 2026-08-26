@@ -27,7 +27,7 @@ class DonationCreateView(APIView):
         serializer = DonationCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         donor = request.user if request.user.is_authenticated else None
-        donation, payment_link = donation_service.create_donation(donor, serializer.validated_data)
+        donation, payment_link, error_message = donation_service.create_donation(donor, serializer.validated_data)
         out = DonationSerializer(donation)
 
         # A real Donation row was persisted either way (even a gateway
@@ -47,6 +47,13 @@ class DonationCreateView(APIView):
         )
 
         if payment_link is None:
+            # A specific error_message means the gateway rejected something
+            # the donor can actually fix (e.g. amount over its limit) --
+            # tell them what it was instead of a generic "try again" that
+            # would just fail identically on retry. No message means a
+            # genuine gateway/network failure, kept as 502.
+            if error_message:
+                return donation_service.error_response(error_message, status_code=status.HTTP_400_BAD_REQUEST)
             return donation_service.error_response(
                 'Could not start payment. Please try again.',
                 status_code=status.HTTP_502_BAD_GATEWAY,

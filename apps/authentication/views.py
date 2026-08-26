@@ -175,7 +175,7 @@ class GoogleOAuthView(APIView):
         google_data = verify_google_token(id_token_str)
 
         # Get or create user
-        user, created = get_or_create_google_user(google_data, account_type=serializer.validated_data.get('account_type'))
+        user, created = get_or_create_google_user(google_data)
         if created:
             # A brand-new account, not a returning user logging back in --
             # the signup page's Google button is gated behind the same

@@ -66,7 +66,9 @@ class PlatformSettingsSerializer(serializers.ModelSerializer):
         model = PlatformSettings
         fields = [
             'platform_fee_percent', 'modempay_enabled', 'wave_enabled', 'aps_enabled', 'afrimoney_enabled',
+            'modempay_min_donation_amount', 'modempay_max_donation_amount',
             'stripe_enabled', 'stripe_settlement_currency', 'gmd_to_settlement_rate',
+            'stripe_min_donation_amount', 'stripe_max_donation_amount',
         ]
 
     def validate_platform_fee_percent(self, value):
@@ -78,6 +80,28 @@ class PlatformSettingsSerializer(serializers.ModelSerializer):
         if value <= 0:
             raise serializers.ValidationError('Exchange rate must be positive.')
         return value
+
+    def _validate_donation_range(self, min_value, max_value, label):
+        if min_value <= 0:
+            raise serializers.ValidationError(f'{label} minimum donation must be greater than zero.')
+        if max_value <= min_value:
+            raise serializers.ValidationError(f'{label} maximum donation must be greater than its minimum.')
+
+    def validate(self, data):
+        # partial=True (the only way this serializer is ever saved -- see
+        # PlatformSettingsView.patch) means a field an admin didn't touch
+        # this request is simply absent from `data`, not None -- fall back
+        # to the existing stored value so a same-gateway min/max pair is
+        # always compared together, not a new min against a stale instance
+        # max (or vice versa).
+        instance = self.instance
+        for code in ('modempay', 'stripe'):
+            min_key, max_key = f'{code}_min_donation_amount', f'{code}_max_donation_amount'
+            min_value = data.get(min_key, getattr(instance, min_key, None))
+            max_value = data.get(max_key, getattr(instance, max_key, None))
+            if min_value is not None and max_value is not None:
+                self._validate_donation_range(min_value, max_value, code.capitalize())
+        return data
 
     def validate_stripe_enabled(self, value):
         from django.conf import settings

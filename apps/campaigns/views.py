@@ -20,6 +20,7 @@ import services.events_service as events_service
 import services.consent_service as consent_service
 from apps.audit.models import AuditLog
 from apps.events.models import Event
+from apps.organizations.permissions import OrganizationPermission
 
 
 class CategoryListView(APIView):
@@ -234,10 +235,22 @@ class CampaignCreateView(APIView):
     def post(self, request):
         serializer = CampaignCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        campaign = campaign_service.create_campaign(request.user, serializer.validated_data)
+        data = serializer.validated_data
+        organization_id = data.pop('organization_id', None)
+        organization = None
+        if organization_id:
+            from django.shortcuts import get_object_or_404
+            from apps.users.models import Organization
+            from apps.organizations.permissions import OrganizationPermission
+            import services.organization_service as organization_service
+            organization = get_object_or_404(Organization, pk=organization_id)
+            organization_service.require_permission(request.user, organization, OrganizationPermission.CREATE_CAMPAIGN)
+
+        campaign = campaign_service.create_campaign(request.user, data, organization=organization)
         audit_service.log(
             request.user, AuditLog.Action.CAMPAIGN_CREATED, campaign,
-            f'{request.user.full_name} created campaign "{campaign.title}"',
+            f'{request.user.full_name} created campaign "{campaign.title}"'
+            + (f' for "{organization.organization_name}"' if organization else ''),
         )
         out = CampaignDetailSerializer(campaign, context={'request': request})
         return campaign_service.success_response({'campaign': out.data}, status_code=status.HTTP_201_CREATED)
@@ -264,21 +277,26 @@ class MyCampaignDetailView(APIView):
 
     @extend_schema(summary='Update my campaign', request=CampaignCreateSerializer)
     def patch(self, request, slug):
-        campaign = campaign_service.get_owner_campaign(request.user, slug)
+        campaign = campaign_service.get_owner_campaign(request.user, slug, required_permission=OrganizationPermission.EDIT_CAMPAIGN)
         serializer = CampaignCreateSerializer(campaign, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
-        updated = campaign_service.update_campaign(campaign, serializer.validated_data)
+        data = serializer.validated_data
+        # Which organization a campaign belongs to is set once, at creation
+        # (see CampaignCreateView) -- never reassignable through a plain
+        # edit, which would bypass the create_campaign permission check.
+        data.pop('organization_id', None)
+        updated = campaign_service.update_campaign(campaign, data)
         audit_service.log(
             request.user, AuditLog.Action.CAMPAIGN_UPDATED, updated,
             f'{request.user.full_name} updated campaign "{updated.title}"',
-            metadata={'fields': list(serializer.validated_data.keys())},
+            metadata={'fields': list(data.keys())},
         )
         out = CampaignDetailSerializer(updated, context={'request': request})
         return campaign_service.success_response({'campaign': out.data})
 
     @extend_schema(summary='Delete my campaign')
     def delete(self, request, slug):
-        campaign = campaign_service.get_owner_campaign(request.user, slug)
+        campaign = campaign_service.get_owner_campaign(request.user, slug, required_permission=OrganizationPermission.DELETE_CAMPAIGN)
         # Captured before delete() runs -- Django clears campaign.pk once the
         # row is actually gone, and the audit entry needs the real id/title.
         title, campaign_id = campaign.title, campaign.pk
@@ -308,7 +326,7 @@ class MyCampaignUploadCoverView(APIView):
 
     @extend_schema(summary='Upload campaign cover image')
     def post(self, request, slug):
-        campaign = campaign_service.get_owner_campaign(request.user, slug)
+        campaign = campaign_service.get_owner_campaign(request.user, slug, required_permission=OrganizationPermission.EDIT_CAMPAIGN)
         campaign = campaign_service.upload_cover(campaign, request.FILES.get('cover_image'))
         serializer = CampaignDetailSerializer(campaign, context={'request': request})
         return campaign_service.success_response({'campaign': serializer.data})
@@ -319,7 +337,7 @@ class CampaignMediaView(APIView):
 
     @extend_schema(summary='Upload cover and/or gallery images for my campaign')
     def post(self, request, slug):
-        campaign = campaign_service.get_owner_campaign(request.user, slug)
+        campaign = campaign_service.get_owner_campaign(request.user, slug, required_permission=OrganizationPermission.EDIT_CAMPAIGN)
         cover = request.FILES.get('cover')
         gallery = request.FILES.getlist('gallery')
         campaign = campaign_service.update_campaign_media(
@@ -346,7 +364,7 @@ class CampaignUpdateListCreateView(APIView):
 
     @extend_schema(summary='Add a campaign update', request=CampaignUpdateCreateSerializer)
     def post(self, request, slug):
-        campaign = campaign_service.get_owner_campaign(request.user, slug)
+        campaign = campaign_service.get_owner_campaign(request.user, slug, required_permission=OrganizationPermission.EDIT_CAMPAIGN)
         serializer = CampaignUpdateCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -366,7 +384,7 @@ class CampaignUpdateDetailView(APIView):
 
     @extend_schema(summary='Update a campaign update')
     def patch(self, request, slug, update_id):
-        campaign = campaign_service.get_owner_campaign(request.user, slug)
+        campaign = campaign_service.get_owner_campaign(request.user, slug, required_permission=OrganizationPermission.EDIT_CAMPAIGN)
         update = campaign_service.update_campaign_update(
             campaign, update_id, request.user,
             title=request.data.get('title'),
@@ -379,7 +397,7 @@ class CampaignUpdateDetailView(APIView):
 
     @extend_schema(summary='Delete a campaign update')
     def delete(self, request, slug, update_id):
-        campaign = campaign_service.get_owner_campaign(request.user, slug)
+        campaign = campaign_service.get_owner_campaign(request.user, slug, required_permission=OrganizationPermission.EDIT_CAMPAIGN)
         campaign_service.delete_campaign_update(campaign, update_id, request.user)
         return campaign_service.success_response({}, message='Update deleted.')
 

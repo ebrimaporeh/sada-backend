@@ -30,27 +30,20 @@ def get_user_stats() -> dict:
     return {'total_users': User.objects.count()}
 
 
-ORGANIZATION_PROFILE_FIELDS = {
-    'organization_name', 'organization_type', 'contact_person_name',
-    'phone_2', 'recovery_email_1', 'recovery_email_2',
-}
-
-
 @transaction.atomic
 def create_user(email: str, password: str, **kwargs) -> User:
+    """Every registration creates an individual account -- an organization
+    is no longer something you register *as*, it's something an individual
+    creates/joins afterward (see apps.organizations). `account_type` stays
+    on User for now (see apps.users.models.User.AccountType docstring) but
+    is never set to ORGANIZATION here, and this function no longer accepts
+    or does anything with organization-profile fields."""
     if User.objects.filter(email=email.lower()).exists():
         raise ValidationError('A user with this email already exists.')
-
-    # These belong to the Organization profile, not the User model itself.
-    org_data = {f: kwargs.pop(f) for f in list(kwargs) if f in ORGANIZATION_PROFILE_FIELDS}
 
     user = User(email=email.lower(), **kwargs)
     user.set_password(password)
     user.save()
-
-    if user.account_type == User.AccountType.ORGANIZATION:
-        from apps.users.models import Organization
-        Organization.objects.create(user=user, **org_data)
 
     return user
 
@@ -137,7 +130,32 @@ def _anonymize_account(user: User, *, reset_role: bool = False) -> None:
     only relevant for admin-initiated deletes of a staff member; a
     self-deleting user is never staff in practice, and delete_own_account
     doesn't need this.
+
+    Deleting a user only removes *their own* OrganizationMembership rows --
+    an organization an account belongs to is never renamed/scrubbed just
+    because one member's account was deleted, since other members may still
+    be actively using it. Organization verification submissions
+    (organization_verification_requests) are likewise left alone even
+    though this user submitted them -- that's the org's own verification
+    record now, not the departing individual's, same reasoning as why
+    campaigns/donations survive account deletion. Blocked outright if this
+    user is the sole Owner-role holder of an organization that still has
+    other members (see OrganizationMembership's docstring on the "exactly
+    one Owner" invariant) -- transfer ownership first. An org left with
+    zero members entirely (this user was its only one) is an acceptable
+    launch-phase edge case, not something this guards against.
     """
+    from services.organization_service import _blocks_sole_owner_departure
+    blocking_orgs = [
+        m.organization for m in user.organization_memberships.select_related('organization', 'role').all()
+        if _blocks_sole_owner_departure(m)
+    ]
+    if blocking_orgs:
+        names = ', '.join(o.organization_name for o in blocking_orgs)
+        raise ValidationError(
+            f'Transfer ownership of {names} to another member before deleting this account.'
+        )
+
     with transaction.atomic():
         if user.avatar:
             user.avatar.delete(save=False)
@@ -148,25 +166,10 @@ def _anonymize_account(user: User, *, reset_role: bool = False) -> None:
                     field.delete(save=False)
         user.verification_requests.all().delete()
 
-        for verification in user.organization_verification_requests.all():
-            for field in (
-                verification.contact_id_photo_front, verification.contact_id_photo_back,
-                verification.registration_document, verification.organization_photo,
-            ):
-                if field:
-                    field.delete(save=False)
-        user.organization_verification_requests.all().delete()
-
-        if user.is_organization and hasattr(user, 'organization'):
-            org = user.organization
-            if org.logo:
-                org.logo.delete(save=False)
-            org.organization_name = f'Deleted Organization {user.id}'
-            org.contact_person_name = ''
-            org.phone_2 = ''
-            org.recovery_email_1 = ''
-            org.recovery_email_2 = ''
-            org.save()
+        # Leaves every organization this user belonged to -- the org itself
+        # (and its verification/change-request history) is untouched, see
+        # this function's docstring.
+        user.organization_memberships.all().delete()
 
         user.email = f'deleted-{user.id}@deleted.sada.gm'
         user.first_name = 'Deleted'
@@ -248,19 +251,16 @@ def upload_avatar(user: User, image_file) -> User:
     return user
 
 
-def upload_organization_logo(user: User, image_file):
+def upload_organization_logo(organization, image_file):
     """Admin-only direct logo set — bypasses the normal path (copied from
     OrganizationVerification.organization_photo on approval) for cases like
     fixing/seeding an org's branding without a full re-verification cycle."""
-    if not user.is_organization or not hasattr(user, 'organization'):
-        raise ValidationError('This user does not have an organization profile.')
     if not image_file:
         raise ValueError('No image provided.')
     from services.image_compression import process_image
-    org = user.organization
-    org.logo = process_image(image_file, profile='avatar')
-    org.save(update_fields=['logo'])
-    return org
+    organization.logo = process_image(image_file, profile='avatar')
+    organization.save(update_fields=['logo'])
+    return organization
 
 
 def admin_update_user(user: User, requesting_user: User, **data) -> User:
@@ -296,7 +296,7 @@ def get_regular_users(filters: dict = None) -> 'QuerySet[User]':
     """Everyone who isn't staff — the audience for the admin Users page.
     Excludes deleted accounts permanently (see User.is_deleted) -- they're
     kept in the DB for financial record-keeping, not to clutter this list."""
-    qs = User.objects.exclude(role__in=staff_roles()).filter(is_deleted=False).select_related('organization')
+    qs = User.objects.exclude(role__in=staff_roles()).filter(is_deleted=False)
     if filters:
         filters = dict(filters)
         search = filters.pop('search', None)
@@ -305,8 +305,8 @@ def get_regular_users(filters: dict = None) -> 'QuerySet[User]':
         if search:
             qs = qs.filter(
                 Q(first_name__icontains=search) | Q(last_name__icontains=search)
-                | Q(email__icontains=search) | Q(organization__organization_name__icontains=search)
-            )
+                | Q(email__icontains=search) | Q(organization_memberships__organization__organization_name__icontains=search)
+            ).distinct()
     return qs
 
 

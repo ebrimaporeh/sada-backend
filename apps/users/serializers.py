@@ -6,13 +6,14 @@ class OrganizationSerializer(serializers.ModelSerializer):
     """Read-only for now — organization_name/organization_type are tied to
     what was (or will be) verified, so editing them post-registration is
     deliberately out of scope until the verification flow exists."""
+    organization_type = serializers.CharField(source='organization_type.slug', read_only=True)
     logo = serializers.SerializerMethodField()
 
     class Meta:
         model = Organization
         fields = [
-            'organization_name', 'organization_type', 'contact_person_name',
-            'phone_2', 'recovery_email_1', 'recovery_email_2', 'logo',
+            'id', 'organization_name', 'organization_type',
+            'phone', 'phone_2', 'recovery_email_1', 'recovery_email_2', 'logo', 'is_verified',
         ]
 
     def get_logo(self, obj):
@@ -28,14 +29,14 @@ class UserSerializer(serializers.ModelSerializer):
     is_google_linked = serializers.ReadOnlyField()
     avatar = serializers.SerializerMethodField()
     has_usable_password = serializers.SerializerMethodField()
-    organization = serializers.SerializerMethodField()
+    organizations = serializers.SerializerMethodField()
     resources = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = [
             'id', 'email', 'first_name', 'last_name', 'full_name',
-            'role', 'account_type', 'organization', 'avatar', 'phone', 'bio', 'region',
+            'role', 'account_type', 'organizations', 'avatar', 'phone', 'bio', 'region',
             'default_payment_provider', 'default_payment_phone',
             'email_verified', 'is_verified', 'is_moderator', 'created_at',
             'show_total_raised',
@@ -63,11 +64,22 @@ class UserSerializer(serializers.ModelSerializer):
         from permissions.roles import get_user_resources
         return sorted(get_user_resources(obj))
 
-    def get_organization(self, obj):
-        org = getattr(obj, 'organization', None)
-        if org is None:
-            return None
-        return OrganizationSerializer(org, context=self.context).data
+    def get_organizations(self, obj):
+        # Every organization this user is currently a member of -- a user
+        # can belong to several now, see User.organizations. Each entry
+        # also carries the member's role/permissions within that org, for
+        # the frontend's profile switcher (mirrors the shape of `resources`
+        # above: server-computed, not something the client derives itself).
+        from apps.organizations.models import OrganizationMembership
+        memberships = OrganizationMembership.objects.filter(user=obj).select_related('organization', 'role')
+        return [
+            {
+                **OrganizationSerializer(m.organization, context=self.context).data,
+                'role': m.role.name,
+                'permissions': m.role.permissions,
+            }
+            for m in memberships
+        ]
 
 
 class UserUpdateSerializer(serializers.ModelSerializer):
@@ -94,13 +106,13 @@ class DeleteAccountSerializer(serializers.Serializer):
 class AdminUserSerializer(serializers.ModelSerializer):
     full_name = serializers.ReadOnlyField()
     avatar = serializers.SerializerMethodField()
-    organization = serializers.SerializerMethodField()
+    organizations = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = [
             'id', 'email', 'first_name', 'last_name', 'full_name',
-            'role', 'account_type', 'organization', 'avatar', 'phone', 'bio', 'region',
+            'role', 'account_type', 'organizations', 'avatar', 'phone', 'bio', 'region',
             'default_payment_provider', 'default_payment_phone',
             'is_active', 'email_verified', 'is_verified',
             'notify_donations_received', 'notify_campaign_approved', 'notify_campaign_rejected',
@@ -115,27 +127,37 @@ class AdminUserSerializer(serializers.ModelSerializer):
             return request.build_absolute_uri(obj.avatar.url)
         return None
 
-    def get_organization(self, obj):
-        org = getattr(obj, 'organization', None)
-        if org is None:
-            return None
-        return OrganizationSerializer(org, context=self.context).data
+    def get_organizations(self, obj):
+        from apps.organizations.models import OrganizationMembership
+        memberships = OrganizationMembership.objects.filter(user=obj).select_related('organization', 'role')
+        return [
+            {
+                **OrganizationSerializer(m.organization, context=self.context).data,
+                'role': m.role.name,
+                'permissions': m.role.permissions,
+            }
+            for m in memberships
+        ]
 
 
 class AdminUserListSerializer(serializers.ModelSerializer):
     """Lean projection for the admin Campaigners table (UserListView) --
-    that table only ever renders name/email/status/verification/joined (+
-    org type on the Organizations tab), not the full profile AdminUserSerializer
-    carries (bio, payment defaults, every notification preference, ...).
-    Same reasoning as AdminCampaignListSerializer for the campaigns table.
-    UserDetailView (the full profile page) still uses AdminUserSerializer --
-    this is list-only."""
+    that table only ever renders name/email/status/verification/joined, not
+    the full profile AdminUserSerializer carries (bio, payment defaults,
+    every notification preference, ...). Same reasoning as
+    AdminCampaignListSerializer for the campaigns table. UserDetailView (the
+    full profile page) still uses AdminUserSerializer -- this is list-only.
+
+    No organization_type here -- a user can belong to zero, one, or several
+    organizations now (see apps.organizations), so "this user's org type"
+    isn't a coherent per-user field any more. The admin Organizations tab is
+    its own Organization-backed list (AdminOrganizationListView), not a
+    filter on this one -- see apps.organizations.views."""
     full_name = serializers.ReadOnlyField()
-    organization_type = serializers.CharField(source='organization.organization_type', read_only=True, default=None)
 
     class Meta:
         model = User
-        fields = ['id', 'full_name', 'email', 'organization_type', 'is_active', 'is_verified', 'created_at']
+        fields = ['id', 'full_name', 'email', 'is_active', 'is_verified', 'created_at']
 
 
 class AdminUserCreateSerializer(serializers.ModelSerializer):
@@ -244,36 +266,30 @@ class IdentityVerificationSerializer(serializers.ModelSerializer):
 
 
 class OrganizationVerificationCreateSerializer(serializers.ModelSerializer):
+    # Not model-reflected: a submitter can belong to several orgs, so which
+    # one this targets has to be explicit (see OrganizationVerificationSubmitView).
+    organization_id = serializers.UUIDField()
+
     class Meta:
         model = OrganizationVerification
-        fields = [
-            'contact_id_type', 'contact_id_number', 'contact_id_photo_front', 'contact_id_photo_back',
-            'registration_document', 'organization_photo',
-        ]
-
-    def validate(self, data):
-        if data.get('contact_id_type') != OrganizationVerification.IdType.PASSPORT and not data.get('contact_id_photo_back'):
-            raise serializers.ValidationError({'contact_id_photo_back': 'Back photo is required for this ID type.'})
-        return data
+        fields = ['organization_id', 'registration_number', 'registration_document', 'organization_photo']
 
 
 class OrganizationVerificationSerializer(serializers.ModelSerializer):
-    user_id = serializers.CharField(source='user.id', read_only=True)
-    user_name = serializers.CharField(source='user.full_name', read_only=True)
-    user_email = serializers.CharField(source='user.email', read_only=True)
-    organization_type = serializers.CharField(source='user.organization.organization_type', read_only=True)
+    organization_id = serializers.CharField(source='organization.id', read_only=True)
+    organization_name = serializers.CharField(source='organization.organization_name', read_only=True)
+    organization_type = serializers.CharField(source='organization.organization_type.slug', read_only=True)
+    submitted_by_name = serializers.CharField(source='submitted_by.full_name', read_only=True)
+    submitted_by_email = serializers.CharField(source='submitted_by.email', read_only=True)
     reviewed_by_name = serializers.SerializerMethodField()
-    contact_id_photo_front = serializers.SerializerMethodField()
-    contact_id_photo_back = serializers.SerializerMethodField()
     registration_document = serializers.SerializerMethodField()
     organization_photo = serializers.SerializerMethodField()
 
     class Meta:
         model = OrganizationVerification
         fields = [
-            'id', 'user_id', 'user_name', 'user_email', 'organization_type',
-            'contact_id_type', 'contact_id_number', 'contact_id_photo_front', 'contact_id_photo_back',
-            'registration_document', 'organization_photo',
+            'id', 'organization_id', 'organization_name', 'organization_type', 'submitted_by_name', 'submitted_by_email',
+            'registration_number', 'registration_document', 'organization_photo',
             'status', 'rejection_reason', 'reviewed_by_name', 'reviewed_at', 'created_at',
         ]
 
@@ -286,12 +302,6 @@ class OrganizationVerificationSerializer(serializers.ModelSerializer):
             return request.build_absolute_uri(field.url)
         return None
 
-    def get_contact_id_photo_front(self, obj):
-        return self._absolute_url(obj.contact_id_photo_front)
-
-    def get_contact_id_photo_back(self, obj):
-        return self._absolute_url(obj.contact_id_photo_back)
-
     def get_registration_document(self, obj):
         return self._absolute_url(obj.registration_document)
 
@@ -300,9 +310,15 @@ class OrganizationVerificationSerializer(serializers.ModelSerializer):
 
 
 class OrganizationChangeRequestCreateSerializer(serializers.ModelSerializer):
+    # Not model-reflected on purpose: a User can belong to several orgs now,
+    # so which one this targets has to be explicit -- see
+    # OrganizationChangeRequestSubmitView, which resolves the actual
+    # Organization instance from this id.
+    organization_id = serializers.UUIDField()
+
     class Meta:
         model = OrganizationChangeRequest
-        fields = ['field_name', 'proposed_value']
+        fields = ['organization_id', 'field_name', 'proposed_value']
 
     def validate(self, data):
         value = data.get('proposed_value', '').strip()
@@ -325,16 +341,17 @@ class OrganizationChangeRequestCreateSerializer(serializers.ModelSerializer):
 
 
 class OrganizationChangeRequestSerializer(serializers.ModelSerializer):
-    user_id = serializers.CharField(source='user.id', read_only=True)
-    user_name = serializers.CharField(source='user.full_name', read_only=True)
-    user_email = serializers.CharField(source='user.email', read_only=True)
+    organization_id = serializers.CharField(source='organization.id', read_only=True)
+    organization_name = serializers.CharField(source='organization.organization_name', read_only=True)
+    submitted_by_name = serializers.CharField(source='submitted_by.full_name', read_only=True)
+    submitted_by_email = serializers.CharField(source='submitted_by.email', read_only=True)
     field_label = serializers.CharField(source='get_field_name_display', read_only=True)
     reviewed_by_name = serializers.SerializerMethodField()
 
     class Meta:
         model = OrganizationChangeRequest
         fields = [
-            'id', 'user_id', 'user_name', 'user_email',
+            'id', 'organization_id', 'organization_name', 'submitted_by_name', 'submitted_by_email',
             'field_name', 'field_label', 'current_value', 'proposed_value',
             'status', 'rejection_reason', 'reviewed_by_name', 'reviewed_at', 'created_at',
         ]

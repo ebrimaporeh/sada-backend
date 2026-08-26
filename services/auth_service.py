@@ -126,13 +126,18 @@ def request_password_reset(email: str) -> None:
         user = User.objects.get(email__iexact=email)
         send_to = user.email
     except User.DoesNotExist:
+        # An org can have several members now -- resets the current
+        # Owner-role member's password (the closest equivalent to "regain
+        # access to the org account" under the membership model), not an
+        # arbitrary/every member.
         from apps.users.models import Organization
         org = Organization.objects.filter(
             Q(recovery_email_1__iexact=email) | Q(recovery_email_2__iexact=email)
-        ).select_related('user').first()
-        if org is None:
+        ).first()
+        owner_membership = org.memberships.filter(role__name='Owner').select_related('user').first() if org else None
+        if owner_membership is None:
             raise ValidationError(not_found_message)
-        user = org.user
+        user = owner_membership.user
         send_to = email
 
     if not user.eligible_for_reset():

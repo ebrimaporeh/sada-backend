@@ -160,16 +160,41 @@ def record_view(slug):
 
 
 def get_owner_campaigns(user):
+    """Every campaign this user can manage: their own individual campaigns
+    (organization=None), plus every campaign belonging to an organization
+    they're a member of -- not just ones they personally created. Name kept
+    for compat with existing call sites; "owner" now really means "has
+    access to manage," see get_owner_campaign's required_permission for how
+    specific *actions* are gated beyond that."""
+    from django.db.models import Q
     from apps.campaigns.models import Campaign
-    return Campaign.objects.filter(owner=user).select_related('category').order_by('-created_at')
+    from apps.organizations.models import OrganizationMembership
+    org_ids = OrganizationMembership.objects.filter(user=user).values_list('organization_id', flat=True)
+    return Campaign.objects.filter(
+        Q(owner=user, organization__isnull=True) | Q(organization_id__in=org_ids)
+    ).select_related('category').order_by('-created_at')
 
 
-def get_owner_campaign(user, slug):
+def get_owner_campaign(user, slug, required_permission=None):
+    """Fetches a campaign this user can act on. Individual campaign
+    (organization=None): only the creator (`owner`) qualifies, full stop --
+    required_permission is irrelevant there, identical to the pre-org-model
+    behavior. Org-owned campaign: the acting user must currently be a
+    member, and if required_permission is given (one of
+    apps.organizations.permissions.OrganizationPermission), their role must
+    grant it -- otherwise PermissionDenied, distinct from "campaign doesn't
+    exist/isn't yours" (Http404), so the frontend can tell a member "you
+    don't have permission" instead of a confusing not-found.
+    """
     from apps.campaigns.models import Campaign
-    return get_object_or_404(Campaign, owner=user, slug=slug)
+    from services.organization_service import check_campaign_access
+
+    campaign = get_object_or_404(Campaign, slug=slug)
+    check_campaign_access(user, campaign, required_permission)
+    return campaign
 
 
-def create_campaign(user, validated_data):
+def create_campaign(user, validated_data, organization=None):
     from apps.campaigns.models import Campaign, Category
     category_id = validated_data.pop('category_id', None)
     category = None
@@ -178,6 +203,7 @@ def create_campaign(user, validated_data):
 
     campaign = Campaign.objects.create(
         owner=user,
+        organization=organization,
         category=category,
         status=Campaign.Status.ACTIVE,
         approved_at=timezone.now(),
@@ -200,8 +226,8 @@ def update_campaign(campaign, validated_data):
 
 def toggle_pause_campaign(user, slug):
     from apps.campaigns.models import Campaign
-    from django.shortcuts import get_object_or_404
-    campaign = get_object_or_404(Campaign, owner=user, slug=slug)
+    from apps.organizations.permissions import OrganizationPermission
+    campaign = get_owner_campaign(user, slug, required_permission=OrganizationPermission.PAUSE_RESUME_CAMPAIGN)
     if campaign.status == Campaign.Status.ACTIVE:
         campaign.status = Campaign.Status.SUSPENDED
     elif campaign.status == Campaign.Status.SUSPENDED:
@@ -264,7 +290,8 @@ def update_campaign_media(campaign, cover_file=None, gallery_files=None):
 
 def delete_campaign_image(user, slug, image_id):
     from apps.campaigns.models import Campaign, CampaignImage
-    campaign = get_object_or_404(Campaign, owner=user, slug=slug)
+    from apps.organizations.permissions import OrganizationPermission
+    campaign = get_owner_campaign(user, slug, required_permission=OrganizationPermission.EDIT_CAMPAIGN)
     image = get_object_or_404(CampaignImage, pk=image_id, campaign=campaign)
     image.delete()
     return get_object_or_404(
@@ -403,6 +430,9 @@ def get_all_campaigns(params=None):
         owner_id = params.get('owner')
         if owner_id:
             qs = qs.filter(owner_id=owner_id)
+        organization_id = params.get('organization')
+        if organization_id:
+            qs = qs.filter(organization_id=organization_id)
         q = params.get('search')
         if q:
             qs = qs.filter(

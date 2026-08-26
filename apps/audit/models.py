@@ -42,6 +42,11 @@ class AuditLog(BaseModel):
         PAYMENT_REFUNDED = 'payment.refunded', 'Refunded Payment'
         PAYOUT_REQUESTED = 'payout.requested', 'Requested Payout'
         PAYOUT_STATUS_CHANGED = 'payout.status_changed', 'Payout Status Changed'
+        # Organizations
+        ORGANIZATION_CREATED = 'organization.created', 'Created Organization'
+        ORGANIZATION_OWNERSHIP_TRANSFERRED = 'organization.ownership_transferred', 'Transferred Ownership'
+        ORGANIZATION_MEMBER_REMOVED = 'organization.member_removed', 'Removed Member'
+        ORGANIZATION_MEMBER_ROLE_CHANGED = 'organization.member_role_changed', "Changed Member's Role"
 
     # The short verb shown as this action's badge in the activity list --
     # e.g. "created"/"updated"/"deleted" -- separate from the full sentence
@@ -69,6 +74,10 @@ class AuditLog(BaseModel):
         Action.PAYMENT_REFUNDED: 'refunded',
         Action.PAYOUT_REQUESTED: 'requested',
         Action.PAYOUT_STATUS_CHANGED: 'updated',
+        Action.ORGANIZATION_CREATED: 'created',
+        Action.ORGANIZATION_OWNERSHIP_TRANSFERRED: 'updated',
+        Action.ORGANIZATION_MEMBER_REMOVED: 'removed',
+        Action.ORGANIZATION_MEMBER_ROLE_CHANGED: 'updated',
     }
 
     # SET_NULL + denormalized name/email: self-service account deletion

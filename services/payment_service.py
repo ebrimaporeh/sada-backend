@@ -7,6 +7,7 @@ from django.utils import timezone
 from django.db import transaction
 from django.db.models import Sum
 from django.shortcuts import get_object_or_404
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.exceptions import ValidationError
@@ -30,13 +31,14 @@ def list_enabled_gateways():
     copy of "which providers exist," so an admin flipping a gateway on/off
     in Settings is immediately reflected in the donation/payout UI with no
     frontend deploy needed."""
-    from services.gateways.registry import GATEWAYS, _is_enabled
+    from services.gateways.registry import GATEWAYS, _is_enabled, donation_amount_limits
 
     result = []
     for code in GATEWAYS:
         if not _is_enabled(code):
             continue
         gateway = get_gateway(code)
+        min_amount, max_amount = donation_amount_limits(code)
         entry = {
             'code': gateway.code,
             'supports_payouts': gateway.supports_payouts,
@@ -44,6 +46,11 @@ def list_enabled_gateways():
             'default_method': gateway.default_method,
             'donation_methods': sorted(gateway.supported_donation_methods),
             'payout_methods': sorted(gateway.supported_payout_methods),
+            # Admin-configurable (PlatformSettings) -- lets the donation
+            # form validate against the real, current per-gateway limit
+            # instead of a hand-maintained frontend constant.
+            'min_donation_amount': min_amount,
+            'max_donation_amount': max_amount,
         }
         result.append(entry)
     return result
@@ -95,15 +102,17 @@ def request_payout(user, validated_data):
     from apps.payments.models import Payout
     from apps.notifications.models import Notification
 
+    from apps.organizations.permissions import OrganizationPermission
+    from services.organization_service import check_campaign_access
+
     campaign_id = validated_data.pop('campaign_id')
 
     # Lock the campaign row to prevent concurrent over-withdrawals
-    campaign = Campaign.objects.select_for_update().filter(
-        pk=campaign_id, owner=user
-    ).first()
+    campaign = Campaign.objects.select_for_update().filter(pk=campaign_id).first()
     if campaign is None:
         from django.http import Http404
         raise Http404('Campaign not found.')
+    check_campaign_access(user, campaign, OrganizationPermission.WITHDRAW_FUNDS)
 
     # Sum all active (non-failed, non-cancelled) payouts against this campaign
     active_statuses = [Payout.Status.PENDING, Payout.Status.PROCESSING, Payout.Status.COMPLETED]
@@ -164,20 +173,45 @@ def request_payout(user, validated_data):
     # Trigger disbursement — this is async in practice; a "completed" result
     # here (or from DEMO_MODE) is a real terminal state, otherwise ModemPay
     # confirms for real later via the transfer.succeeded/failed webhook.
-    result = get_gateway('modempay').request_disbursement(
-        reference=reference,
-        net_amount=net,
-        phone=validated_data.get('phone', ''),
-        method=validated_data.get('provider', 'wave'),
-        beneficiary_name=user.full_name,
-    )
+    try:
+        result = get_gateway('modempay').request_disbursement(
+            reference=reference,
+            net_amount=net,
+            phone=validated_data.get('phone', ''),
+            method=validated_data.get('provider', 'wave'),
+            beneficiary_name=user.full_name,
+        )
+    except DjangoValidationError as e:
+        # A 4xx ModemPay rejected the request for a reason the campaign
+        # owner can act on (e.g. amount over its transfer limit) -- store
+        # it on the payout itself (PayoutSerializer already exposes
+        # `notes`) instead of the response just saying "Failed" with no
+        # way to tell that apart from a random gateway outage. This
+        # mirrors donation_service.create_donation's 400-vs-502 split, but
+        # payout requests always return 201 with the Payout row as the
+        # source of truth (see PayoutRequestView), so the distinction
+        # lives in `notes`, not the HTTP status.
+        payout.status = Payout.Status.FAILED
+        payout.notes = e.messages[0] if e.messages else str(e)
+        payout.save()
+        Notification.objects.create(
+            user=user,
+            notification_type=Notification.Type.PAYOUT_PROCESSED,
+            title='Payout Failed',
+            message=f'Your payout of D{net} from "{campaign.title}" failed: {payout.notes}',
+            link=f'/my-campaigns/{campaign.slug}',
+        )
+        return payout
 
     if result is None:
         # request_disbursement() returned None only when no transfer was
         # ever created at ModemPay (rejected outright, or the call errored) —
         # there's no transfer to wait on, so this is a real terminal failure,
-        # not something a webhook will ever resolve.
+        # not something a webhook will ever resolve. No specific message is
+        # available here (a 4xx with one goes through the ValidationError
+        # branch above instead), so notes stays generic.
         payout.status = Payout.Status.FAILED
+        payout.notes = payout.notes or 'The payment provider could not process this withdrawal.'
     elif result.get('status') == 'completed':
         payout.provider_reference = result.get('id', '')
         payout.status = Payout.Status.COMPLETED
@@ -185,6 +219,7 @@ def request_payout(user, validated_data):
     elif result.get('status') in ('failed', 'cancelled'):
         payout.provider_reference = result.get('id', '')
         payout.status = Payout.Status.FAILED
+        payout.notes = payout.notes or 'The payment provider could not process this withdrawal.'
     else:
         # ModemPay accepted the transfer but it's still processing —
         # transfer.succeeded/transfer.failed webhook resolves it for real.
@@ -193,13 +228,26 @@ def request_payout(user, validated_data):
 
     payout.save()
 
-    Notification.objects.create(
-        user=user,
-        notification_type=Notification.Type.PAYOUT_PROCESSED,
-        title='Payout Requested',
-        message=f'Your payout of D{net} from "{campaign.title}" is being processed.',
-        link=f'/my-campaigns/{campaign.slug}',
-    )
+    # Match the notification to what actually happened -- this used to
+    # unconditionally say "is being processed" even when the branches above
+    # had already set FAILED, which is exactly the "audit says success but
+    # nothing happened" confusion this whole fix is for.
+    if payout.status == Payout.Status.FAILED:
+        Notification.objects.create(
+            user=user,
+            notification_type=Notification.Type.PAYOUT_PROCESSED,
+            title='Payout Failed',
+            message=f'Your payout of D{net} from "{campaign.title}" failed: {payout.notes}',
+            link=f'/my-campaigns/{campaign.slug}',
+        )
+    else:
+        Notification.objects.create(
+            user=user,
+            notification_type=Notification.Type.PAYOUT_PROCESSED,
+            title='Payout Requested',
+            message=f'Your payout of D{net} from "{campaign.title}" is being processed.',
+            link=f'/my-campaigns/{campaign.slug}',
+        )
 
     from emails.tasks import send_payout_update_email_task
     transaction.on_commit(lambda: send_payout_update_email_task.delay(str(payout.id)))
@@ -210,7 +258,10 @@ def request_payout(user, validated_data):
 def get_campaign_payouts(user, slug):
     from apps.campaigns.models import Campaign
     from apps.payments.models import Payout
-    campaign = get_object_or_404(Campaign, owner=user, slug=slug)
+    from services.organization_service import check_campaign_access
+
+    campaign = get_object_or_404(Campaign, slug=slug)
+    check_campaign_access(user, campaign)
     return Payout.objects.filter(campaign=campaign).order_by('-created_at')
 
 

@@ -9,14 +9,15 @@ from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiPara
 from permissions.base import HasResourceAccess
 from permissions.roles import Resource
 from pagination.base import StandardResultsPagination
-from services import user_service, verification_service, organization_change_service
+from services import user_service, verification_service, organization_change_service, organization_service
+from apps.organizations.permissions import OrganizationPermission
 import services.audit_service as audit_service
 from apps.audit.models import AuditLog
-from .models import User
+from .models import User, Organization
 from .serializers import (
     UserSerializer, UserUpdateSerializer, AdminUserSerializer, AdminUserListSerializer, AdminUserCreateSerializer,
     IdentityVerificationSerializer, IdentityVerificationCreateSerializer, PublicCampaignerSerializer,
-    OrganizationVerificationSerializer, OrganizationVerificationCreateSerializer,
+    OrganizationSerializer, OrganizationVerificationSerializer, OrganizationVerificationCreateSerializer,
     OrganizationChangeRequestSerializer, OrganizationChangeRequestCreateSerializer,
     DeleteAccountSerializer,
 )
@@ -83,13 +84,16 @@ class AdminUserAvatarUploadView(APIView):
 
 @extend_schema(tags=['Users'], summary="[Admin] Upload any organization's logo", responses={200: AdminUserSerializer})
 class AdminOrganizationLogoUploadView(APIView):
+    """`pk` is an Organization id, not a User id -- an org can have several
+    members now, so "upload a logo for user X's org" is ambiguous; this
+    always targets one specific organization directly."""
     permission_classes = [HasResourceAccess]
     required_resource = Resource.USERS_EDIT
 
     def post(self, request, pk):
-        target = get_object_or_404(User, pk=pk)
-        user_service.upload_organization_logo(target, request.FILES.get('logo'))
-        serializer = AdminUserSerializer(target, context={'request': request})
+        organization = get_object_or_404(Organization, pk=pk)
+        user_service.upload_organization_logo(organization, request.FILES.get('logo'))
+        serializer = OrganizationSerializer(organization, context={'request': request})
         return Response({'success': True, 'message': 'Organization logo updated.', 'data': serializer.data})
 
 
@@ -130,7 +134,7 @@ class PublicCampaignerDetailView(generics.RetrieveAPIView):
 @extend_schema(
     tags=['Users'],
     summary='[Admin] List regular (non-staff) users',
-    parameters=[OpenApiParameter('account_type', str, description='Filter by individual or organization')],
+    parameters=[OpenApiParameter('search', str, description='Search by name, email, or organization name')],
 )
 class UserListView(generics.ListAPIView):
     serializer_class = AdminUserListSerializer
@@ -140,9 +144,6 @@ class UserListView(generics.ListAPIView):
 
     def get_queryset(self):
         filters = {}
-        account_type = self.request.query_params.get('account_type')
-        if account_type:
-            filters['account_type'] = account_type
         search = self.request.query_params.get('search')
         if search:
             filters['search'] = search
@@ -321,7 +322,9 @@ class OrganizationVerificationSubmitView(APIView):
     def post(self, request):
         serializer = OrganizationVerificationCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        verification = verification_service.submit_organization_verification(request.user, **serializer.validated_data)
+        data = serializer.validated_data
+        organization = get_object_or_404(Organization, pk=data.pop('organization_id'))
+        verification = verification_service.submit_organization_verification(organization, request.user, **data)
         out = OrganizationVerificationSerializer(verification, context={'request': request})
         return Response(
             {'success': True, 'message': 'Verification request submitted. We’ll review it soon.', 'data': {'verification': out.data}},
@@ -329,12 +332,16 @@ class OrganizationVerificationSubmitView(APIView):
         )
 
 
-@extend_schema(tags=['Verification'], summary="Get your organization's latest verification request")
+@extend_schema(
+    tags=['Verification'], summary="Get an organization's latest verification request",
+    parameters=[OpenApiParameter('organization_id', str, required=True)],
+)
 class MyOrganizationVerificationView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        verification = verification_service.get_latest_organization_verification(request.user)
+        organization = get_object_or_404(Organization, pk=request.query_params.get('organization_id'))
+        verification = verification_service.get_latest_organization_verification(organization)
         data = OrganizationVerificationSerializer(verification, context={'request': request}).data if verification else None
         return Response({'success': True, 'data': {'verification': data}})
 
@@ -349,7 +356,7 @@ class AdminOrganizationVerificationListView(generics.ListAPIView):
     def get_queryset(self):
         return verification_service.get_all_organization_verifications(
             status=self.request.query_params.get('status'),
-            user_id=self.request.query_params.get('user_id'),
+            organization_id=self.request.query_params.get('organization_id'),
         )
 
 
@@ -371,7 +378,7 @@ class AdminOrganizationVerificationActionView(APIView):
             return Response({'success': False, 'message': f'Unknown action "{action}".'}, status=status.HTTP_400_BAD_REQUEST)
         audit_service.log(
             request.user, audit_action, verification,
-            f"{request.user.full_name} {verb} {verification.user.full_name}'s organization verification",
+            f"{request.user.full_name} {verb} {verification.organization.organization_name}'s organization verification",
         )
         out = OrganizationVerificationSerializer(verification, context={'request': request})
         return Response({'success': True, 'message': message, 'data': {'verification': out.data}})
@@ -389,7 +396,10 @@ class OrganizationChangeRequestSubmitView(APIView):
     def post(self, request):
         serializer = OrganizationChangeRequestCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        change_request = organization_change_service.submit_change_request(request.user, **serializer.validated_data)
+        data = serializer.validated_data
+        organization = get_object_or_404(Organization, pk=data.pop('organization_id'))
+        organization_service.require_permission(request.user, organization, OrganizationPermission.MANAGE_ORGANIZATION)
+        change_request = organization_change_service.submit_change_request(organization, request.user, **data)
         out = OrganizationChangeRequestSerializer(change_request)
         is_email_field = change_request.field_name in organization_change_service.EMAIL_FIELDS
         message = (
@@ -438,7 +448,7 @@ class AdminOrganizationChangeRequestListView(generics.ListAPIView):
     def get_queryset(self):
         return organization_change_service.get_all_change_requests(
             status=self.request.query_params.get('status'),
-            user_id=self.request.query_params.get('user_id'),
+            organization_id=self.request.query_params.get('organization_id'),
         )
 
 

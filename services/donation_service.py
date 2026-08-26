@@ -7,6 +7,7 @@ from django.db import transaction
 from django.db.models import F, Sum
 from django.shortcuts import get_object_or_404
 from django.http import Http404
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.exceptions import ValidationError
@@ -26,9 +27,14 @@ def create_donation(donor, validated_data):
     """Create a PENDING donation and start a payment intent for it with
     whichever gateway validated_data['gateway'] names (modempay by default).
 
-    Returns (donation, payment_link). payment_link is the gateway's hosted
-    checkout URL the frontend must redirect the donor to — None if the
-    intent could not be created (donation is left FAILED in that case).
+    Returns (donation, payment_link, error_message). payment_link is the
+    gateway's hosted checkout URL the frontend must redirect the donor to —
+    None if the intent could not be created (donation is left FAILED in
+    that case). error_message is set alongside a None payment_link only
+    when the gateway rejected the request for a reason the donor can act
+    on (e.g. amount over the provider's limit) -- None for a generic/
+    transient gateway failure, so the view can tell "your amount is too
+    high" apart from "please try again" (see _initiate_payment).
 
     The campaign row lock only covers the deadline/status check + donation
     creation; it's released before the gateway's HTTP call so one donor's
@@ -81,14 +87,18 @@ def create_donation(donor, validated_data):
             **validated_data,
         )
 
-    payment_link = _initiate_payment(donation)
-    return donation, payment_link
+    payment_link, error_message = _initiate_payment(donation)
+    return donation, payment_link, error_message
 
 
 def _initiate_payment(donation):
-    """Create the payment intent for a donation via its gateway. Returns the
-    hosted payment_link, or None (and marks the donation FAILED) if it
-    couldn't be created."""
+    """Create the payment intent for a donation via its gateway. Returns
+    (payment_link, error_message) -- payment_link is None (and the
+    donation marked FAILED) if it couldn't be created. error_message is
+    the gateway's own client-facing reason when the rejection is
+    something the donor can fix (e.g. amount over the provider's limit --
+    see modempay_service.create_payment_intent), or None for a generic/
+    transient gateway failure the donor can only retry blindly."""
     from django.conf import settings
     from services.gateways.registry import get_gateway
 
@@ -98,16 +108,22 @@ def _initiate_payment(donation):
     cancel_url = f'{frontend_url}/donate/{slug}'
 
     gateway = get_gateway(donation.gateway)
-    intent = gateway.create_payment_intent(donation, return_url=return_url, cancel_url=cancel_url)
+    try:
+        intent = gateway.create_payment_intent(donation, return_url=return_url, cancel_url=cancel_url)
+    except DjangoValidationError as e:
+        donation.status = donation.Status.FAILED
+        donation.save(update_fields=['status'])
+        message = e.messages[0] if e.messages else str(e)
+        return None, message
 
     if intent is None:
         donation.status = donation.Status.FAILED
         donation.save(update_fields=['status'])
-        return None
+        return None, None
 
     donation.provider_reference = intent.provider_reference
     donation.save(update_fields=['provider_reference'])
-    return intent.payment_link
+    return intent.payment_link, None
 
 
 @transaction.atomic
@@ -367,8 +383,19 @@ def sweep_pending_donations(older_than_minutes=15, limit=50):
 
 
 def get_user_donations(user):
+    """The dashboard's "Recent Donations" widget -- only donations that
+    actually went through. Unlike get_campaign_donors (also PAID-only),
+    this had no status filter at all until now: every attempt (PENDING
+    the moment it's created, FAILED if the gateway ever rejects it -- see
+    create_donation/_initiate_payment) showed up identically to a real
+    completed donation, with no status shown anywhere in this widget to
+    tell them apart. A donor whose payment failed (e.g. amount over the
+    gateway's limit) would see their own failed attempts listed next to
+    "Total Raised: D0" as if they'd actually given money."""
     from apps.donations.models import Donation
-    return Donation.objects.filter(donor=user).select_related('campaign').order_by('-created_at')
+    return Donation.objects.filter(
+        donor=user, status=Donation.Status.PAID,
+    ).select_related('campaign').order_by('-paid_at')
 
 
 def get_campaign_donors(user, slug):

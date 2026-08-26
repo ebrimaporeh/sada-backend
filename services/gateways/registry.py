@@ -5,6 +5,7 @@ none of them import ModemPayGateway/StripeGateway directly. Adding a new
 gateway later means writing one class and adding one line to GATEWAYS;
 nothing at any call site changes.
 """
+from decimal import Decimal
 from django.conf import settings
 from rest_framework.exceptions import ValidationError
 from .modempay import ModemPayGateway
@@ -27,6 +28,25 @@ def _is_enabled(code):
     from apps.payments.models import PlatformSettings
     platform = PlatformSettings.get_solo()
     return bool(getattr(platform, f'{code}_enabled', False))
+
+
+def donation_amount_limits(code):
+    """Admin-configurable per-gateway single-donation min/max --
+    PlatformSettings.<code>_min_donation_amount / _max_donation_amount, same
+    getattr()-by-code convention as _is_enabled (see PlatformSettings'
+    docstring). A gateway ultimately enforces its own real limit externally
+    (e.g. ModemPay rejects a payment intent above what it currently allows),
+    and that policy can change on their end without warning -- this is
+    admin-editable specifically so fixing a mismatch never needs a code
+    deploy. Falls back to (5, 10000) for a gateway with no dedicated
+    fields (shouldn't happen for the two registered today, but avoids an
+    AttributeError if GATEWAYS ever grows before PlatformSettings does)."""
+    from apps.payments.models import PlatformSettings
+    platform = PlatformSettings.get_solo()
+    return (
+        getattr(platform, f'{code}_min_donation_amount', Decimal('5.00')),
+        getattr(platform, f'{code}_max_donation_amount', Decimal('10000.00')),
+    )
 
 
 def get_gateway(code):

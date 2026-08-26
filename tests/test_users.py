@@ -77,38 +77,23 @@ class UserListViewTest(APITestCase):
 
     def test_row_shape_is_the_lean_table_projection(self):
         # The admin Campaigners table only ever renders name/email/status/
-        # verification/joined (+org type on the Organizations tab) -- this
-        # pins that the list endpoint stopped shipping the full profile
-        # (bio, payment defaults, every notification flag, ...) per row.
+        # verification/joined -- this pins that the list endpoint stopped
+        # shipping the full profile (bio, payment defaults, every
+        # notification flag, ...) per row. No organization_type here --
+        # that's the separate, Organization-backed admin Organizations tab
+        # (AdminOrganizationListView) now, not a per-user field.
         self.client.force_authenticate(user=self.admin)
         response = self.client.get(self.url)
         row = next(u for u in response.data['results'] if u['email'] == 'regular@example.com')
 
         self.assertEqual(
             set(row.keys()),
-            {'id', 'full_name', 'email', 'organization_type', 'is_active', 'is_verified', 'created_at'},
+            {'id', 'full_name', 'email', 'is_active', 'is_verified', 'created_at'},
         )
         for field in ('bio', 'phone', 'region', 'avatar', 'default_payment_provider', 'default_payment_phone',
-                      'notify_donations_received', 'notify_marketing', 'role', 'account_type', 'organization'):
+                      'notify_donations_received', 'notify_marketing', 'role', 'account_type', 'organization',
+                      'organization_type'):
             self.assertNotIn(field, row)
-
-    def test_organization_type_resolves_for_org_accounts(self):
-        org_user = User.objects.create_user(
-            email='org@example.com', password='pass', account_type=User.AccountType.ORGANIZATION,
-        )
-        Organization.objects.create(user=org_user, organization_type=Organization.OrgType.COMMUNITY)
-        self.client.force_authenticate(user=self.admin)
-
-        response = self.client.get(self.url, {'account_type': 'organization'})
-
-        row = next(u for u in response.data['results'] if u['email'] == 'org@example.com')
-        self.assertEqual(row['organization_type'], 'community')
-
-    def test_organization_type_is_null_for_individual_accounts(self):
-        self.client.force_authenticate(user=self.admin)
-        response = self.client.get(self.url)
-        row = next(u for u in response.data['results'] if u['email'] == 'regular@example.com')
-        self.assertIsNone(row['organization_type'])
 
 
 class BackfillIsDeletedQueryTest(APITestCase):
@@ -221,17 +206,56 @@ class AdminDeleteUserViewTest(APITestCase):
         ids = [u['id'] for u in response.data['results']]
         self.assertNotIn(str(target.pk), ids)
 
-    def test_admin_can_delete_an_organization_account(self):
+    def test_admin_can_delete_a_users_account_leaving_their_org_untouched(self):
+        # An org an account belongs to is never renamed/scrubbed just
+        # because one member's account was deleted -- other members may
+        # still be actively using it (see _anonymize_account's docstring).
         from apps.users.models import Organization
-        target = User.objects.create_user(email='org-del@example.com', password='pass', account_type=User.AccountType.ORGANIZATION)
-        Organization.objects.create(user=target, organization_name='Real Org Name', organization_type='community', contact_person_name='Contact', phone_2='7000000')
+        from apps.organizations.models import OrganizationType, OrganizationRole, OrganizationMembership
+        target = User.objects.create_user(email='org-del@example.com', password='pass')
+        org_type, _ = OrganizationType.objects.get_or_create(slug='community', defaults={'name': 'Community'})
+        org = Organization.objects.create(
+            organization_name='Real Org Name', organization_type=org_type,
+            phone_2='7000000', created_by=target,
+        )
+        owner_role = OrganizationRole.objects.create(organization=org, name='Owner', permissions=[])
+        member_role = OrganizationRole.objects.create(organization=org, name='Member', permissions=[])
+        # `target` is a plain Member, not the Owner -- deleting the sole
+        # Owner of a multi-member org is a separate, blocked case (see
+        # test_cannot_delete_the_sole_owner_of_a_multi_member_organization).
+        other_member = User.objects.create_user(email='other-member@example.com', password='pass')
+        OrganizationMembership.objects.create(user=other_member, organization=org, role=owner_role)
+        OrganizationMembership.objects.create(user=target, organization=org, role=member_role)
 
         response = self.client.delete(reverse('user-detail', args=[target.pk]))
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
-        target.organization.refresh_from_db()
-        self.assertEqual(target.organization.organization_name, f'Deleted Organization {target.id}')
-        self.assertEqual(target.organization.contact_person_name, '')
+        org.refresh_from_db()
+        self.assertEqual(org.organization_name, 'Real Org Name')
+        self.assertEqual(org.phone_2, '7000000')
+        self.assertFalse(OrganizationMembership.objects.filter(user=target, organization=org).exists())
+        self.assertTrue(OrganizationMembership.objects.filter(user=other_member, organization=org).exists())
+
+    def test_cannot_delete_the_sole_owner_of_a_multi_member_organization(self):
+        from apps.users.models import Organization
+        from apps.organizations.models import OrganizationType, OrganizationRole, OrganizationMembership
+        target = User.objects.create_user(email='sole-owner@example.com', password='pass')
+        org_type, _ = OrganizationType.objects.get_or_create(slug='community', defaults={'name': 'Community'})
+        org = Organization.objects.create(
+            organization_name='Owner-Blocked Org', organization_type=org_type,
+            phone_2='7000000', created_by=target,
+        )
+        owner_role = OrganizationRole.objects.create(organization=org, name='Owner', permissions=[])
+        member_role = OrganizationRole.objects.create(organization=org, name='Member', permissions=[])
+        other_member = User.objects.create_user(email='blocked-other-member@example.com', password='pass')
+        OrganizationMembership.objects.create(user=target, organization=org, role=owner_role)
+        OrganizationMembership.objects.create(user=other_member, organization=org, role=member_role)
+
+        response = self.client.delete(reverse('user-detail', args=[target.pk]))
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        target.refresh_from_db()
+        self.assertTrue(target.is_active)
 
     def test_deleting_a_staff_member_resets_their_role_and_group(self):
         target = User.objects.create_user(email='staff-del@example.com', password='pass', role='moderator')
@@ -343,26 +367,56 @@ class DeleteOwnAccountTest(APITestCase):
         user_service.delete_own_account(self.user, password='StrongPass@1')
         self.assertFalse(IdentityVerification.objects.filter(user=self.user).exists())
 
-    def test_anonymizes_organization_profile(self):
-        org_user = User.objects.create_user(
-            email='org@example.com', password='StrongPass@1',
-            account_type=User.AccountType.ORGANIZATION,
+    def test_self_deleting_a_member_leaves_their_org_and_its_verification_history_untouched(self):
+        # Same reasoning as the admin-delete path (see AdminDeleteUserViewTest) --
+        # an org isn't scrubbed just because one member deleted their own
+        # account, and its verification submissions are the org's record,
+        # not the departing individual's.
+        from apps.organizations.models import OrganizationType, OrganizationRole, OrganizationMembership
+        org_user = User.objects.create_user(email='org@example.com', password='StrongPass@1')
+        org_type, _ = OrganizationType.objects.get_or_create(slug='community', defaults={'name': 'Community'})
+        org = Organization.objects.create(
+            organization_name='Real Org Name', organization_type=org_type,
+            phone_2='+2207000002', created_by=org_user,
         )
-        Organization.objects.create(
-            user=org_user, organization_name='Real Org Name', organization_type=Organization.OrgType.COMMUNITY,
-            contact_person_name='Real Contact', phone_2='+2207000002',
-        )
-        OrganizationVerification.objects.create(
-            user=org_user, contact_id_type='national_id', contact_id_number='1',
-            contact_id_photo_front='x.jpg', registration_document='reg.jpg', organization_photo='o.jpg',
+        owner_role = OrganizationRole.objects.create(organization=org, name='Owner', permissions=[])
+        member_role = OrganizationRole.objects.create(organization=org, name='Member', permissions=[])
+        # org_user is a plain Member here, not the Owner -- self-deleting
+        # the sole Owner of a multi-member org is the separate, blocked
+        # case below (test_self_deleting_the_sole_owner_of_a_multi_member_org_is_blocked).
+        other_member = User.objects.create_user(email='org-other-member@example.com', password='pass')
+        OrganizationMembership.objects.create(user=other_member, organization=org, role=owner_role)
+        OrganizationMembership.objects.create(user=org_user, organization=org, role=member_role)
+        verification = OrganizationVerification.objects.create(
+            organization=org, submitted_by=org_user, registration_number='REG-1',
+            registration_document='reg.jpg', organization_photo='o.jpg',
         )
 
         user_service.delete_own_account(org_user, password='StrongPass@1')
 
-        org_user.organization.refresh_from_db()
-        self.assertNotEqual(org_user.organization.organization_name, 'Real Org Name')
-        self.assertEqual(org_user.organization.contact_person_name, '')
-        self.assertFalse(OrganizationVerification.objects.filter(user=org_user).exists())
+        org.refresh_from_db()
+        self.assertEqual(org.organization_name, 'Real Org Name')
+        self.assertTrue(OrganizationVerification.objects.filter(pk=verification.pk).exists())
+        self.assertFalse(OrganizationMembership.objects.filter(user=org_user, organization=org).exists())
+
+    def test_self_deleting_the_sole_owner_of_a_multi_member_org_is_blocked(self):
+        from apps.organizations.models import OrganizationType, OrganizationRole, OrganizationMembership
+        org_user = User.objects.create_user(email='sole-owner-self@example.com', password='StrongPass@1')
+        org_type, _ = OrganizationType.objects.get_or_create(slug='community', defaults={'name': 'Community'})
+        org = Organization.objects.create(
+            organization_name='Blocked Org', organization_type=org_type,
+            phone_2='+2207000003', created_by=org_user,
+        )
+        owner_role = OrganizationRole.objects.create(organization=org, name='Owner', permissions=[])
+        member_role = OrganizationRole.objects.create(organization=org, name='Member', permissions=[])
+        other_member = User.objects.create_user(email='sole-owner-other-member@example.com', password='pass')
+        OrganizationMembership.objects.create(user=org_user, organization=org, role=owner_role)
+        OrganizationMembership.objects.create(user=other_member, organization=org, role=member_role)
+
+        with self.assertRaises(ValidationError):
+            user_service.delete_own_account(org_user, password='StrongPass@1')
+        org_user.refresh_from_db()
+        self.assertTrue(org_user.is_active)
 
     def test_sends_a_confirmation_email_to_the_original_address(self):
         mail.outbox = []

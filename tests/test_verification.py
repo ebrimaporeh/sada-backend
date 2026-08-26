@@ -4,6 +4,8 @@ from django.core.exceptions import ValidationError
 from rest_framework.test import APITestCase
 
 from apps.users.models import User, IdentityVerification, Organization, OrganizationVerification
+from apps.organizations.models import OrganizationType, OrganizationRole, OrganizationMembership
+from apps.organizations.permissions import ALL_ORGANIZATION_PERMISSIONS
 import services.verification_service as verification_service
 
 
@@ -13,17 +15,20 @@ def make_user(**kwargs):
     return User.objects.create_user(**defaults)
 
 
-def make_org_user(**kwargs):
+def make_org_and_owner(**kwargs):
+    """Returns (user, organization) -- user is the org's Owner-role member."""
     org_kwargs = kwargs.pop('org', {})
-    user = make_user(account_type=User.AccountType.ORGANIZATION, **kwargs)
+    user = make_user(**kwargs)
+    org_type, _ = OrganizationType.objects.get_or_create(slug='community', defaults={'name': 'Community-Based Organization'})
     org_defaults = {
-        'user': user, 'organization_name': 'Test Org',
-        'organization_type': Organization.OrgType.COMMUNITY,
-        'contact_person_name': 'Contact Person', 'phone_2': '+2207000001',
+        'organization_name': 'Test Org', 'organization_type': org_type,
+        'phone_2': '+2207000001', 'created_by': user,
     }
     org_defaults.update(org_kwargs)
-    Organization.objects.create(**org_defaults)
-    return user
+    org = Organization.objects.create(**org_defaults)
+    owner_role = OrganizationRole.objects.create(organization=org, name='Owner', permissions=list(ALL_ORGANIZATION_PERMISSIONS))
+    OrganizationMembership.objects.create(user=user, organization=org, role=owner_role, is_contact_person=True)
+    return user, org
 
 
 # process_image does real image compression -- irrelevant to the
@@ -151,70 +156,86 @@ class RevokeVerificationTest(APITestCase):
         self.assertIsNone(pending.reviewed_by)
         self.assertEqual(rejected.status, IdentityVerification.Status.REJECTED)
 
-    def test_revokes_an_approved_organization_verification(self):
-        user = make_org_user(email='org-owner@example.com', is_verified=True)
+    def test_does_not_touch_organization_verification(self):
+        # revoke_verification is individual-identity-only now --
+        # Organization.is_verified is a separate flag not tied to any one
+        # member's own is_verified, so this must never touch it (see
+        # verification_service.revoke_verification's docstring).
+        user, org = make_org_and_owner(email='org-owner@example.com')
+        org.is_verified = True
+        org.save(update_fields=['is_verified'])
         approved = OrganizationVerification.objects.create(
-            user=user, contact_id_type='national_id', contact_id_number='1',
-            contact_id_photo_front='x.jpg', registration_document='reg.jpg', organization_photo='org.jpg',
+            organization=org, submitted_by=user, registration_number='REG-1',
+            registration_document='reg.jpg', organization_photo='org.jpg',
             status=OrganizationVerification.Status.APPROVED,
         )
         verification_service.revoke_verification(user, self.admin)
         approved.refresh_from_db()
-        self.assertEqual(approved.status, OrganizationVerification.Status.REJECTED)
+        org.refresh_from_db()
+        self.assertEqual(approved.status, OrganizationVerification.Status.APPROVED)
+        self.assertTrue(org.is_verified)
 
 
 class SubmitOrganizationVerificationTest(APITestCase):
     @PROCESS_IMAGE_PATCH
-    def test_creates_a_pending_request_for_an_org_account(self, _mock):
-        user = make_org_user()
+    def test_creates_a_pending_request_for_an_org_member(self, _mock):
+        user, org = make_org_and_owner()
         verification = verification_service.submit_organization_verification(
-            user, 'national_id', '123', 'front.jpg', 'reg.jpg', 'org.jpg',
+            org, user, 'REG-123', 'reg.jpg', 'org.jpg',
         )
         self.assertEqual(verification.status, OrganizationVerification.Status.PENDING)
 
     @PROCESS_IMAGE_PATCH
-    def test_rejects_individual_accounts(self, _mock):
-        individual = make_user()
+    def test_rejects_a_non_member(self, _mock):
+        _, org = make_org_and_owner()
+        outsider = make_user()
         with self.assertRaises(ValidationError):
             verification_service.submit_organization_verification(
-                individual, 'national_id', '123', 'front.jpg', 'reg.jpg', 'org.jpg',
+                org, outsider, 'REG-123', 'reg.jpg', 'org.jpg',
             )
 
     @PROCESS_IMAGE_PATCH
     def test_rejects_second_submission_while_pending(self, _mock):
-        user = make_org_user()
-        verification_service.submit_organization_verification(user, 'national_id', '123', 'front.jpg', 'reg.jpg', 'org.jpg')
+        user, org = make_org_and_owner()
+        verification_service.submit_organization_verification(org, user, 'REG-123', 'reg.jpg', 'org.jpg')
         with self.assertRaises(ValidationError):
-            verification_service.submit_organization_verification(user, 'passport', '456', 'f2.jpg', 'r2.jpg', 'o2.jpg')
+            verification_service.submit_organization_verification(org, user, 'REG-456', 'r2.jpg', 'o2.jpg')
+
+    @PROCESS_IMAGE_PATCH
+    def test_rejects_when_organization_already_verified(self, _mock):
+        user, org = make_org_and_owner()
+        org.is_verified = True
+        org.save(update_fields=['is_verified'])
+        with self.assertRaises(ValidationError):
+            verification_service.submit_organization_verification(org, user, 'REG-123', 'reg.jpg', 'org.jpg')
 
 
 class ApproveOrganizationVerificationTest(APITestCase):
-    def test_approve_verifies_user_and_copies_photo_to_org_logo(self):
-        user = make_org_user(email='org2@example.com')
+    def test_approve_verifies_org_and_copies_photo_to_org_logo(self):
+        user, org = make_org_and_owner(email='org2@example.com')
         admin = make_user(email='org-admin@example.com', role='admin')
         verification = OrganizationVerification.objects.create(
-            user=user, contact_id_type='national_id', contact_id_number='1',
-            contact_id_photo_front='x.jpg', registration_document='reg.jpg',
+            organization=org, submitted_by=user, registration_number='REG-1',
+            registration_document='reg.jpg',
             organization_photo='mosque_event.jpg',
         )
 
         result = verification_service.approve_organization_verification(verification.id, admin)
         self.assertEqual(result.status, OrganizationVerification.Status.APPROVED)
 
-        user.refresh_from_db()
-        self.assertTrue(user.is_verified)
-        user.organization.refresh_from_db()
-        self.assertEqual(user.organization.logo, 'mosque_event.jpg')
+        org.refresh_from_db()
+        self.assertTrue(org.is_verified)
+        self.assertEqual(org.logo, 'mosque_event.jpg')
 
     def test_reject_sets_reason_without_verifying(self):
-        user = make_org_user(email='org3@example.com')
+        user, org = make_org_and_owner(email='org3@example.com')
         admin = make_user(email='org-admin2@example.com', role='admin')
         verification = OrganizationVerification.objects.create(
-            user=user, contact_id_type='national_id', contact_id_number='1',
-            contact_id_photo_front='x.jpg', registration_document='reg.jpg', organization_photo='o.jpg',
+            organization=org, submitted_by=user, registration_number='REG-1',
+            registration_document='reg.jpg', organization_photo='o.jpg',
         )
         result = verification_service.reject_organization_verification(verification.id, admin, reason='Docs unclear')
         self.assertEqual(result.status, OrganizationVerification.Status.REJECTED)
         self.assertEqual(result.rejection_reason, 'Docs unclear')
-        user.refresh_from_db()
-        self.assertFalse(user.is_verified)
+        org.refresh_from_db()
+        self.assertFalse(org.is_verified)

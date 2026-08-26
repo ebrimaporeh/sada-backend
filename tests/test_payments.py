@@ -210,12 +210,13 @@ class DonationCreateGatewayTest(APITestCase):
             'status': True,
             'data': {'payment_link': 'https://pay.modempay.com/abc', 'intent_secret': 'sec_123'},
         }
-        donation, payment_link = donation_service.create_donation(None, {
+        donation, payment_link, error_message = donation_service.create_donation(None, {
             'campaign_id': self.campaign.id,
             'amount': Decimal('100.00'),
             'provider': 'wave',
             'phone': '+2207000000',
         })
+        self.assertIsNone(error_message)
         self.assertEqual(donation.gateway, 'modempay')
         self.assertEqual(payment_link, 'https://pay.modempay.com/abc')
         self.assertEqual(donation.provider_reference, 'sec_123')
@@ -225,13 +226,113 @@ class DonationCreateGatewayTest(APITestCase):
     @patch('services.modempay_service.create_payment_intent')
     def test_create_donation_marks_failed_when_intent_fails(self, mock_create):
         mock_create.return_value = None
-        donation, payment_link = donation_service.create_donation(None, {
+        donation, payment_link, error_message = donation_service.create_donation(None, {
             'campaign_id': self.campaign.id,
             'amount': Decimal('50.00'),
             'provider': 'wave',
             'phone': '+2207000000',
         })
         self.assertIsNone(payment_link)
+        # A generic/transient gateway failure (mocked as a bare None here)
+        # carries no error_message -- that's reserved for a classified,
+        # donor-actionable rejection (see the ModemPay amount-limit test
+        # below), so the view keeps this one as a 502 "try again".
+        self.assertIsNone(error_message)
+        donation.refresh_from_db()
+        self.assertEqual(donation.status, Donation.Status.FAILED)
+
+    @patch('services.modempay_service.get_client')
+    def test_create_donation_surfaces_amount_over_limit_as_actionable_error(self, mock_get_client):
+        # Regression guard: ModemPay 400s payment_intents.create when the
+        # amount exceeds its per-transaction limit ("Amount for payment
+        # intent cannot exceed GMD 10,000.00") -- this used to surface to
+        # the donor as a generic 502 "Could not start payment. Please try
+        # again.", which they'd retry with the same amount and fail
+        # identically forever. Confirmed via a live donation attempt on
+        # Railway staging.
+        from modempay.error import ModemPayError
+        mock_get_client.return_value.payment_intents.create.side_effect = ModemPayError(
+            'Amount for payment intent cannot exceed GMD 10,000.00', 400,
+        )
+        donation, payment_link, error_message = donation_service.create_donation(None, {
+            'campaign_id': self.campaign.id,
+            'amount': Decimal('13500.00'),
+            'provider': 'wave',
+            'phone': '+2207000000',
+        })
+        self.assertIsNone(payment_link)
+        self.assertEqual(error_message, 'Amount for payment intent cannot exceed GMD 10,000.00')
+        donation.refresh_from_db()
+        self.assertEqual(donation.status, Donation.Status.FAILED)
+
+    def test_create_donation_view_rejects_amount_over_limit_without_calling_gateway(self):
+        # MAX_DONATION_AMOUNT now matches ModemPay's real, confirmed limit
+        # (see apps/donations/serializers.py) -- an over-limit amount fails
+        # at our own serializer, before ever reaching ModemPay, so this
+        # never becomes an API round-trip in the first place.
+        response = self.client.post('/api/v1/donations/', {
+            'campaign_id': str(self.campaign.id),
+            'amount': '13500.00',
+            'provider': 'wave',
+            'phone': '+2207000000',
+        })
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @patch('services.modempay_service.get_client')
+    def test_create_donation_view_returns_400_not_502_for_a_gateway_side_rejection(self, mock_get_client):
+        # A request that passes our own validation can still be rejected by
+        # ModemPay itself (e.g. a 4xx we haven't modeled client-side yet) --
+        # the view should still surface that as an actionable 400, not a
+        # generic 502.
+        from modempay.error import ModemPayError
+        mock_get_client.return_value.payment_intents.create.side_effect = ModemPayError(
+            'Network \'wave\' is temporarily unavailable for this account.', 400,
+        )
+        response = self.client.post('/api/v1/donations/', {
+            'campaign_id': str(self.campaign.id),
+            'amount': '5000.00',
+            'provider': 'wave',
+            'phone': '+2207000000',
+        })
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data['message'], 'Network \'wave\' is temporarily unavailable for this account.')
+
+    @patch('services.modempay_service.get_client')
+    def test_create_donation_suppresses_sensitive_gateway_message(self, mock_get_client):
+        # Never forward a raw ModemPay message that could leak our own
+        # account/operational state (e.g. its float balance) to a donor --
+        # only messages that are actually about the request just sent
+        # (amount, network, phone) are safe to show verbatim.
+        from modempay.error import ModemPayError
+        mock_get_client.return_value.payment_intents.create.side_effect = ModemPayError(
+            'Insufficient balance to cover this transaction fee.', 400,
+        )
+        donation, payment_link, error_message = donation_service.create_donation(None, {
+            'campaign_id': self.campaign.id,
+            'amount': Decimal('50.00'),
+            'provider': 'wave',
+            'phone': '+2207000000',
+        })
+        self.assertIsNone(payment_link)
+        self.assertIsNotNone(error_message)
+        self.assertNotIn('Insufficient balance', error_message)
+        self.assertNotIn('balance', error_message.lower())
+
+    @patch('services.modempay_service.get_client')
+    def test_create_donation_keeps_502_for_a_genuine_gateway_failure(self, mock_get_client):
+        # A 5xx (or any non-4xx) ModemPayError is a real gateway/network
+        # problem, not something the donor did wrong -- stays a generic
+        # 502, unlike the 4xx case above.
+        from modempay.error import ModemPayError
+        mock_get_client.return_value.payment_intents.create.side_effect = ModemPayError('Internal error', 500)
+        donation, payment_link, error_message = donation_service.create_donation(None, {
+            'campaign_id': self.campaign.id,
+            'amount': Decimal('50.00'),
+            'provider': 'wave',
+            'phone': '+2207000000',
+        })
+        self.assertIsNone(payment_link)
+        self.assertIsNone(error_message)
         donation.refresh_from_db()
         self.assertEqual(donation.status, Donation.Status.FAILED)
 
@@ -297,7 +398,7 @@ class DonationCreateGatewayTest(APITestCase):
     def test_create_donation_via_stripe_gateway_converts_and_returns_checkout_url(self, mock_create):
         mock_create.return_value = {'id': 'cs_test_123', 'url': 'https://checkout.stripe.com/pay/cs_test_123'}
         with self._enable_stripe(rate=Decimal('70.0000')):
-            donation, payment_link = donation_service.create_donation(None, {
+            donation, payment_link, _error_message = donation_service.create_donation(None, {
                 'campaign_id': self.campaign.id,
                 'amount': Decimal('100.00'),
                 'gateway': 'stripe',
@@ -1016,6 +1117,97 @@ class RequestPayoutGatewayTest(APITestCase):
                 'phone': '+2207000000',
             })
 
+    @patch('services.modempay_service.get_client')
+    @patch('services.modempay_service.get_balance')
+    @patch('services.modempay_service.check_transfer_fee')
+    def test_request_payout_surfaces_amount_over_limit_as_actionable_note(self, mock_fee, mock_balance, mock_get_client):
+        # Same class of bug as the donation side (see
+        # PaymentGatewayTest.test_create_donation_surfaces_amount_over_limit_as_actionable_error):
+        # a 4xx ModemPay rejection used to disappear -- request_disbursement
+        # returned None, request_payout treated that as a real terminal
+        # failure with no message, and the campaign owner saw "Payout
+        # Requested ... is being processed" (the unconditional Notification
+        # below the old if/elif chain) even though nothing was actually
+        # happening. Mocking at the get_client() SDK boundary (not
+        # request_disbursement itself) so the real 4xx-classification logic
+        # in modempay_service.request_disbursement actually runs. DEMO_MODE
+        # defaults True (settings/base.py) whenever the env var isn't set --
+        # request_disbursement short-circuits to a fake 'completed' result
+        # before ever touching get_client() when it's on, so it has to be
+        # forced off here or this test passes/fails depending on the host
+        # environment's .env rather than the code under test.
+        from modempay.error import ModemPayError
+        mock_fee.return_value = Decimal('1.00')
+        mock_balance.return_value = {'available_balance': 1000, 'payout_balance': 1000}
+        mock_get_client.return_value.transfers.initiate.side_effect = ModemPayError(
+            'Amount for transfer cannot exceed GMD 5,000.00', 400,
+        )
+
+        with self.settings(DEMO_MODE=False):
+            payout = payment_service.request_payout(self.owner, {
+                'campaign_id': self.campaign.id,
+                'amount': Decimal('100.00'),
+                'provider': 'wave',
+                'phone': '+2207000000',
+            })
+        self.assertEqual(payout.status, Payout.Status.FAILED)
+        self.assertEqual(payout.notes, 'Amount for transfer cannot exceed GMD 5,000.00')
+
+        from apps.notifications.models import Notification
+        notification = Notification.objects.filter(user=self.owner).latest('created_at')
+        self.assertEqual(notification.title, 'Payout Failed')
+        self.assertIn('Amount for transfer cannot exceed GMD 5,000.00', notification.message)
+
+    @patch('services.modempay_service.request_disbursement')
+    @patch('services.modempay_service.get_balance')
+    @patch('services.modempay_service.check_transfer_fee')
+    def test_request_payout_keeps_generic_notes_for_a_genuine_gateway_failure(self, mock_fee, mock_balance, mock_disburse):
+        # A 5xx (or any non-4xx) ModemPayError, or a None with no exception
+        # at all, is a real gateway/network problem, not something the
+        # campaign owner did wrong -- notes stays generic, unlike the 4xx
+        # case above.
+        mock_fee.return_value = Decimal('1.00')
+        mock_balance.return_value = {'available_balance': 1000, 'payout_balance': 1000}
+        mock_disburse.return_value = None
+
+        payout = payment_service.request_payout(self.owner, {
+            'campaign_id': self.campaign.id,
+            'amount': Decimal('100.00'),
+            'provider': 'wave',
+            'phone': '+2207000000',
+        })
+        self.assertEqual(payout.status, Payout.Status.FAILED)
+        self.assertEqual(payout.notes, 'The payment provider could not process this withdrawal.')
+
+    @patch('services.modempay_service.get_client')
+    @patch('services.modempay_service.get_balance')
+    @patch('services.modempay_service.check_transfer_fee')
+    def test_request_payout_view_returns_201_with_failed_status_and_notes(self, mock_fee, mock_balance, mock_get_client):
+        # The payout endpoint always returns 201 -- the Payout row (status +
+        # notes) is the real source of truth, not the HTTP status. This is
+        # what WithdrawTab.jsx's onSuccess handler now branches on instead
+        # of assuming success from the response code alone. DEMO_MODE forced
+        # off for the same reason as the service-level test above.
+        from modempay.error import ModemPayError
+        mock_fee.return_value = Decimal('1.00')
+        mock_balance.return_value = {'available_balance': 1000, 'payout_balance': 1000}
+        mock_get_client.return_value.transfers.initiate.side_effect = ModemPayError(
+            'Amount for transfer cannot exceed GMD 5,000.00', 400,
+        )
+
+        self.client.force_authenticate(self.owner)
+        with self.settings(DEMO_MODE=False):
+            response = self.client.post('/api/v1/payments/payouts/', {
+                'campaign_id': str(self.campaign.id),
+                'amount': '100.00',
+                'provider': 'wave',
+                'phone': '+2207000000',
+            })
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        payout_data = response.data['data']['payout']
+        self.assertEqual(payout_data['status'], 'failed')
+        self.assertEqual(payout_data['notes'], 'Amount for transfer cannot exceed GMD 5,000.00')
+
 
 class AdminDonationCampaignFilterTest(APITestCase):
     """get_all_donations()'s `campaign` param -- what the admin campaign
@@ -1224,6 +1416,121 @@ class PlatformSettingsGatewayAdminTest(APITestCase):
         self.assertTrue(settings_obj.wave_enabled)
         self.assertTrue(settings_obj.aps_enabled)
 
+    def test_modempay_donation_limits_default_to_confirmed_modempay_limit(self):
+        settings_obj = PlatformSettings.get_solo()
+        self.assertEqual(settings_obj.modempay_min_donation_amount, Decimal('5.00'))
+        self.assertEqual(settings_obj.modempay_max_donation_amount, Decimal('10000.00'))
+
+    def test_admin_can_update_modempay_donation_limits(self):
+        from apps.payments.serializers import PlatformSettingsSerializer
+        serializer = PlatformSettingsSerializer(
+            PlatformSettings.get_solo(),
+            data={'modempay_min_donation_amount': '10', 'modempay_max_donation_amount': '25000'},
+            partial=True,
+        )
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        serializer.save()
+        settings_obj = PlatformSettings.get_solo()
+        self.assertEqual(settings_obj.modempay_min_donation_amount, Decimal('10.00'))
+        self.assertEqual(settings_obj.modempay_max_donation_amount, Decimal('25000.00'))
+
+    def test_donation_max_must_be_greater_than_its_own_minimum(self):
+        from apps.payments.serializers import PlatformSettingsSerializer
+        serializer = PlatformSettingsSerializer(
+            PlatformSettings.get_solo(),
+            data={'modempay_min_donation_amount': '100', 'modempay_max_donation_amount': '50'},
+            partial=True,
+        )
+        self.assertFalse(serializer.is_valid())
+
+    def test_updating_only_the_max_still_validates_against_the_existing_min(self):
+        # partial=True means a lone max update arrives with no min in the
+        # payload at all -- validate() must compare it against the
+        # instance's *current* min, not silently skip the check because
+        # 'modempay_min_donation_amount' isn't a key in `data`.
+        from apps.payments.serializers import PlatformSettingsSerializer
+        serializer = PlatformSettingsSerializer(
+            PlatformSettings.get_solo(), data={'modempay_max_donation_amount': '2'}, partial=True,
+        )
+        self.assertFalse(serializer.is_valid())
+        self.assertIn('non_field_errors', serializer.errors)
+
+    def test_donation_minimum_must_be_positive(self):
+        from apps.payments.serializers import PlatformSettingsSerializer
+        serializer = PlatformSettingsSerializer(
+            PlatformSettings.get_solo(), data={'modempay_min_donation_amount': '0'}, partial=True,
+        )
+        self.assertFalse(serializer.is_valid())
+
+    def test_stripe_and_modempay_donation_limits_are_independent(self):
+        from apps.payments.serializers import PlatformSettingsSerializer
+        serializer = PlatformSettingsSerializer(
+            PlatformSettings.get_solo(), data={'stripe_min_donation_amount': '20', 'stripe_max_donation_amount': '30000'}, partial=True,
+        )
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        serializer.save()
+        settings_obj = PlatformSettings.get_solo()
+        self.assertEqual(settings_obj.stripe_min_donation_amount, Decimal('20.00'))
+        self.assertEqual(settings_obj.stripe_max_donation_amount, Decimal('30000.00'))
+        # Untouched by the stripe-only update above.
+        self.assertEqual(settings_obj.modempay_min_donation_amount, Decimal('5.00'))
+        self.assertEqual(settings_obj.modempay_max_donation_amount, Decimal('10000.00'))
+
+
+class DonationLimitsAreAdminConfigurableTest(APITestCase):
+    """The whole point of this feature: an admin can raise/lower a
+    gateway's donation min/max at runtime (Admin Settings > Payments)
+    without a code deploy, and DonationCreateSerializer enforces whatever
+    is currently configured -- not a hardcoded constant."""
+
+    def setUp(self):
+        self.campaign = make_campaign()
+
+    def test_donation_view_uses_the_configured_modempay_maximum_not_a_hardcoded_one(self):
+        set_platform_settings(modempay_max_donation_amount=Decimal('20000.00'))
+        # D13,500 -- over the *old* hardcoded 10,000, but under the newly
+        # configured 20,000 -- should now be accepted by validation (a
+        # mocked gateway still completes the actual intent creation).
+        with patch('services.modempay_service.create_payment_intent') as mock_create:
+            mock_create.return_value = {
+                'status': True,
+                'data': {'payment_link': 'https://pay.modempay.com/abc', 'intent_secret': 'sec_123'},
+            }
+            response = self.client.post('/api/v1/donations/', {
+                'campaign_id': str(self.campaign.id),
+                'amount': '13500.00',
+                'provider': 'wave',
+                'phone': '+2207000000',
+            })
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_donation_view_rejects_amount_over_a_lowered_configured_maximum(self):
+        set_platform_settings(modempay_max_donation_amount=Decimal('1000.00'))
+        response = self.client.post('/api/v1/donations/', {
+            'campaign_id': str(self.campaign.id),
+            'amount': '1500.00',
+            'provider': 'wave',
+            'phone': '+2207000000',
+        })
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_donation_view_rejects_amount_under_the_configured_minimum(self):
+        set_platform_settings(modempay_min_donation_amount=Decimal('50.00'))
+        response = self.client.post('/api/v1/donations/', {
+            'campaign_id': str(self.campaign.id),
+            'amount': '20.00',
+            'provider': 'wave',
+            'phone': '+2207000000',
+        })
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_gateway_list_exposes_the_configured_limits(self):
+        set_platform_settings(modempay_min_donation_amount=Decimal('15.00'), modempay_max_donation_amount=Decimal('12000.00'))
+        response = self.client.get('/api/v1/payments/gateways/')
+        modempay = next(g for g in response.data['data']['gateways'] if g['code'] == 'modempay')
+        self.assertEqual(Decimal(modempay['min_donation_amount']), Decimal('15.00'))
+        self.assertEqual(Decimal(modempay['max_donation_amount']), Decimal('12000.00'))
+
 
 class PublicCampaignDonorSortTest(APITestCase):
     """The public campaign page's donors tab sorts by latest (default) or
@@ -1263,3 +1570,40 @@ class PublicCampaignDonorSortTest(APITestCase):
         response = self.client.get(f'/api/v1/donations/campaign/{self.campaign.slug}/public/')
         self.assertEqual(len(response.data['results']), 20)
         self.assertEqual(response.data['count'], 27)
+
+
+class MyDonationsListTest(APITestCase):
+    """The dashboard's "Recent Donations" widget (donation_service.
+    get_user_donations) -- regression coverage for a real bug found while
+    testing on staging: a donor's own FAILED/PENDING attempts (e.g. an
+    amount ModemPay rejected) showed up identically to a real completed
+    donation, right next to "Total Raised: D0", with no status shown
+    anywhere to tell them apart."""
+
+    def setUp(self):
+        self.donor = User.objects.create_user(email='mydonations@example.com', password='pass')
+        self.campaign = make_campaign()
+        self.url = reverse('my-donations')
+
+    def test_only_paid_donations_are_listed(self):
+        paid = Donation.objects.create(
+            campaign=self.campaign, donor=self.donor, amount=Decimal('100.00'), currency='GMD',
+            provider='wave', phone='+2207000000', payment_reference='SD-MYD-PAID', gateway='modempay',
+            status=Donation.Status.PAID, paid_at=timezone.now(),
+        )
+        Donation.objects.create(
+            campaign=self.campaign, donor=self.donor, amount=Decimal('13500.00'), currency='GMD',
+            provider='wave', phone='+2207000000', payment_reference='SD-MYD-FAILED', gateway='modempay',
+            status=Donation.Status.FAILED,
+        )
+        Donation.objects.create(
+            campaign=self.campaign, donor=self.donor, amount=Decimal('50.00'), currency='GMD',
+            provider='wave', phone='+2207000000', payment_reference='SD-MYD-PENDING', gateway='modempay',
+            status=Donation.Status.PENDING,
+        )
+
+        self.client.force_authenticate(user=self.donor)
+        response = self.client.get(self.url)
+
+        ids = [d['id'] for d in response.data['results']]
+        self.assertEqual(ids, [str(paid.id)])

@@ -107,6 +107,13 @@ class PlatformSettings(BaseModel):
     adding one more `<code>_enabled` field here, no registry code change.
     Credentials (API keys/webhook secrets) stay in env vars regardless —
     those are secrets, not something that belongs in an admin-editable DB row.
+
+    Per-gateway donation min/max amounts follow the same `<code>_enabled`
+    getattr() convention (see registry.donation_amount_limits) — each
+    gateway ultimately enforces its own limits externally (e.g. ModemPay
+    rejects a payment intent above what it allows), and that policy can
+    change on their end without warning, so this is admin-editable rather
+    than a hardcoded constant a code deploy would be needed to change.
     """
     platform_fee_percent = models.DecimalField(
         max_digits=5, decimal_places=2, default=Decimal('1.00'),
@@ -133,11 +140,36 @@ class PlatformSettings(BaseModel):
         default=True,
         help_text='Whether Afrimoney is offered as a donation and withdrawal method (requires ModemPay enabled above).',
     )
+    # ModemPay's real, currently-enforced per-payment-intent limit is
+    # GMD 10,000 (confirmed via a live rejection on 2026-08-23: a D13,500
+    # attempt 400'd with "Amount for payment intent cannot exceed GMD
+    # 10,000.00") -- kept admin-editable rather than hardcoded since this is
+    # ModemPay's own policy, which can change on their end without notice.
+    modempay_min_donation_amount = models.DecimalField(
+        max_digits=12, decimal_places=2, default=Decimal('5.00'),
+        help_text='Minimum single donation amount via ModemPay (Wave/APS/Afrimoney).',
+    )
+    modempay_max_donation_amount = models.DecimalField(
+        max_digits=12, decimal_places=2, default=Decimal('10000.00'),
+        help_text='Maximum single donation amount via ModemPay. Keep this at or below whatever '
+                   'ModemPay itself currently enforces on a payment intent, or donations in '
+                   'between will pass validation here and still get rejected by ModemPay.',
+    )
     stripe_enabled = models.BooleanField(
         default=False,
         help_text='Whether donors can pay by card via Stripe. Requires Stripe API keys to '
                    'already be configured in the environment — this switch only controls '
                    'whether the (already-configured) gateway is offered.',
+    )
+    stripe_min_donation_amount = models.DecimalField(
+        max_digits=12, decimal_places=2, default=Decimal('5.00'),
+        help_text='Minimum single donation amount via Stripe (card), in GMD.',
+    )
+    stripe_max_donation_amount = models.DecimalField(
+        max_digits=12, decimal_places=2, default=Decimal('10000.00'),
+        help_text='Maximum single donation amount via Stripe (card), in GMD. Not independently '
+                   'confirmed against a real Stripe limit -- adjust if Stripe rejects amounts '
+                   'below this.',
     )
     # Stripe doesn't support GMD as a settlement currency, so a card donation
     # is actually charged in this currency instead — converted from the

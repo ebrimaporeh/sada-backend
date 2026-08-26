@@ -11,9 +11,6 @@ class RegisterSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True, validators=[validate_password])
     password_confirm = serializers.CharField(write_only=True)
-    account_type = serializers.ChoiceField(
-        choices=User.AccountType.choices, required=False, default=User.AccountType.INDIVIDUAL,
-    )
     # write_only + popped in validate() -- register_user()/create_user()
     # don't take this as a User field, RegisterView records it separately
     # via consent_service once the account actually exists.
@@ -77,10 +74,6 @@ class TokenRefreshSerializer(serializers.Serializer):
 
 class GoogleOAuthSerializer(serializers.Serializer):
     id_token = serializers.CharField()
-    # Only consulted when this Google sign-in creates a brand-new account
-    # (e.g. from the signup page's account-type toggle) — ignored for an
-    # existing user, who keeps whatever account_type they already have.
-    account_type = serializers.ChoiceField(choices=User.AccountType.choices, required=False)
 
     def validate_id_token(self, value):
         if not value:

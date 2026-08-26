@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from .models import User
+from .models import User, Organization, OrganizationVerification, OrganizationChangeRequest
 
 
 @admin.register(User)
@@ -26,3 +26,27 @@ class UserAdmin(BaseUserAdmin):
             'fields': ('email', 'first_name', 'last_name', 'password1', 'password2', 'role', 'is_staff'),
         }),
     )
+
+
+@admin.register(Organization)
+class OrganizationAdmin(admin.ModelAdmin):
+    list_display = ('organization_name', 'organization_type', 'created_by', 'is_verified', 'created_at')
+    list_filter = ('organization_type', 'is_verified')
+    search_fields = ('organization_name', 'created_by__email')
+    readonly_fields = ('id', 'created_at', 'updated_at')
+
+
+@admin.register(OrganizationVerification)
+class OrganizationVerificationAdmin(admin.ModelAdmin):
+    list_display = ('organization', 'submitted_by', 'status', 'created_at')
+    list_filter = ('status',)
+    search_fields = ('organization__organization_name', 'submitted_by__email')
+    readonly_fields = ('id', 'created_at', 'updated_at')
+
+
+@admin.register(OrganizationChangeRequest)
+class OrganizationChangeRequestAdmin(admin.ModelAdmin):
+    list_display = ('organization', 'submitted_by', 'field_name', 'status', 'created_at')
+    list_filter = ('field_name', 'status')
+    search_fields = ('organization__organization_name', 'submitted_by__email')
+    readonly_fields = ('id', 'created_at', 'updated_at')

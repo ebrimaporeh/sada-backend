@@ -261,6 +261,7 @@ The course is completely free for students. All they need is the determination t
         dict(
             slug='bakau-mosque-water-system',
             owner=U.get('bakau.mosque@example.gm'),
+            organization=U.get('bakau.mosque@example.gm').organizations.first(),
             category=cats.get('religious'),
             title='New Wudu (Ablution) Water System for Bakau Mosque',
             short_description="Bakau Central Mosque's water system is failing. Help us install a reliable new system for daily prayers.",
@@ -278,6 +279,7 @@ All funds are managed transparently by the mosque committee, with receipts publi
         dict(
             slug='utg-su-graduation-fund',
             owner=U.get('utgsu@example.gm'),
+            organization=U.get('utgsu@example.gm').organizations.first(),
             category=cats.get('education'),
             title="UTG Students' Union Graduation Support Fund",
             short_description='Help cover graduation fees and regalia for final-year UTG students who cannot afford them.',
