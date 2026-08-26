@@ -513,6 +513,35 @@ class CampaignOrganizationPermissionTest(APITestCase):
         results = list(campaign_service.get_owner_campaigns(member))
         self.assertIn(org_campaign, results)
 
+    def test_org_member_can_see_campaign_donors_not_just_the_creator(self):
+        # Regression guard: get_campaign_donors() used a literal
+        # Campaign.objects.get(owner=user, ...) filter -- 404'd for any org
+        # member who wasn't specifically the user recorded as `owner` (the
+        # member who happened to create the campaign), even though the
+        # Donors tab is meant to be readable by any member with campaign
+        # access, same as Overview/Updates.
+        import services.donation_service as donation_service
+        from apps.donations.models import Donation
+        campaign = make_campaign(owner=self.owner, organization=self.org)
+        donor = User.objects.create_user(email='campaign-donor@example.com', password='pass')
+        Donation.objects.create(
+            campaign=campaign, donor=donor, amount=Decimal('50.00'), provider='wave', phone='+2207000000',
+            payment_reference='SD-ORGDONORTEST', gateway='modempay', status=Donation.Status.PAID,
+        )
+        member, _ = make_member(self.org, permissions=[])
+
+        results = list(donation_service.get_campaign_donors(member, campaign.slug))
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].donor, donor)
+
+    def test_non_member_cannot_see_campaign_donors(self):
+        import services.donation_service as donation_service
+        from django.http import Http404
+        campaign = make_campaign(owner=self.owner, organization=self.org)
+        outsider = User.objects.create_user(email='donors-outsider@example.com', password='pass')
+        with self.assertRaises(Http404):
+            donation_service.get_campaign_donors(outsider, campaign.slug)
+
     def test_create_campaign_endpoint_requires_create_campaign_permission(self):
         powerless_member, _ = make_member(self.org, permissions=[])
         self.client.force_authenticate(user=powerless_member)

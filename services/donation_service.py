@@ -399,9 +399,18 @@ def get_user_donations(user):
 
 
 def get_campaign_donors(user, slug):
+    # Was a literal `Campaign.objects.get(owner=user, ...)` -- 404'd for any
+    # org member who wasn't the specific user recorded as `owner` (the
+    # member who happened to create the campaign), even though the
+    # Donors tab is meant to be readable by any member with access to the
+    # campaign (see MyCampaignDetailPage.jsx's comment on visibleTabs).
+    # get_owner_campaign() is the same org-membership-aware access check
+    # every other "my campaign" read already goes through -- no
+    # required_permission, since viewing donors needs no more than read
+    # access, same as Overview/Updates.
     from apps.donations.models import Donation
-    from apps.campaigns.models import Campaign
-    campaign = get_object_or_404(Campaign, owner=user, slug=slug)
+    from services.campaign_service import get_owner_campaign
+    campaign = get_owner_campaign(user, slug)
     return Donation.objects.filter(
         campaign=campaign,
         status=Donation.Status.PAID,
