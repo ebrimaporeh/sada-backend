@@ -153,7 +153,7 @@ class CampaignListView(APIView):
             OpenApiParameter('region', str, description='Filter by region'),
             OpenApiParameter('search', str, description='Search term'),
             OpenApiParameter('urgent', bool, description='Filter urgent only'),
-            OpenApiParameter('owner', str, description='Filter by owner id (a campaigner\'s public profile)'),
+            OpenApiParameter('owner', str, description='Filter by owner id (a fundraiser\'s public profile)'),
         ],
         responses={200: CampaignListSerializer(many=True)},
     )

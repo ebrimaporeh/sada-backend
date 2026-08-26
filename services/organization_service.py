@@ -90,7 +90,7 @@ def get_organization(organization_id: str, user: User) -> Organization:
 
 
 def get_all_organizations(search: str = None) -> 'QuerySet[Organization]':
-    """Every organization -- the admin Campaigners page's Organizations
+    """Every organization -- the admin Fundraisers page's Organizations
     tab. Deliberately not membership-gated (unlike get_organization): the
     caller here is staff with the users_view resource grant, not a member,
     same relationship AdminUserListView/get_regular_users has to individual

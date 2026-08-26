@@ -161,7 +161,7 @@ class AdminUserSerializer(serializers.ModelSerializer):
 
 
 class AdminUserListSerializer(serializers.ModelSerializer):
-    """Lean projection for the admin Campaigners table (UserListView) --
+    """Lean projection for the admin Fundraisers table (UserListView) --
     that table only ever renders name/email/status/verification/joined, not
     the full profile AdminUserSerializer carries (bio, payment defaults,
     every notification preference, ...). Same reasoning as
@@ -202,7 +202,7 @@ class AdminUserCreateSerializer(serializers.ModelSerializer):
         return value
 
 
-class PublicCampaignerSerializer(serializers.ModelSerializer):
+class PublicFundraiserSerializer(serializers.ModelSerializer):
     """A campaign owner's public profile — deliberately minimal. Never add
     email, phone, role, payment fields, or anything from IdentityVerification/
     OrganizationVerification here; is_verified is the only verification-
@@ -230,7 +230,7 @@ class PublicCampaignerSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         # Organizations upload a logo (via Organization.logo, set on
         # verification approval) rather than the generic User.avatar —
-        # fall back to it so a campaigner card isn't just blank/initials.
+        # fall back to it so a fundraiser card isn't just blank/initials.
         image = obj.avatar or getattr(getattr(obj, 'organization', None), 'logo', None)
         if image and request:
             return request.build_absolute_uri(image.url)

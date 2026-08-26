@@ -670,7 +670,7 @@ class PayoutOrganizationPermissionTest(APITestCase):
 
 
 class AdminOrganizationViewsTest(APITestCase):
-    """Admin Campaigners page's Organizations tab -- deliberately NOT
+    """Admin Fundraisers page's Organizations tab -- deliberately NOT
     membership-gated (see organization_service.get_all_organizations),
     mirroring how AdminCampaignListView isn't owner-gated."""
 

@@ -84,12 +84,12 @@ class AdminCampaignPayoutListView(APIView):
 
 
 class AdminOwnerPayoutListView(APIView):
-    """Admin view of every payout a campaigner has requested, across all of
-    their campaigns -- backs the campaigner detail page's Payouts tab."""
+    """Admin view of every payout a fundraiser has requested, across all of
+    their campaigns -- backs the fundraiser detail page's Payouts tab."""
     permission_classes = [HasResourceAccess]
     required_resource = Resource.FINANCES_VIEW
 
-    @extend_schema(summary="[Admin] List a campaigner's payouts across all their campaigns", responses={200: PayoutSerializer(many=True)})
+    @extend_schema(summary="[Admin] List a fundraiser's payouts across all their campaigns", responses={200: PayoutSerializer(many=True)})
     def get(self, request, owner_id):
         payouts = payment_service.get_admin_owner_payouts(owner_id)
         serializer = PayoutSerializer(payouts, many=True)

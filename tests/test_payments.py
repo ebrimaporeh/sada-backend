@@ -1082,7 +1082,7 @@ class RequestPayoutGatewayTest(APITestCase):
     modempay_service directly."""
 
     def setUp(self):
-        self.owner = User.objects.create_user(email='campaigner@example.com', password='pass')
+        self.owner = User.objects.create_user(email='fundraiser@example.com', password='pass')
         self.campaign = make_campaign(owner=self.owner, raised=Decimal('500.00'))
 
     @patch('services.modempay_service.request_disbursement')
@@ -1255,7 +1255,7 @@ class AdminCampaignPayoutListViewTest(APITestCase):
 
 
 class AdminDonationDonorFilterTest(APITestCase):
-    """get_all_donations()'s `donor` param -- what the campaigner detail
+    """get_all_donations()'s `donor` param -- what the fundraiser detail
     page's Donations tab scopes the list to (a donor, not a campaign)."""
 
     def test_filters_to_one_donor(self):
@@ -1276,7 +1276,7 @@ class AdminDonationDonorFilterTest(APITestCase):
 
 
 class AdminCampaignOwnerFilterTest(APITestCase):
-    """get_all_campaigns()'s `owner` param -- what the campaigner detail
+    """get_all_campaigns()'s `owner` param -- what the fundraiser detail
     page's Campaigns tab scopes the list to."""
 
     def test_filters_to_one_owner(self):
@@ -1291,7 +1291,7 @@ class AdminCampaignOwnerFilterTest(APITestCase):
 
 
 class AdminOwnerPayoutListViewTest(APITestCase):
-    """AdminOwnerPayoutListView / get_admin_owner_payouts -- the campaigner
+    """AdminOwnerPayoutListView / get_admin_owner_payouts -- the fundraiser
     detail page's Payouts tab, scoped to who *requested* the payout across
     every campaign they own, not one campaign at a time."""
 
@@ -1318,7 +1318,7 @@ class AdminOwnerPayoutListViewTest(APITestCase):
         )
 
     def test_endpoint_requires_admin(self):
-        url = f'/api/v1/payments/admin/campaigner/{self.owner.id}/payouts/'
+        url = f'/api/v1/payments/admin/fundraiser/{self.owner.id}/payouts/'
         response = self.client.get(url)
         self.assertIn(response.status_code, (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN))
 

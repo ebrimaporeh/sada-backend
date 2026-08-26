@@ -89,22 +89,22 @@ class SitemapTest(APITestCase):
 
 
 @override_settings(FRONTEND_URL='https://example-frontend.test')
-class CampaignerSharePreviewTest(APITestCase):
-    def test_public_campaigner_renders_real_og_tags(self):
-        owner = User.objects.create_user(email='campaigner@example.com', password='pass', bio='Community organizer.')
-        make_campaign(owner=owner, is_anonymous=False)  # makes them a "campaigner" at all
-        url = reverse('share-campaigner', kwargs={'id': owner.id})
+class FundraiserSharePreviewTest(APITestCase):
+    def test_public_fundraiser_renders_real_og_tags(self):
+        owner = User.objects.create_user(email='fundraiser@example.com', password='pass', bio='Community organizer.')
+        make_campaign(owner=owner, is_anonymous=False)  # makes them a "fundraiser" at all
+        url = reverse('share-fundraiser', kwargs={'id': owner.id})
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         body = response.content.decode()
         self.assertIn(owner.full_name, body)
         self.assertIn('Community organizer.', body)
-        self.assertIn(f'https://example-frontend.test/campaigners/{owner.id}', body)
+        self.assertIn(f'https://example-frontend.test/fundraisers/{owner.id}', body)
 
     def test_user_with_no_public_campaigns_redirects_without_leaking_data(self):
-        # Not a "campaigner" at all (no public campaign) -- nothing to show.
+        # Not a "fundraiser" at all (no public campaign) -- nothing to show.
         private_user = User.objects.create_user(email='private@example.com', password='pass', first_name='Private')
-        url = reverse('share-campaigner', kwargs={'id': private_user.id})
+        url = reverse('share-fundraiser', kwargs={'id': private_user.id})
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_302_FOUND)
         self.assertNotIn(b'Private', response.content)

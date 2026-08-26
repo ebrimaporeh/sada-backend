@@ -273,8 +273,8 @@ def get_admin_campaign_payouts(campaign_id):
 
 
 def get_admin_owner_payouts(owner_id):
-    """Admin view of every payout a campaigner has requested, across all of
-    their campaigns -- backs the campaigner detail page's Payouts tab."""
+    """Admin view of every payout a fundraiser has requested, across all of
+    their campaigns -- backs the fundraiser detail page's Payouts tab."""
     from apps.payments.models import Payout
     return Payout.objects.filter(requested_by_id=owner_id).select_related('campaign').order_by('-created_at')
 

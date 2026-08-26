@@ -16,7 +16,7 @@ from django.core.files.base import ContentFile
 
 # (max_dimension, quality-if-recompressing) per upload purpose. Avatars get
 # a larger dimension and higher quality than other "utility" images
-# specifically because the campaigners masonry grid displays them large as
+# specifically because the fundraisers masonry grid displays them large as
 # the tile's main content, not just as a small nav-bar icon — a size/quality
 # tuned for a 32px avatar chip would look visibly soft blown up that large.
 PROFILES = {

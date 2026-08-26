@@ -6,8 +6,8 @@ urlpatterns = [
     path('me/avatar/', views.MyAvatarUploadView.as_view(), name='user-me-avatar'),
     path('stats/', views.UserStatsView.as_view(), name='user-stats'),
     # Public routes — must come before the generic <uuid:pk>/ catch-all below.
-    path('campaigners/', views.PublicCampaignerListView.as_view(), name='public-campaigner-list'),
-    path('campaigners/<uuid:id>/', views.PublicCampaignerDetailView.as_view(), name='public-campaigner-detail'),
+    path('fundraisers/', views.PublicFundraiserListView.as_view(), name='public-fundraiser-list'),
+    path('fundraisers/<uuid:id>/', views.PublicFundraiserDetailView.as_view(), name='public-fundraiser-detail'),
     path('verification/', views.IdentityVerificationSubmitView.as_view(), name='verification-submit'),
     path('verification/me/', views.MyVerificationView.as_view(), name='verification-me'),
     path('organization-verification/', views.OrganizationVerificationSubmitView.as_view(), name='organization-verification-submit'),

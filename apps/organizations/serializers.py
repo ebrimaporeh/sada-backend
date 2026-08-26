@@ -69,7 +69,7 @@ class OrganizationSerializer(serializers.ModelSerializer):
 
 
 class AdminOrganizationListSerializer(serializers.ModelSerializer):
-    """Lean projection for the admin Campaigners page's Organizations tab --
+    """Lean projection for the admin Fundraisers page's Organizations tab --
     mirrors AdminUserListSerializer/AdminCampaignListSerializer's reasoning
     (list-only, not the full detail shape a single-org admin page needs)."""
     organization_type_name = serializers.CharField(source='organization_type.name', read_only=True)

@@ -6,11 +6,11 @@ meta hook) never reaches a crawler that doesn't execute JavaScript.
 WhatsApp/Facebook/LinkedIn/Slack's link-preview bots are exactly that kind
 of crawler. The views here exist specifically to give those bots real,
 server-rendered og:*/twitter:* tags for the two dynamic, shareable content
-types (campaigns, campaigner profiles) without requiring a full SSR
+types (campaigns, fundraiser profiles) without requiring a full SSR
 rewrite of the frontend:
 
     /share/campaigns/<slug>/       -> apps/seo/templates/seo/share_preview.html
-    /share/campaigners/<id>/       -> same template
+    /share/fundraisers/<id>/       -> same template
 
 Each share URL renders a tiny HTML page with the real tags baked in
 server-side, then immediately sends a real visitor on to the actual SPA
@@ -45,7 +45,7 @@ def _absolute_media_url(request, field):
 def _default_og_image(request):
     """Falls back to the admin-configured logo (the on-background variant
     exists specifically for this — see SiteSettings.logo_with_background's
-    help_text) when a campaign/campaigner has no image of their own."""
+    help_text) when a campaign/fundraiser has no image of their own."""
     site = SiteSettings.get_solo()
     return _absolute_media_url(request, site.logo_with_background or site.logo)
 
@@ -101,20 +101,20 @@ class CampaignSharePreviewView(View):
         )
 
 
-class CampaignerSharePreviewView(View):
+class FundraiserSharePreviewView(View):
     def get(self, request, id):
-        page_url = _frontend_url(f'/campaigners/{id}')
+        page_url = _frontend_url(f'/fundraisers/{id}')
         try:
-            campaigner = user_service.get_public_campaigner(id)
+            fundraiser = user_service.get_public_fundraiser(id)
         except Http404:
             return redirect(page_url)
 
-        bio = campaigner.bio or f'{campaigner.campaign_count} campaign(s) on {SiteSettings.get_solo().site_name}.'
+        bio = fundraiser.bio or f'{fundraiser.campaign_count} campaign(s) on {SiteSettings.get_solo().site_name}.'
         return _render_share_preview(
             request,
-            title=campaigner.full_name,
+            title=fundraiser.full_name,
             description=_truncate(bio),
-            image_url=_absolute_media_url(request, campaigner.avatar),
+            image_url=_absolute_media_url(request, fundraiser.avatar),
             page_url=page_url,
             og_type='profile',
         )
@@ -141,7 +141,7 @@ class VisionTopicSharePreviewView(View):
 # ─── Sitemap & robots.txt ──────────────────────────────────────────────────
 # Deliberately served from this (backend) domain, not the frontend's static
 # host -- the frontend is a plain Vite build with no server code of its own
-# to generate a sitemap from live campaign/campaigner data. The frontend's
+# to generate a sitemap from live campaign/fundraiser data. The frontend's
 # own robots.txt (a static file, since it's the canonical site root crawlers
 # check first) points its `Sitemap:` directive at this endpoint.
 
@@ -149,7 +149,7 @@ STATIC_SITEMAP_ENTRIES = [
     # (path, changefreq, priority)
     ('/', 'daily', '1.0'),
     ('/campaigns', 'hourly', '0.9'),
-    ('/campaigners', 'daily', '0.6'),
+    ('/fundraisers', 'daily', '0.6'),
     ('/categories', 'weekly', '0.5'),
     ('/zakat', 'monthly', '0.5'),
     ('/vision', 'weekly', '0.5'),
@@ -176,9 +176,9 @@ class SitemapView(View):
                 'priority': '0.8',
             })
 
-        for campaigner in user_service.get_public_campaigners():
+        for fundraiser in user_service.get_public_fundraisers():
             entries.append({
-                'loc': _frontend_url(f'/campaigners/{campaigner.id}'),
+                'loc': _frontend_url(f'/fundraisers/{fundraiser.id}'),
                 'lastmod': None,
                 'changefreq': 'weekly',
                 'priority': '0.5',

@@ -115,7 +115,7 @@ class UserListViewTest(APITestCase):
         self.assertEqual(response.data['results'], [])
 
     def test_row_shape_is_the_lean_table_projection(self):
-        # The admin Campaigners table only ever renders name/email/status/
+        # The admin Fundraisers table only ever renders name/email/status/
         # verification/joined -- this pins that the list endpoint stopped
         # shipping the full profile (bio, payment defaults, every
         # notification flag, ...) per row. No organization_type here --
@@ -234,7 +234,7 @@ class AdminDeleteUserViewTest(APITestCase):
         self.assertEqual(target.first_name, 'Deleted')
         self.assertTrue(User.objects.filter(pk=target.pk).exists())
 
-    def test_deleted_user_is_excluded_from_the_admin_campaigners_list(self):
+    def test_deleted_user_is_excluded_from_the_admin_fundraisers_list(self):
         target = User.objects.create_user(email='soon-deleted@example.com', password='pass')
         self.client.delete(reverse('user-detail', args=[target.pk]))
 

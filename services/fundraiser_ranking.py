@@ -1,11 +1,11 @@
-"""Ranks public campaigner profiles by how active their campaigns
+"""Ranks public fundraiser profiles by how active their campaigns
 currently are, so the directory surfaces people with campaigns
 currently gaining momentum first rather than just whoever raised the
 most all-time.
 
 "Active" is measured as donation frequency: how many completed
-donations have landed on the campaigner's public campaigns within the
-last ACTIVITY_WINDOW_DAYS days. A campaigner whose campaign is
+donations have landed on the fundraiser's public campaigns within the
+last ACTIVITY_WINDOW_DAYS days. A fundraiser whose campaign is
 receiving frequent recent donations ranks above one who raised a lot
 once, long ago, and has since gone quiet.
 """
@@ -53,7 +53,7 @@ def annotate_activity(queryset, public_campaign_statuses):
 
 
 def order_by_activity(queryset):
-    """Most active campaigners first. Ties broken by total public campaign
+    """Most active fundraisers first. Ties broken by total public campaign
     count, then lifetime raised, then newest — same stable tiebreakers the
     directory used before activity ranking existed."""
     return queryset.order_by('-recent_donation_count', '-campaign_count', '-total_raised', '-created_at')

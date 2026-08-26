@@ -338,8 +338,8 @@ def change_staff_role(user: User, role: str, requesting_user: User) -> User:
     return user
 
 
-def _public_campaigner_base_queryset():
-    """A "campaigner" is derived, not a formal role — any user with at least
+def _public_fundraiser_base_queryset():
+    """A "fundraiser" is derived, not a formal role — any user with at least
     one campaign that's actually publicly visible and not anonymous. Mirrors
     the statuses campaign_service.get_campaign_by_slug() treats as public,
     minus PENDING (not yet approved, so not a real public track record)."""
@@ -352,11 +352,11 @@ def _public_campaigner_base_queryset():
     )
 
 
-def get_public_campaigners(filters=None):
+def get_public_fundraisers(filters=None):
     from apps.campaigns.models import Campaign
-    from services import campaigner_ranking
+    from services import fundraiser_ranking
 
-    qs = _public_campaigner_base_queryset()
+    qs = _public_fundraiser_base_queryset()
     if filters:
         if filters.get('region'):
             qs = qs.filter(region=filters['region'])
@@ -365,9 +365,9 @@ def get_public_campaigners(filters=None):
             qs = qs.filter(Q(first_name__icontains=q) | Q(last_name__icontains=q))
 
     public_statuses = [Campaign.Status.ACTIVE, Campaign.Status.APPROVED, Campaign.Status.COMPLETED]
-    qs = campaigner_ranking.annotate_activity(qs, public_statuses)
-    return campaigner_ranking.order_by_activity(qs)
+    qs = fundraiser_ranking.annotate_activity(qs, public_statuses)
+    return fundraiser_ranking.order_by_activity(qs)
 
 
-def get_public_campaigner(user_id):
-    return get_object_or_404(_public_campaigner_base_queryset(), pk=user_id)
+def get_public_fundraiser(user_id):
+    return get_object_or_404(_public_fundraiser_base_queryset(), pk=user_id)

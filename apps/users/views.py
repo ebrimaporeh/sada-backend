@@ -16,7 +16,7 @@ from apps.audit.models import AuditLog
 from .models import User, Organization
 from .serializers import (
     UserSerializer, UserUpdateSerializer, AdminUserSerializer, AdminUserListSerializer, AdminUserCreateSerializer,
-    IdentityVerificationSerializer, IdentityVerificationCreateSerializer, PublicCampaignerSerializer,
+    IdentityVerificationSerializer, IdentityVerificationCreateSerializer, PublicFundraiserSerializer,
     OrganizationSerializer, OrganizationVerificationSerializer, OrganizationVerificationCreateSerializer,
     OrganizationChangeRequestSerializer, OrganizationChangeRequestCreateSerializer,
     DeleteAccountSerializer,
@@ -99,17 +99,17 @@ class AdminOrganizationLogoUploadView(APIView):
 
 @extend_schema(
     tags=['Users'],
-    summary='List public campaigner profiles',
+    summary='List public fundraiser profiles',
     parameters=[
         OpenApiParameter('region', str, description='Filter by region'),
         OpenApiParameter('search', str, description='Search by name'),
     ],
-    responses={200: PublicCampaignerSerializer(many=True)},
+    responses={200: PublicFundraiserSerializer(many=True)},
 )
-class PublicCampaignerListView(generics.ListAPIView):
+class PublicFundraiserListView(generics.ListAPIView):
     """Anyone with at least one public, non-anonymous campaign — the
     browsable directory. No auth required, nothing sensitive returned."""
-    serializer_class = PublicCampaignerSerializer
+    serializer_class = PublicFundraiserSerializer
     permission_classes = [AllowAny]
     pagination_class = StandardResultsPagination
 
@@ -118,17 +118,17 @@ class PublicCampaignerListView(generics.ListAPIView):
             'region': self.request.query_params.get('region'),
             'search': self.request.query_params.get('search'),
         }
-        return user_service.get_public_campaigners(filters)
+        return user_service.get_public_fundraisers(filters)
 
 
-@extend_schema(tags=['Users'], summary='Get a public campaigner profile', responses={200: PublicCampaignerSerializer})
-class PublicCampaignerDetailView(generics.RetrieveAPIView):
-    serializer_class = PublicCampaignerSerializer
+@extend_schema(tags=['Users'], summary='Get a public fundraiser profile', responses={200: PublicFundraiserSerializer})
+class PublicFundraiserDetailView(generics.RetrieveAPIView):
+    serializer_class = PublicFundraiserSerializer
     permission_classes = [AllowAny]
     lookup_url_kwarg = 'id'
 
     def get_object(self):
-        return user_service.get_public_campaigner(self.kwargs['id'])
+        return user_service.get_public_fundraiser(self.kwargs['id'])
 
 
 @extend_schema(

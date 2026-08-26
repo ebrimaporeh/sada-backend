@@ -446,7 +446,7 @@ paths:
         name: owner
         schema:
           type: string
-        description: Filter by owner id (a campaigner's public profile)
+        description: Filter by owner id (a fundraiser's public profile)
       - in: query
         name: region
         schema:
@@ -964,6 +964,27 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/CampaignList'
+          description: ''
+  /api/v1/campaigns/hero/:
+    get:
+      operationId: v1_campaigns_hero_retrieve
+      description: |-
+        Weighted-random single campaign for the homepage hero -- see
+        campaign_service.get_hero_campaign() for the priority weighting.
+        Deliberately never cached server-side (see StandardResultsPagination/
+        other views for comparison) so every request re-rolls.
+      summary: Get a weighted-random campaign for the homepage hero
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CampaignList'
           description: ''
   /api/v1/campaigns/my/:
     get:
@@ -1497,6 +1518,501 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/v1/organizations/:
+    post:
+      operationId: v1_organizations_create
+      summary: Create a new organization
+      tags:
+      - Organizations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizationCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OrganizationCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OrganizationCreate'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+          description: ''
+  /api/v1/organizations/{id}/:
+    get:
+      operationId: v1_organizations_retrieve
+      summary: Get an organization I belong to
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Organizations
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+          description: ''
+  /api/v1/organizations/{id}/invitations/:
+    get:
+      operationId: v1_organizations_invitations_list
+      summary: List an organization's pending invitations
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Organizations
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OrganizationInvitation'
+          description: ''
+    post:
+      operationId: v1_organizations_invitations_create
+      summary: Invite someone to join
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Organizations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvitationCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/InvitationCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/InvitationCreate'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationInvitation'
+          description: ''
+  /api/v1/organizations/{id}/invitations/{invitation_id}/{action}/:
+    post:
+      operationId: v1_organizations_invitations_create_2
+      summary: Cancel or resend a pending invitation
+      parameters:
+      - in: path
+        name: action
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: invitation_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Organizations
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/organizations/{id}/members/:
+    get:
+      operationId: v1_organizations_members_retrieve
+      summary: List an organization's members
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Organizations
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/organizations/{id}/members/{user_id}/:
+    patch:
+      operationId: v1_organizations_members_partial_update
+      summary: Change a member's role and/or contact-person flag
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: user_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Organizations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedUpdateMember'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedUpdateMember'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedUpdateMember'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    delete:
+      operationId: v1_organizations_members_destroy
+      summary: Remove a member (or leave, if removing yourself)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: user_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Organizations
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/organizations/{id}/roles/:
+    get:
+      operationId: v1_organizations_roles_list
+      summary: List an organization's roles
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Organizations
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OrganizationRole'
+          description: ''
+    post:
+      operationId: v1_organizations_roles_create
+      summary: Create a custom role
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Organizations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizationRoleCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OrganizationRoleCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OrganizationRoleCreate'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationRole'
+          description: ''
+  /api/v1/organizations/{id}/roles/{role_id}/:
+    patch:
+      operationId: v1_organizations_roles_partial_update
+      summary: Update a custom role
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: role_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Organizations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedOrganizationRoleUpdate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedOrganizationRoleUpdate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedOrganizationRoleUpdate'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    delete:
+      operationId: v1_organizations_roles_destroy
+      summary: Delete a custom role
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: role_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Organizations
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/organizations/{id}/transfer-ownership/:
+    post:
+      operationId: v1_organizations_transfer_ownership_create
+      summary: Transfer ownership to another member
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Organizations
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/organizations/admin/{id}/:
+    get:
+      operationId: v1_organizations_admin_retrieve
+      summary: '[Admin] Get any organization''s detail'
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Organizations
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/organizations/admin/{id}/members/:
+    get:
+      operationId: v1_organizations_admin_members_retrieve
+      summary: '[Admin] List any organization''s members'
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Organizations
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/organizations/admin/all/:
+    get:
+      operationId: v1_organizations_admin_all_list
+      summary: '[Admin] List all organizations'
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: query
+        name: search
+        schema:
+          type: string
+        description: Search by organization name
+      tags:
+      - Organizations
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAdminOrganizationListList'
+          description: ''
+  /api/v1/organizations/invitations/accept/:
+    post:
+      operationId: v1_organizations_invitations_accept_create
+      summary: Accept an invitation
+      tags:
+      - Organizations
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/organizations/invitations/mine/:
+    get:
+      operationId: v1_organizations_invitations_mine_retrieve
+      summary: List invitations sent to my email
+      tags:
+      - Organizations
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/organizations/invitations/preview/:
+    get:
+      operationId: v1_organizations_invitations_preview_retrieve
+      description: |-
+        Public -- the invited person may not have an account yet, so this
+        has to work before login/register.
+      summary: Preview an invitation by its token (no login required)
+      parameters:
+      - in: query
+        name: token
+        schema:
+          type: string
+        required: true
+      tags:
+      - Organizations
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/organizations/invitations/reject/:
+    post:
+      operationId: v1_organizations_invitations_reject_create
+      summary: Reject an invitation
+      tags:
+      - Organizations
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/organizations/mine/:
+    get:
+      operationId: v1_organizations_mine_retrieve
+      summary: List organizations I belong to
+      tags:
+      - Organizations
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/organizations/types/:
+    get:
+      operationId: v1_organizations_types_retrieve
+      summary: List organization types selectable for a new org
+      tags:
+      - Organizations
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/v1/payments/admin/campaign/{campaign_id}/payouts/:
     get:
       operationId: v1_payments_admin_campaign_payouts_list
@@ -1524,13 +2040,13 @@ paths:
                 items:
                   $ref: '#/components/schemas/Payout'
           description: ''
-  /api/v1/payments/admin/campaigner/{owner_id}/payouts/:
+  /api/v1/payments/admin/fundraiser/{owner_id}/payouts/:
     get:
-      operationId: v1_payments_admin_campaigner_payouts_list
+      operationId: v1_payments_admin_fundraiser_payouts_list
       description: |-
-        Admin view of every payout a campaigner has requested, across all of
-        their campaigns -- backs the campaigner detail page's Payouts tab.
-      summary: '[Admin] List a campaigner''s payouts across all their campaigns'
+        Admin view of every payout a fundraiser has requested, across all of
+        their campaigns -- backs the fundraiser detail page's Payouts tab.
+      summary: '[Admin] List a fundraiser''s payouts across all their campaigns'
       parameters:
       - in: path
         name: owner_id
@@ -1870,11 +2386,6 @@ paths:
       operationId: v1_users_list
       summary: '[Admin] List regular (non-staff) users'
       parameters:
-      - in: query
-        name: account_type
-        schema:
-          type: string
-        description: Filter by individual or organization
       - name: ordering
         required: false
         in: query
@@ -1893,12 +2404,11 @@ paths:
         description: Number of results to return per page.
         schema:
           type: integer
-      - name: search
-        required: false
-        in: query
-        description: A search term.
+      - in: query
+        name: search
         schema:
           type: string
+        description: Search by name, email, or organization name
       tags:
       - Users
       security:
@@ -1908,7 +2418,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedAdminUserList'
+                $ref: '#/components/schemas/PaginatedAdminUserListList'
           description: ''
   /api/v1/users/{id}/:
     get:
@@ -2035,6 +2545,10 @@ paths:
   /api/v1/users/admin/{id}/organization-logo/:
     post:
       operationId: v1_users_admin_organization_logo_create
+      description: |-
+        `pk` is an Organization id, not a User id -- an org can have several
+        members now, so "upload a logo for user X's org" is ambiguous; this
+        always targets one specific organization directly.
       summary: '[Admin] Upload any organization''s logo'
       parameters:
       - in: path
@@ -2324,13 +2838,13 @@ paths:
       responses:
         '200':
           description: No response body
-  /api/v1/users/campaigners/:
+  /api/v1/users/fundraisers/:
     get:
-      operationId: v1_users_campaigners_list
+      operationId: v1_users_fundraisers_list
       description: |-
         Anyone with at least one public, non-anonymous campaign — the
         browsable directory. No auth required, nothing sensitive returned.
-      summary: List public campaigner profiles
+      summary: List public fundraiser profiles
       parameters:
       - name: ordering
         required: false
@@ -2370,12 +2884,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedPublicCampaignerList'
+                $ref: '#/components/schemas/PaginatedPublicFundraiserList'
           description: ''
-  /api/v1/users/campaigners/{id}/:
+  /api/v1/users/fundraisers/{id}/:
     get:
-      operationId: v1_users_campaigners_retrieve
-      summary: Get a public campaigner profile
+      operationId: v1_users_fundraisers_retrieve
+      summary: Get a public fundraiser profile
       parameters:
       - in: path
         name: id
@@ -2393,7 +2907,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PublicCampaigner'
+                $ref: '#/components/schemas/PublicFundraiser'
           description: ''
   /api/v1/users/me/:
     get:
@@ -2487,13 +3001,31 @@ paths:
       operationId: v1_users_organization_change_requests_create
       description: |-
         Phone/phone_2/recovery emails are never editable directly — see
-        OrganizationChangeRequest's docstring for why. This queues a proposed
-        change for admin approval instead of applying it immediately.
+        OrganizationChangeRequest's docstring for why. Phone changes queue for
+        admin approval; recovery-email changes instead get confirmed by the
+        proposed address itself (see ConfirmRecoveryEmailChangeView) — either
+        way nothing is applied until this resolves.
       summary: Request a change to a recovery-critical organization field
       tags:
       - Verification
       security:
       - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/users/organization-change-requests/confirm-recovery-email/:
+    post:
+      operationId: v1_users_organization_change_requests_confirm_recovery_email_create
+      description: |-
+        Public — the person clicking this link is proving control of the
+        *proposed* recovery email's inbox, not necessarily logged into SADA at
+        all (they may not even be a SADA user).
+      summary: Confirm a proposed recovery email by the token sent to it
+      tags:
+      - Verification
+      security:
+      - jwtAuth: []
+      - {}
       responses:
         '200':
           description: No response body
@@ -2522,7 +3054,13 @@ paths:
   /api/v1/users/organization-verification/me/:
     get:
       operationId: v1_users_organization_verification_me_retrieve
-      summary: Get your organization's latest verification request
+      summary: Get an organization's latest verification request
+      parameters:
+      - in: query
+        name: organization_id
+        schema:
+          type: string
+        required: true
       tags:
       - Verification
       security:
@@ -2833,6 +3371,10 @@ components:
       - payment.refunded
       - payout.requested
       - payout.status_changed
+      - organization.created
+      - organization.ownership_transferred
+      - organization.member_removed
+      - organization.member_role_changed
       type: string
       description: |-
         * `user.logged_in` - Logged In
@@ -2856,6 +3398,10 @@ components:
         * `payment.refunded` - Refunded Payment
         * `payout.requested` - Requested Payout
         * `payout.status_changed` - Payout Status Changed
+        * `organization.created` - Created Organization
+        * `organization.ownership_transferred` - Transferred Ownership
+        * `organization.member_removed` - Removed Member
+        * `organization.member_role_changed` - Changed Member's Role
     AdminCampaign:
       type: object
       properties:
@@ -3083,7 +3629,7 @@ components:
           type: string
           maxLength: 20
         provider:
-          $ref: '#/components/schemas/ProviderC51Enum'
+          $ref: '#/components/schemas/Provider2dbEnum'
         phone:
           type: string
           maxLength: 20
@@ -3144,6 +3690,38 @@ components:
         reason:
           type: string
           default: ''
+    AdminOrganizationList:
+      type: object
+      description: |-
+        Lean projection for the admin Fundraisers page's Organizations tab --
+        mirrors AdminUserListSerializer/AdminCampaignListSerializer's reasoning
+        (list-only, not the full detail shape a single-org admin page needs).
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        organization_name:
+          type: string
+          maxLength: 200
+        organization_type_name:
+          type: string
+          readOnly: true
+        member_count:
+          type: string
+          readOnly: true
+        is_verified:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - member_count
+      - organization_name
+      - organization_type_name
     AdminUser:
       type: object
       properties:
@@ -3170,7 +3748,7 @@ components:
           allOf:
           - $ref: '#/components/schemas/AccountTypeEnum'
           readOnly: true
-        organization:
+        organizations:
           type: string
           readOnly: true
         avatar:
@@ -3227,7 +3805,7 @@ components:
       - email
       - full_name
       - id
-      - organization
+      - organizations
       - updated_at
     AdminUserCreate:
       type: object
@@ -3250,6 +3828,46 @@ components:
       required:
       - email
       - role
+    AdminUserList:
+      type: object
+      description: |-
+        Lean projection for the admin Fundraisers table (UserListView) --
+        that table only ever renders name/email/status/verification/joined, not
+        the full profile AdminUserSerializer carries (bio, payment defaults,
+        every notification preference, ...). Same reasoning as
+        AdminCampaignListSerializer for the campaigns table. UserDetailView (the
+        full profile page) still uses AdminUserSerializer -- this is list-only.
+
+        No organization_type here -- a user can belong to zero, one, or several
+        organizations now (see apps.organizations), so "this user's org type"
+        isn't a coherent per-user field any more. The admin Organizations tab is
+        its own Organization-backed list (AdminOrganizationListView), not a
+        filter on this one -- see apps.organizations.views.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        full_name:
+          type: string
+          readOnly: true
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        is_active:
+          type: boolean
+        is_verified:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - email
+      - full_name
+      - id
     AdminVisionTopic:
       type: object
       properties:
@@ -3388,6 +4006,11 @@ components:
           type: string
           writeOnly: true
           nullable: true
+        organization_id:
+          type: string
+          format: uuid
+          writeOnly: true
+          nullable: true
       required:
       - goal
       - short_description
@@ -3478,6 +4101,12 @@ components:
         owner_is_verified:
           type: string
           readOnly: true
+        organization_id:
+          type: string
+          readOnly: true
+        organization_name:
+          type: string
+          readOnly: true
         total_withdrawn:
           type: string
           readOnly: true
@@ -3504,6 +4133,8 @@ components:
       - goal
       - id
       - images
+      - organization_id
+      - organization_name
       - owner_id
       - owner_is_verified
       - owner_name
@@ -3597,6 +4228,12 @@ components:
         owner_is_verified:
           type: string
           readOnly: true
+        organization_id:
+          type: string
+          readOnly: true
+        organization_name:
+          type: string
+          readOnly: true
         created_at:
           type: string
           format: date-time
@@ -3608,6 +4245,8 @@ components:
       - created_at
       - goal
       - id
+      - organization_id
+      - organization_name
       - owner_id
       - owner_is_verified
       - owner_name
@@ -3782,24 +4421,16 @@ components:
       - new_password
       - new_password_confirm
       - old_password
-    ContactIdTypeEnum:
-      enum:
-      - national_id
-      - passport
-      - drivers_license
-      type: string
-      description: |-
-        * `national_id` - National ID Card
-        * `passport` - Passport
-        * `drivers_license` - Driver's License
     DefaultPaymentProviderEnum:
       enum:
       - wave
       - aps
+      - afrimoney
       type: string
       description: |-
         * `wave` - Wave
         * `aps` - APS Wallet
+        * `afrimoney` - Afrimoney
     Donation:
       type: object
       properties:
@@ -3818,7 +4449,7 @@ components:
           type: string
           maxLength: 20
         provider:
-          $ref: '#/components/schemas/ProviderC51Enum'
+          $ref: '#/components/schemas/Provider2dbEnum'
         phone:
           type: string
           maxLength: 20
@@ -3879,7 +4510,7 @@ components:
           type: string
           default: modempay
         provider:
-          $ref: '#/components/schemas/ProviderC51Enum'
+          $ref: '#/components/schemas/Provider2dbEnum'
         phone:
           type: string
           maxLength: 20
@@ -3911,8 +4542,6 @@ components:
       properties:
         id_token:
           type: string
-        account_type:
-          $ref: '#/components/schemas/AccountTypeEnum'
       required:
       - id_token
     IdTypeEnum:
@@ -3978,6 +4607,18 @@ components:
       - user_email
       - user_id
       - user_name
+    InvitationCreate:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        role_id:
+          type: string
+          format: uuid
+      required:
+      - email
+      - role_id
     LegalContent:
       type: object
       properties:
@@ -4054,6 +4695,69 @@ components:
         * `campaign_update` - Campaign Update
         * `goal_reached` - Goal Reached
         * `donation_refunded` - Donation Refunded
+    Organization:
+      type: object
+      description: |-
+        Detail shape for a single organization -- distinct from the lean
+        per-membership shape UserSerializer.get_organizations returns (that one
+        also carries the requesting user's own role/permissions inline).
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        organization_name:
+          type: string
+          maxLength: 200
+        organization_type:
+          type: string
+          readOnly: true
+        organization_type_name:
+          type: string
+          readOnly: true
+        phone:
+          type: string
+          maxLength: 20
+        phone_2:
+          type: string
+          maxLength: 20
+        recovery_email_1:
+          type: string
+          format: email
+          maxLength: 254
+        recovery_email_2:
+          type: string
+          format: email
+          maxLength: 254
+        logo:
+          type: string
+          readOnly: true
+        is_verified:
+          type: boolean
+        member_count:
+          type: string
+          readOnly: true
+        created_by_name:
+          type: string
+          readOnly: true
+        contact_persons:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - contact_persons
+      - created_at
+      - created_by_name
+      - id
+      - logo
+      - member_count
+      - organization_name
+      - organization_type
+      - organization_type_name
+      - phone_2
     OrganizationChangeRequest:
       type: object
       properties:
@@ -4061,13 +4765,16 @@ components:
           type: string
           format: uuid
           readOnly: true
-        user_id:
+        organization_id:
           type: string
           readOnly: true
-        user_name:
+        organization_name:
           type: string
           readOnly: true
-        user_email:
+        submitted_by_name:
+          type: string
+          readOnly: true
+        submitted_by_email:
           type: string
           readOnly: true
         field_name:
@@ -4101,11 +4808,131 @@ components:
       - field_label
       - field_name
       - id
+      - organization_id
+      - organization_name
       - proposed_value
       - reviewed_by_name
-      - user_email
-      - user_id
-      - user_name
+      - submitted_by_email
+      - submitted_by_name
+    OrganizationCreate:
+      type: object
+      description: |-
+        Field names here are passed straight through to
+        organization_service.create_organization(**validated_data) --
+        organization_type_slug (not organization_type/organization_type_id)
+        because OrganizationType is looked up by its slug, not its id.
+      properties:
+        organization_name:
+          type: string
+          maxLength: 200
+        organization_type_slug:
+          type: string
+          pattern: ^[-a-zA-Z0-9_]+$
+        phone:
+          type: string
+          maxLength: 20
+        phone_2:
+          type: string
+          maxLength: 20
+        recovery_email_1:
+          type: string
+          format: email
+        recovery_email_2:
+          type: string
+          format: email
+      required:
+      - organization_name
+      - organization_type_slug
+    OrganizationInvitation:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        organization_id:
+          type: string
+          readOnly: true
+        organization_name:
+          type: string
+          readOnly: true
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        role_id:
+          type: string
+          readOnly: true
+        role_name:
+          type: string
+          readOnly: true
+        invited_by_name:
+          type: string
+          readOnly: true
+        status:
+          $ref: '#/components/schemas/OrganizationInvitationStatusEnum'
+        token:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        responded_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - created_at
+      - email
+      - id
+      - invited_by_name
+      - organization_id
+      - organization_name
+      - role_id
+      - role_name
+      - token
+    OrganizationInvitationStatusEnum:
+      enum:
+      - pending
+      - accepted
+      - rejected
+      type: string
+      description: |-
+        * `pending` - Pending
+        * `accepted` - Accepted
+        * `rejected` - Rejected
+    OrganizationRole:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          maxLength: 50
+        permissions: {}
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - name
+    OrganizationRoleCreate:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 50
+        permissions:
+          type: array
+          items:
+            type: string
+      required:
+      - name
     OrganizationVerification:
       type: object
       properties:
@@ -4113,29 +4940,24 @@ components:
           type: string
           format: uuid
           readOnly: true
-        user_id:
+        organization_id:
           type: string
           readOnly: true
-        user_name:
-          type: string
-          readOnly: true
-        user_email:
+        organization_name:
           type: string
           readOnly: true
         organization_type:
           type: string
           readOnly: true
-        contact_id_type:
-          $ref: '#/components/schemas/ContactIdTypeEnum'
-        contact_id_number:
-          type: string
-          maxLength: 50
-        contact_id_photo_front:
+        submitted_by_name:
           type: string
           readOnly: true
-        contact_id_photo_back:
+        submitted_by_email:
           type: string
           readOnly: true
+        registration_number:
+          type: string
+          maxLength: 100
         registration_document:
           type: string
           readOnly: true
@@ -4158,19 +4980,40 @@ components:
           format: date-time
           readOnly: true
       required:
-      - contact_id_number
-      - contact_id_photo_back
-      - contact_id_photo_front
-      - contact_id_type
       - created_at
       - id
+      - organization_id
+      - organization_name
       - organization_photo
       - organization_type
       - registration_document
+      - registration_number
       - reviewed_by_name
-      - user_email
-      - user_id
-      - user_name
+      - submitted_by_email
+      - submitted_by_name
+    PaginatedAdminOrganizationListList:
+      type: object
+      properties:
+        success:
+          type: boolean
+        count:
+          type: integer
+        total_pages:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+        next:
+          type: string
+          nullable: true
+        previous:
+          type: string
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminOrganizationList'
     PaginatedAdminUserList:
       type: object
       properties:
@@ -4194,6 +5037,29 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/AdminUser'
+    PaginatedAdminUserListList:
+      type: object
+      properties:
+        success:
+          type: boolean
+        count:
+          type: integer
+        total_pages:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+        next:
+          type: string
+          nullable: true
+        previous:
+          type: string
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminUserList'
     PaginatedIdentityVerificationList:
       type: object
       properties:
@@ -4263,7 +5129,7 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/OrganizationVerification'
-    PaginatedPublicCampaignerList:
+    PaginatedPublicFundraiserList:
       type: object
       properties:
         success:
@@ -4285,7 +5151,7 @@ components:
         results:
           type: array
           items:
-            $ref: '#/components/schemas/PublicCampaigner'
+            $ref: '#/components/schemas/PublicFundraiser'
     PasswordToken:
       type: object
       properties:
@@ -4346,7 +5212,7 @@ components:
           type: string
           maxLength: 20
         provider:
-          $ref: '#/components/schemas/ProviderC51Enum'
+          $ref: '#/components/schemas/Provider2dbEnum'
         is_anonymous:
           type: boolean
         message:
@@ -4381,7 +5247,7 @@ components:
           allOf:
           - $ref: '#/components/schemas/AccountTypeEnum'
           readOnly: true
-        organization:
+        organizations:
           type: string
           readOnly: true
         avatar:
@@ -4510,6 +5376,11 @@ components:
           type: string
           writeOnly: true
           nullable: true
+        organization_id:
+          type: string
+          format: uuid
+          writeOnly: true
+          nullable: true
     PatchedCampaignReportUpdate:
       type: object
       properties:
@@ -4532,6 +5403,16 @@ components:
           type: string
         terms_content:
           type: string
+    PatchedOrganizationRoleUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 50
+        permissions:
+          type: array
+          items:
+            type: string
     PatchedPlatformSettings:
       type: object
       properties:
@@ -4542,8 +5423,33 @@ components:
           description: Percentage the platform takes from each campaign payout.
         modempay_enabled:
           type: boolean
-          description: Whether donors/campaign owners can use ModemPay (Wave/APS mobile
-            money).
+          description: Whether donors/campaign owners can use ModemPay (Wave/APS/Afrimoney
+            mobile money).
+        wave_enabled:
+          type: boolean
+          description: Whether Wave is offered as a donation and withdrawal method
+            (requires ModemPay enabled above).
+        aps_enabled:
+          type: boolean
+          description: Whether APS Wallet is offered as a donation method (requires
+            ModemPay enabled above).
+        afrimoney_enabled:
+          type: boolean
+          description: Whether Afrimoney is offered as a donation and withdrawal method
+            (requires ModemPay enabled above).
+        modempay_min_donation_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          description: Minimum single donation amount via ModemPay (Wave/APS/Afrimoney).
+        modempay_max_donation_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          description: Maximum single donation amount via ModemPay. Keep this at or
+            below whatever ModemPay itself currently enforces on a payment intent,
+            or donations in between will pass validation here and still get rejected
+            by ModemPay.
         stripe_enabled:
           type: boolean
           description: Whether donors can pay by card via Stripe. Requires Stripe
@@ -4561,6 +5467,18 @@ components:
           description: How many GMD equal 1 unit of the Stripe settlement currency
             above — e.g. 70 means D70 = 1 unit. Update this to match the real exchange
             rate; a stale rate over/undercharges every card donation.
+        stripe_min_donation_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          description: Minimum single donation amount via Stripe (card), in GMD.
+        stripe_max_donation_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          description: Maximum single donation amount via Stripe (card), in GMD. Not
+            independently confirmed against a real Stripe limit -- adjust if Stripe
+            rejects amounts below this.
     PatchedRoleResourcesUpdate:
       type: object
       properties:
@@ -4592,6 +5510,18 @@ components:
           type: string
           format: email
           maxLength: 254
+    PatchedUpdateMember:
+      type: object
+      description: |-
+        Both fields optional and independent -- a PATCH can change the
+        member's role, their contact-person flag, or both in one call. See
+        OrganizationMemberDetailView.patch.
+      properties:
+        role_id:
+          type: string
+          format: uuid
+        is_contact_person:
+          type: boolean
     PatchedUserUpdate:
       type: object
       properties:
@@ -4619,7 +5549,7 @@ components:
           maxLength: 20
         show_total_raised:
           type: boolean
-          description: Whether total funds raised is shown on your public campaigner
+          description: Whether total funds raised is shown on your public fundraiser
             profile.
         notify_donations_received:
           type: boolean
@@ -4700,7 +5630,7 @@ components:
           type: string
           maxLength: 3
         provider:
-          $ref: '#/components/schemas/ProviderEecEnum'
+          $ref: '#/components/schemas/Provider76bEnum'
         phone:
           type: string
           maxLength: 20
@@ -4739,7 +5669,7 @@ components:
           format: decimal
           pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
         provider:
-          $ref: '#/components/schemas/ProviderEecEnum'
+          $ref: '#/components/schemas/Provider76bEnum'
         phone:
           type: string
           maxLength: 20
@@ -4772,8 +5702,33 @@ components:
           description: Percentage the platform takes from each campaign payout.
         modempay_enabled:
           type: boolean
-          description: Whether donors/campaign owners can use ModemPay (Wave/APS mobile
-            money).
+          description: Whether donors/campaign owners can use ModemPay (Wave/APS/Afrimoney
+            mobile money).
+        wave_enabled:
+          type: boolean
+          description: Whether Wave is offered as a donation and withdrawal method
+            (requires ModemPay enabled above).
+        aps_enabled:
+          type: boolean
+          description: Whether APS Wallet is offered as a donation method (requires
+            ModemPay enabled above).
+        afrimoney_enabled:
+          type: boolean
+          description: Whether Afrimoney is offered as a donation and withdrawal method
+            (requires ModemPay enabled above).
+        modempay_min_donation_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          description: Minimum single donation amount via ModemPay (Wave/APS/Afrimoney).
+        modempay_max_donation_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          description: Maximum single donation amount via ModemPay. Keep this at or
+            below whatever ModemPay itself currently enforces on a payment intent,
+            or donations in between will pass validation here and still get rejected
+            by ModemPay.
         stripe_enabled:
           type: boolean
           description: Whether donors can pay by card via Stripe. Requires Stripe
@@ -4791,25 +5746,41 @@ components:
           description: How many GMD equal 1 unit of the Stripe settlement currency
             above — e.g. 70 means D70 = 1 unit. Update this to match the real exchange
             rate; a stale rate over/undercharges every card donation.
-    ProviderC51Enum:
+        stripe_min_donation_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          description: Minimum single donation amount via Stripe (card), in GMD.
+        stripe_max_donation_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          description: Maximum single donation amount via Stripe (card), in GMD. Not
+            independently confirmed against a real Stripe limit -- adjust if Stripe
+            rejects amounts below this.
+    Provider2dbEnum:
       enum:
       - wave
       - aps
+      - afrimoney
       - card
       type: string
       description: |-
         * `wave` - Wave
         * `aps` - APS Wallet
+        * `afrimoney` - Afrimoney
         * `card` - Card
-    ProviderEecEnum:
+    Provider76bEnum:
       enum:
       - wave
       - aps
+      - afrimoney
       type: string
       description: |-
         * `wave` - Wave
         * `aps` - APS Wallet
-    PublicCampaigner:
+        * `afrimoney` - Afrimoney
+    PublicFundraiser:
       type: object
       description: |-
         A campaign owner's public profile — deliberately minimal. Never add
@@ -4915,10 +5886,6 @@ components:
         password_confirm:
           type: string
           writeOnly: true
-        account_type:
-          allOf:
-          - $ref: '#/components/schemas/AccountTypeEnum'
-          default: individual
         terms_accepted:
           type: boolean
           writeOnly: true
@@ -5125,7 +6092,7 @@ components:
           allOf:
           - $ref: '#/components/schemas/AccountTypeEnum'
           readOnly: true
-        organization:
+        organizations:
           type: string
           readOnly: true
         avatar:
@@ -5162,7 +6129,7 @@ components:
           readOnly: true
         show_total_raised:
           type: boolean
-          description: Whether total funds raised is shown on your public campaigner
+          description: Whether total funds raised is shown on your public fundraiser
             profile.
         notify_donations_received:
           type: boolean
@@ -5199,7 +6166,7 @@ components:
       - is_google_linked
       - is_moderator
       - is_verified
-      - organization
+      - organizations
       - resources
       - role
     UserUpdate:
@@ -5229,7 +6196,7 @@ components:
           maxLength: 20
         show_total_raised:
           type: boolean
-          description: Whether total funds raised is shown on your public campaigner
+          description: Whether total funds raised is shown on your public fundraiser
             profile.
         notify_donations_received:
           type: boolean
