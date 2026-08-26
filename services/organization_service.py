@@ -230,13 +230,21 @@ def remove_member(organization: Organization, actor: User, target_user: User) ->
     target_membership = get_membership(target_user, organization)
     if target_membership is None:
         raise ValidationError('That user is not a member of this organization.')
-    if actor.id != target_user.id:
+    removed_by_someone_else = actor.id != target_user.id
+    if removed_by_someone_else:
         require_permission(actor, organization, OrganizationPermission.MANAGE_MEMBERS)
     if _blocks_sole_owner_departure(target_membership):
         raise ValidationError(
             f'Transfer ownership of {organization.organization_name} to another member before removing this member.'
         )
     target_membership.delete()
+
+    # Only when someone else removed them -- a member who just left
+    # (removed themselves) doesn't need an email telling them what they
+    # just did.
+    if removed_by_someone_else:
+        from emails.tasks import send_organization_member_removed_email_task
+        send_organization_member_removed_email_task.delay(str(target_user.id), str(organization.id))
 
 
 def change_member_role(organization: Organization, actor: User, target_user: User, new_role: OrganizationRole) -> OrganizationMembership:

@@ -271,6 +271,25 @@ def send_organization_invitation_email_task(self, invitation_id, invitation_url)
 
 
 @shared_task(**RETRY_KWARGS)
+def send_organization_member_removed_email_task(self, user_id, organization_id):
+    # Takes plain ids, not the OrganizationMembership itself -- by the time
+    # this runs, remove_member() has already deleted that row; the User and
+    # Organization rows are what's left to look up.
+    from apps.users.models import User, Organization
+    from emails.service import email_service
+    try:
+        user = User.objects.get(pk=user_id)
+        organization = Organization.objects.get(pk=organization_id)
+    except (User.DoesNotExist, Organization.DoesNotExist):
+        logger.warning('send_organization_member_removed_email_task: user %s or organization %s not found', user_id, organization_id)
+        return
+    _retry_on_failure(
+        self, email_service.send_organization_member_removed_email(user, organization),
+        f'organization member removed email for user {user_id}',
+    )
+
+
+@shared_task(**RETRY_KWARGS)
 def send_recovery_email_confirmation_email_task(self, request_id, confirm_url):
     from apps.users.models import OrganizationChangeRequest
     from emails.service import email_service

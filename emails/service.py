@@ -243,6 +243,17 @@ class EmailService:
             },
         )
 
+    def send_organization_member_removed_email(self, user, organization) -> bool:
+        return self._send(
+            to=user.email,
+            subject=f"You've been removed from {organization.organization_name}",
+            template='emails/organization_member_removed.html',
+            context={
+                'user_name': user.full_name or user.email,
+                'organization_name': organization.organization_name,
+            },
+        )
+
     def send_recovery_email_confirmation_email(self, change_request, confirm_url: str) -> bool:
         """Sent to the *proposed* address itself (not the submitter's own
         login email) -- clicking the link is what proves that address is

@@ -187,6 +187,18 @@ class MembershipTest(APITestCase):
         organization_service.remove_member(self.org, self.owner, member)
         self.assertFalse(OrganizationMembership.objects.filter(user=member, organization=self.org).exists())
 
+    @patch('emails.tasks.send_organization_member_removed_email_task.delay')
+    def test_being_removed_by_someone_else_sends_an_email(self, mock_delay):
+        member, _ = make_member(self.org)
+        organization_service.remove_member(self.org, self.owner, member)
+        mock_delay.assert_called_once_with(str(member.id), str(self.org.id))
+
+    @patch('emails.tasks.send_organization_member_removed_email_task.delay')
+    def test_leaving_voluntarily_does_not_send_an_email(self, mock_delay):
+        member, _ = make_member(self.org)
+        organization_service.remove_member(self.org, member, member)
+        mock_delay.assert_not_called()
+
     def test_sole_owner_cannot_leave_a_multi_member_org(self):
         make_member(self.org)
         with self.assertRaises(ValidationError):

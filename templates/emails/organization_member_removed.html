@@ -1,0 +1,13 @@
+{% extends "emails/base.html" %}
+
+{% block subject %}You've been removed from {{ organization_name }}{% endblock %}
+
+{% block content %}
+<h2 style="margin: 0 0 4px; color: #18181b; font-size: 20px;">You've been removed</h2>
+<p>Hi {{ user_name }},</p>
+
+<p>
+  You've been removed from <strong>{{ organization_name }}</strong> on {{ site_name }} and no longer have access to
+  it. If you think this was a mistake, contact someone at {{ organization_name }} directly.
+</p>
+{% endblock %}
