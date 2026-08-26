@@ -1,3 +1,4 @@
+import re
 from rest_framework import serializers
 from .models import User, IdentityVerification, Organization, OrganizationVerification, OrganizationChangeRequest
 
@@ -93,6 +94,25 @@ class UserUpdateSerializer(serializers.ModelSerializer):
             'notify_donations_received', 'notify_campaign_approved', 'notify_campaign_rejected',
             'notify_goal_reached', 'notify_new_comment', 'notify_new_update', 'notify_marketing',
         ]
+
+    def validate_default_payment_phone(self, value):
+        # PURA's numbering reform (effective 4 Sept 2026) moves every
+        # Gambian number from 7 to 9 digits, with both formats valid
+        # through a transition period ending 30 Nov 2026 -- accept either
+        # length here rather than only the old (or only the new) format.
+        # Scoped to this one field (payment settings) for now, not every
+        # phone field in the app -- see the frontend's matching check in
+        # SettingsPage.jsx's handlePaymentSubmit.
+        if not value:
+            return value
+        digits = re.sub(r'\D', '', value)
+        if digits.startswith('220'):
+            digits = digits[3:]
+        if len(digits) not in (7, 9):
+            raise serializers.ValidationError(
+                'Enter a valid Gambian phone number -- 7 digits (old format) or 9 digits (new format), after +220.'
+            )
+        return value
 
 
 class DeleteAccountSerializer(serializers.Serializer):

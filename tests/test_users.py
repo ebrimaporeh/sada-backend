@@ -35,6 +35,45 @@ class MeViewTest(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
+class DefaultPaymentPhoneValidationTest(APITestCase):
+    """PURA's numbering reform (9-digit format, effective 4 Sept 2026) --
+    both the old 7-digit and new 9-digit formats must validate through the
+    transition period. Scoped to default_payment_phone only for now."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(email='payphone@example.com', password='StrongPass@1')
+        self.client.force_authenticate(user=self.user)
+        self.url = reverse('user-me')
+
+    def test_accepts_old_seven_digit_format(self):
+        response = self.client.patch(self.url, {'default_payment_phone': '+2207000000'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.default_payment_phone, '+2207000000')
+
+    def test_accepts_new_nine_digit_format(self):
+        response = self.client.patch(self.url, {'default_payment_phone': '+220877000000'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.default_payment_phone, '+220877000000')
+
+    def test_rejects_eight_digit_number(self):
+        response = self.client.patch(self.url, {'default_payment_phone': '+22070000000'})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_rejects_six_digit_number(self):
+        response = self.client.patch(self.url, {'default_payment_phone': '+220700000'})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_blank_clears_the_field(self):
+        self.user.default_payment_phone = '+2207000000'
+        self.user.save(update_fields=['default_payment_phone'])
+        response = self.client.patch(self.url, {'default_payment_phone': ''})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.default_payment_phone, '')
+
+
 class UserListViewTest(APITestCase):
     def setUp(self):
         self.admin = User.objects.create_user(
