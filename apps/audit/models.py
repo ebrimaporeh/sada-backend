@@ -32,6 +32,8 @@ class AuditLog(BaseModel):
         CAMPAIGN_PUBLISHED = 'campaign.published', 'Published Campaign'
         CAMPAIGN_UNPUBLISHED = 'campaign.unpublished', 'Unpublished Campaign'
         CAMPAIGN_REJECTED = 'campaign.rejected', 'Rejected Campaign'
+        CAMPAIGN_COMPLETED = 'campaign.completed', 'Completed Campaign'
+        CAMPAIGN_EXPIRED = 'campaign.expired', 'Expired Campaign'
         # Moderation
         REPORT_STATUS_CHANGED = 'report.status_changed', 'Updated Report'
         VERIFICATION_APPROVED = 'verification.approved', 'Approved Verification'
@@ -66,6 +68,8 @@ class AuditLog(BaseModel):
         Action.CAMPAIGN_PUBLISHED: 'published',
         Action.CAMPAIGN_UNPUBLISHED: 'unpublished',
         Action.CAMPAIGN_REJECTED: 'rejected',
+        Action.CAMPAIGN_COMPLETED: 'completed',
+        Action.CAMPAIGN_EXPIRED: 'expired',
         Action.REPORT_STATUS_CHANGED: 'updated',
         Action.VERIFICATION_APPROVED: 'approved',
         Action.VERIFICATION_REJECTED: 'rejected',

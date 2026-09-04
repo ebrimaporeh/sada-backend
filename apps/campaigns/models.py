@@ -37,6 +37,7 @@ class Campaign(BaseModel):
         APPROVED = 'approved', 'Approved'
         ACTIVE = 'active', 'Active'
         COMPLETED = 'completed', 'Completed'
+        EXPIRED = 'expired', 'Expired'
         REJECTED = 'rejected', 'Rejected'
         SUSPENDED = 'suspended', 'Suspended'
 

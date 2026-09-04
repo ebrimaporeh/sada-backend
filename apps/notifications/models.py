@@ -13,6 +13,7 @@ class Notification(BaseModel):
         CAMPAIGN_UPDATE = 'campaign_update', 'Campaign Update'
         GOAL_REACHED = 'goal_reached', 'Goal Reached'
         DONATION_REFUNDED = 'donation_refunded', 'Donation Refunded'
+        CAMPAIGN_EXPIRED = 'campaign_expired', 'Campaign Expired'
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,

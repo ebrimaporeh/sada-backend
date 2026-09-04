@@ -24,4 +24,13 @@ app.conf.beat_schedule = {
         'task': 'apps.payments.tasks.sweep_processing_payouts_task',
         'schedule': crontab(minute='*/5'),
     },
+    # Campaign lifecycle: closes out fully-funded campaigns and expires ones
+    # past their deadline (see apps/campaigns/tasks.py) — hourly rather than
+    # every 5 minutes since deadline is day-granularity, not gateway-webhook
+    # latency, and goal-reached campaigns already notify their owner in real
+    # time from the donation that funded them.
+    'sweep-campaign-lifecycle': {
+        'task': 'apps.campaigns.tasks.sweep_campaign_lifecycle_task',
+        'schedule': crontab(minute=0),
+    },
 }

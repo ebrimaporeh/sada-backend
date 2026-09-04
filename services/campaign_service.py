@@ -1,10 +1,13 @@
+import logging
 import random
 import uuid
 from django.utils import timezone
-from django.db import models
+from django.db import models, transaction
 from django.shortcuts import get_object_or_404
 from rest_framework.response import Response
 from rest_framework import status
+
+logger = logging.getLogger(__name__)
 
 
 def success_response(data, message='Success.', status_code=status.HTTP_200_OK):
@@ -127,6 +130,7 @@ def get_campaign_by_slug(slug):
             Campaign.Status.ACTIVE,
             Campaign.Status.APPROVED,
             Campaign.Status.COMPLETED,
+            Campaign.Status.EXPIRED,
             Campaign.Status.PENDING,
         ],
     )
@@ -149,7 +153,7 @@ def record_view(slug):
     from apps.campaigns.models import Campaign
     public_statuses = [
         Campaign.Status.ACTIVE, Campaign.Status.APPROVED,
-        Campaign.Status.COMPLETED, Campaign.Status.PENDING,
+        Campaign.Status.COMPLETED, Campaign.Status.EXPIRED, Campaign.Status.PENDING,
     ]
     updated = Campaign.objects.filter(slug=slug, status__in=public_statuses).update(
         views_count=models.F('views_count') + 1,
@@ -453,7 +457,7 @@ def get_public_platform_stats():
 
     ever_public = [
         Campaign.Status.ACTIVE, Campaign.Status.APPROVED,
-        Campaign.Status.COMPLETED, Campaign.Status.SUSPENDED,
+        Campaign.Status.COMPLETED, Campaign.Status.EXPIRED, Campaign.Status.SUSPENDED,
     ]
     campaigns = Campaign.objects.filter(status__in=ever_public)
 
@@ -502,6 +506,7 @@ def get_campaign_stats():
         'active_campaigns': counts.get(Campaign.Status.ACTIVE, 0),
         'pending_campaigns': counts.get(Campaign.Status.PENDING, 0),
         'completed_campaigns': counts.get(Campaign.Status.COMPLETED, 0),
+        'expired_campaigns': counts.get(Campaign.Status.EXPIRED, 0),
     }
 
 
@@ -594,6 +599,114 @@ def change_campaign_status(campaign_id, new_status, reason=''):
     )
 
     return campaign
+
+
+def close_funded_campaigns(limit=500):
+    """Transition ACTIVE campaigns that have reached their goal to COMPLETED.
+    Runs on a periodic schedule (see apps/campaigns/tasks.py) as the source
+    of truth for "is this campaign done" -- nothing else in the codebase
+    ever sets this transition, so get_public_campaigns/get_featured_campaigns
+    (which only show ACTIVE/APPROVED) would otherwise keep surfacing a
+    fully-funded campaign forever.
+
+    Deliberately doesn't send a Notification.Type.GOAL_REACHED here --
+    donation_service._confirm_donation already notifies the owner in real
+    time on the donation that pushes campaign.is_funded True. This only
+    records the status change + audit trail; re-notifying would duplicate
+    that ping. Overfunding (raised keeps climbing past goal before
+    deadline) is intentional -- COMPLETED doesn't block further donations.
+
+    `filter(raised__gte=F('goal'))` up front is a cheap DB-side prefilter;
+    the real check happens again under select_for_update() so a donation
+    landing between the filter and the lock can't be missed or double-processed.
+    Safe to call repeatedly: a no-op once a campaign is no longer ACTIVE.
+    """
+    from apps.campaigns.models import Campaign
+    import services.audit_service as audit_service
+    from apps.audit.models import AuditLog
+
+    campaign_ids = list(
+        Campaign.objects.filter(
+            status=Campaign.Status.ACTIVE,
+            raised__gte=models.F('goal'),
+        ).order_by('created_at').values_list('pk', flat=True)[:limit]
+    )
+
+    completed = 0
+    for campaign_id in campaign_ids:
+        with transaction.atomic():
+            campaign = Campaign.objects.select_for_update().get(pk=campaign_id)
+            if campaign.status != Campaign.Status.ACTIVE or campaign.raised < campaign.goal:
+                continue
+            campaign.status = Campaign.Status.COMPLETED
+            campaign.completed_at = timezone.now()
+            campaign.save(update_fields=['status', 'completed_at'])
+            audit_service.log(
+                None, AuditLog.Action.CAMPAIGN_COMPLETED, campaign,
+                f'Campaign "{campaign.title}" reached its goal and was marked completed',
+                metadata={'raised': str(campaign.raised), 'goal': str(campaign.goal)},
+            )
+            completed += 1
+
+    if campaign_ids:
+        logger.info('close_funded_campaigns: checked %d, completed %d', len(campaign_ids), completed)
+    return {'checked': len(campaign_ids), 'completed': completed}
+
+
+def expire_overdue_campaigns(limit=500):
+    """Transition ACTIVE campaigns past their deadline (and still short of
+    goal -- a same-day goal hit is resolved by close_funded_campaigns
+    first, see apps/campaigns/tasks.py's ordering) to EXPIRED.
+
+    Keep-what-you-raise: EXPIRED only stops the campaign from accepting new
+    donations and from public browse lists (get_public_campaigns/
+    get_featured_campaigns filter to ACTIVE/APPROVED) -- the owner can still
+    withdraw whatever was raised via the normal payout flow, and the detail
+    page stays reachable (get_campaign_by_slug allows EXPIRED) for transparency.
+
+    `deadline` is a plain DateField and TIME_ZONE is UTC (Gambia is UTC+0
+    year-round, no DST), so comparing against timezone.localdate() needs no
+    extra conversion. Safe to call repeatedly: a no-op once a campaign is
+    no longer ACTIVE.
+    """
+    from apps.campaigns.models import Campaign
+    from apps.notifications.models import Notification
+    import services.audit_service as audit_service
+    from apps.audit.models import AuditLog
+
+    today = timezone.localdate()
+    campaign_ids = list(
+        Campaign.objects.filter(
+            status=Campaign.Status.ACTIVE,
+            deadline__lt=today,
+        ).order_by('deadline').values_list('pk', flat=True)[:limit]
+    )
+
+    expired = 0
+    for campaign_id in campaign_ids:
+        with transaction.atomic():
+            campaign = Campaign.objects.select_for_update().get(pk=campaign_id)
+            if campaign.status != Campaign.Status.ACTIVE:
+                continue
+            campaign.status = Campaign.Status.EXPIRED
+            campaign.save(update_fields=['status'])
+            Notification.objects.create(
+                user=campaign.owner,
+                notification_type=Notification.Type.CAMPAIGN_EXPIRED,
+                title='Campaign Ended',
+                message=f'Your campaign "{campaign.title}" has reached its deadline. You can still withdraw the D{campaign.raised} raised.',
+                link=f'/my-campaigns/{campaign.slug}',
+            )
+            audit_service.log(
+                None, AuditLog.Action.CAMPAIGN_EXPIRED, campaign,
+                f'Campaign "{campaign.title}" passed its deadline and was marked expired',
+                metadata={'raised': str(campaign.raised), 'goal': str(campaign.goal)},
+            )
+            expired += 1
+
+    if campaign_ids:
+        logger.info('expire_overdue_campaigns: checked %d, expired %d', len(campaign_ids), expired)
+    return {'checked': len(campaign_ids), 'expired': expired}
 
 
 def get_all_campaign_reports(params=None):

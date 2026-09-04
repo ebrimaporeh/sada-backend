@@ -570,3 +570,92 @@ class PublicPlatformStatsTest(APITestCase):
 
         stats = campaign_service.get_public_platform_stats()
         self.assertEqual(stats['donors_count'], 2)  # 1 known donor + 1 guest donation
+
+
+class CampaignLifecycleSweepTest(APITestCase):
+    """close_funded_campaigns / expire_overdue_campaigns are the periodic
+    (Celery Beat, see apps/campaigns/tasks.py) safety net that's the only
+    thing that ever moves a campaign out of ACTIVE on its own."""
+
+    def test_close_funded_campaigns_marks_completed(self):
+        campaign = make_campaign(goal=Decimal('1000.00'), raised=Decimal('1000.00'))
+
+        result = campaign_service.close_funded_campaigns()
+
+        self.assertEqual(result, {'checked': 1, 'completed': 1})
+        campaign.refresh_from_db()
+        self.assertEqual(campaign.status, Campaign.Status.COMPLETED)
+        self.assertIsNotNone(campaign.completed_at)
+
+    def test_close_funded_campaigns_ignores_underfunded(self):
+        campaign = make_campaign(goal=Decimal('1000.00'), raised=Decimal('500.00'))
+
+        result = campaign_service.close_funded_campaigns()
+
+        self.assertEqual(result, {'checked': 0, 'completed': 0})
+        campaign.refresh_from_db()
+        self.assertEqual(campaign.status, Campaign.Status.ACTIVE)
+
+    def test_close_funded_campaigns_does_not_duplicate_goal_reached_notification(self):
+        """donation_service._confirm_donation already sends GOAL_REACHED in
+        real time when a donation pushes raised over goal — the sweep only
+        records the status transition, it must not re-notify."""
+        campaign = make_campaign(goal=Decimal('1000.00'), raised=Decimal('1000.00'))
+
+        campaign_service.close_funded_campaigns()
+
+        self.assertFalse(
+            Notification.objects.filter(user=campaign.owner, notification_type=Notification.Type.GOAL_REACHED).exists()
+        )
+
+    def test_close_funded_campaigns_is_idempotent(self):
+        campaign = make_campaign(goal=Decimal('1000.00'), raised=Decimal('1000.00'))
+        campaign_service.close_funded_campaigns()
+
+        result = campaign_service.close_funded_campaigns()
+
+        self.assertEqual(result, {'checked': 0, 'completed': 0})
+
+    def test_expire_overdue_campaigns_marks_expired_and_notifies(self):
+        from django.utils import timezone
+        from datetime import timedelta
+        campaign = make_campaign(
+            goal=Decimal('1000.00'), raised=Decimal('200.00'),
+            deadline=timezone.localdate() - timedelta(days=1),
+        )
+
+        result = campaign_service.expire_overdue_campaigns()
+
+        self.assertEqual(result, {'checked': 1, 'expired': 1})
+        campaign.refresh_from_db()
+        self.assertEqual(campaign.status, Campaign.Status.EXPIRED)
+        self.assertTrue(
+            Notification.objects.filter(user=campaign.owner, notification_type=Notification.Type.CAMPAIGN_EXPIRED).exists()
+        )
+
+    def test_expire_overdue_campaigns_ignores_future_deadline(self):
+        from django.utils import timezone
+        from datetime import timedelta
+        campaign = make_campaign(deadline=timezone.localdate() + timedelta(days=1))
+
+        result = campaign_service.expire_overdue_campaigns()
+
+        self.assertEqual(result, {'checked': 0, 'expired': 0})
+        campaign.refresh_from_db()
+        self.assertEqual(campaign.status, Campaign.Status.ACTIVE)
+
+    def test_goal_reached_same_day_as_deadline_completes_not_expires(self):
+        """Ordering contract from apps/campaigns/tasks.py: a campaign that
+        hits its goal on its last day must end up COMPLETED, not EXPIRED."""
+        from django.utils import timezone
+        from datetime import timedelta
+        campaign = make_campaign(
+            goal=Decimal('1000.00'), raised=Decimal('1000.00'),
+            deadline=timezone.localdate() - timedelta(days=1),
+        )
+
+        campaign_service.close_funded_campaigns()
+        campaign_service.expire_overdue_campaigns()
+
+        campaign.refresh_from_db()
+        self.assertEqual(campaign.status, Campaign.Status.COMPLETED)
