@@ -6,7 +6,12 @@ export default defineRailway(() => {
   const Redis = redis("Redis", { region: "sfo" });
   Redis.deploy = { startCommand: "/bin/sh -c \"rm -rf $RAILWAY_VOLUME_MOUNT_PATH/lost+found/ && exec docker-entrypoint.sh redis-server --requirepass $REDIS_PASSWORD --save 60 1 --dir $RAILWAY_VOLUME_MOUNT_PATH\"" };
   Redis.networking = { privateNetworkEndpoint: "redis", tcpProxies: { "6379": {} } };
-  const postgresVolume = volume("postgres-volume", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "sfo", sizeMB: 500 });
+  // No postgres-volume here -- the real database is Supabase-hosted
+  // (DATABASE_URL points off-platform), not a Railway-managed Postgres. A
+  // stale `postgresVolume` declaration used to sit here (from an earlier
+  // `railway config pull`, or a Railway Postgres addon that was never
+  // actually provisioned/used) and `railway config plan` had been silently
+  // proposing to create it on every plan -- removed rather than applied.
   // Live region is europe-west4-drams3a, not sfo -- differs from the Redis
   // service's own compute region above; the original `railway config pull`
   // mis-captured this volume's region as sfo, and applying that as declared
@@ -15,6 +20,17 @@ export default defineRailway(() => {
   const redisVolume = volume("redis-volume", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "europe-west4-drams3a", sizeMB: 500 });
   const web = service("web", {
     source: sadaBackend,
+    build: "python manage.py collectstatic --noinput",
+    // Runs migrate before every deploy switches traffic to the new
+    // release -- this was silently dropped when this service's config was
+    // migrated off the old Config-as-Code railway.json (which had it under
+    // `preDeploy`) onto this IaC file, and nothing caught it until a
+    // deploy shipped schema changes (organizations.slug, apps.ledger,
+    // apps.fundraising, payments.WebhookEvent) with no migration step to
+    // apply them -- see git history around 2026-09-06 for the incident.
+    // `seed_data` is idempotent (skips if already seeded unless --clear is
+    // passed) so it's safe to run on every deploy, not just the first.
+    preDeploy: "python manage.py migrate --noinput && python manage.py seed_data",
     start: "gunicorn config.wsgi:application",
     replicas: { "sfo": 1 },
     domains: ["api.dolelma.org"],
@@ -80,6 +96,6 @@ export default defineRailway(() => {
   });
 
   return project("dolelma", {
-    resources: [web, worker, beat, Redis, postgresVolume, redisVolume],
+    resources: [web, worker, beat, Redis, redisVolume],
   });
 });
