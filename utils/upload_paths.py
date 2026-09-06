@@ -78,6 +78,10 @@ def campaign_update_image_path(instance, filename: str) -> str:
     return f'campaigns/{instance.update.campaign.slug}/updates/{_timestamp()}.{_ext(filename)}'
 
 
+def poster_image_path(instance, filename: str) -> str:
+    return f'posters/{instance.poster_id}/{_timestamp()}.{_ext(filename)}'
+
+
 def site_logo_path(instance, filename: str) -> str:
     return f'branding/logo_{_timestamp()}.{_ext(filename)}'
 

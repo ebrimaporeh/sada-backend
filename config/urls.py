@@ -8,6 +8,8 @@ from drf_spectacular.views import (
     SpectacularRedocView,
 )
 
+from apps.fundraising.poster_views import ShareLinkRedirectView
+
 urlpatterns = [
     path('admin/', admin.site.urls),
 
@@ -26,6 +28,7 @@ urlpatterns = [
     path('api/v1/events/', include('apps.events.urls')),
     path('api/v1/permissions/', include('apps.rbac.urls')),
     path('api/v1/organizations/', include('apps.organizations.urls')),
+    path('api/v1/fundraising/', include('apps.fundraising.urls')),
 
     # Password reset
     path('api/v1/auth/password-reset/', include('django_rest_passwordreset.urls', namespace='password_reset')),
@@ -38,6 +41,11 @@ urlpatterns = [
     # SEO: sitemap.xml, robots.txt (this domain only -- see apps/seo/views.py),
     # and the bot-preview pages the frontend's Share button links to.
     path('', include('apps.seo.urls')),
+
+    # Poster QR/share redirect -- short and root-mounted since it's meant to
+    # be scanned/typed by a person, not called by the SPA. See
+    # apps/fundraising/poster_views.py::ShareLinkRedirectView.
+    path('q/<str:code>/', ShareLinkRedirectView.as_view(), name='fundraising-share-link'),
 ]
 
 if settings.DEBUG:

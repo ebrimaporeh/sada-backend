@@ -18,6 +18,14 @@ class Event(BaseModel):
         DONATION_STARTED = 'donation_started', 'Donation Started'
         DONATION_AMOUNT_SELECTED = 'donation_amount_selected', 'Donation Amount Selected'
         DONATION_COMPLETED = 'donation_completed', 'Donation Completed'
+        # Fundraising Studio's public embed widget (see
+        # src/pages/public/EmbedWidgetPage.jsx) -- fired once per widget
+        # load via the existing POST /events/track/ endpoint, same as every
+        # other event above. campaign is set when the embed's destination
+        # is a campaign; metadata carries {embed_id, source: 'embed'} either
+        # way so the embed itself (and, for an organization destination,
+        # which org) is still identifiable even without a campaign FK.
+        EMBED_VIEWED = 'embed_viewed', 'Embed Viewed'
 
     type = models.CharField(max_length=40, choices=Type.choices)
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='events')
