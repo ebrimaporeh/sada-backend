@@ -26,6 +26,7 @@ PROFILES = {
     'campaign_update':  {'max_dimension': 1600, 'quality': 82},
     'category':         {'max_dimension': 800,  'quality': 82},
     'document':         {'max_dimension': 2000, 'quality': 90},
+    'poster_image':     {'max_dimension': 1920, 'quality': 90},
 }
 DEFAULT_PROFILE = 'campaign_gallery'
 
