@@ -1,11 +1,16 @@
 from unittest.mock import patch
 from django.core import mail
 from django.core.exceptions import ValidationError
+from django.core.files.base import ContentFile
+from django.test import override_settings
+from django.urls import reverse
+from rest_framework import status
 from rest_framework.test import APITestCase
 
 from apps.users.models import User, IdentityVerification, Organization, OrganizationVerification
 from apps.organizations.models import OrganizationType, OrganizationRole, OrganizationMembership
-from apps.organizations.permissions import ALL_ORGANIZATION_PERMISSIONS
+from apps.organizations.permissions import ALL_ORGANIZATION_PERMISSIONS, OrganizationPermission
+from utils.storage import VerificationDocumentStorage
 import services.verification_service as verification_service
 
 
@@ -212,20 +217,35 @@ class SubmitOrganizationVerificationTest(APITestCase):
 
 class ApproveOrganizationVerificationTest(APITestCase):
     def test_approve_verifies_org_and_copies_photo_to_org_logo(self):
+        # organization_photo needs real bytes behind it here (unlike the
+        # bare-string fixtures elsewhere in this file) -- approval now reads
+        # the file back out of its (private-bucket-in-production, local-
+        # disk-in-tests) storage and re-saves those bytes into org.logo's
+        # own storage, rather than just copying the FieldFile's name. A
+        # bare string with nothing on disk behind it would 404 on that read.
+        from django.core.files.base import ContentFile
         user, org = make_org_and_owner(email='org2@example.com')
         admin = make_user(email='org-admin@example.com', role='admin')
         verification = OrganizationVerification.objects.create(
             organization=org, submitted_by=user, registration_number='REG-1',
             registration_document='reg.jpg',
-            organization_photo='mosque_event.jpg',
         )
+        verification.organization_photo.save('mosque_event.jpg', ContentFile(b'fake-image-bytes'), save=True)
+        self.addCleanup(lambda: verification.organization_photo.delete(save=False))
 
         result = verification_service.approve_organization_verification(verification.id, admin)
         self.assertEqual(result.status, OrganizationVerification.Status.APPROVED)
 
         org.refresh_from_db()
         self.assertTrue(org.is_verified)
-        self.assertEqual(org.logo, 'mosque_event.jpg')
+        # A real copy, not a shared reference -- different storage, so a
+        # different (fresh-timestamped) path via organization_logo_path,
+        # not an exact-name match with the source.
+        self.assertNotEqual(org.logo.name, verification.organization_photo.name)
+        self.assertTrue(org.logo.name.startswith(f'organizations/{org.id}/logo_'))
+        with org.logo.open('rb') as f:
+            self.assertEqual(f.read(), b'fake-image-bytes')
+        self.addCleanup(lambda: org.logo.delete(save=False))
 
     def test_reject_sets_reason_without_verifying(self):
         user, org = make_org_and_owner(email='org3@example.com')
@@ -239,3 +259,144 @@ class ApproveOrganizationVerificationTest(APITestCase):
         self.assertEqual(result.rejection_reason, 'Docs unclear')
         org.refresh_from_db()
         self.assertFalse(org.is_verified)
+
+
+class VerificationDocumentStorageTest(APITestCase):
+    """Organization verification documents must use the private
+    `verification-documents` bucket, never the public `media` bucket, and
+    must never resolve to a permanent/public URL. See utils/storage.py.
+
+    apps/users/models.py resolves `storage=get_verification_storage()` once,
+    at import time (Django app-loading, i.e. process boot) -- same timing
+    as settings/base.py's own DEFAULT_FILE_STORAGE fallback for the public
+    bucket. That means a field's already-resolved `.storage` can't be
+    changed retroactively by `override_settings` inside a running test
+    process, so the "does the field actually pick up
+    SUPABASE_VERIFICATION_BUCKET" fact is verified in its own subprocess
+    below, booted with the env var already set -- not by poking the
+    already-loaded model in *this* test process.
+    """
+
+    def test_public_media_bucket_is_not_used_for_verification_documents(self):
+        # Organization.logo never passes storage= at all -- it's always the
+        # public default, in every environment. Proves the two are wired to
+        # genuinely different mechanisms, not just different config values
+        # of the same one (the field-level wiring itself is exercised for
+        # real, env-var-configured behavior in the subprocess test below).
+        logo_storage = Organization._meta.get_field('logo').storage
+        self.assertNotIsInstance(logo_storage, VerificationDocumentStorage)
+
+    @override_settings(SUPABASE_VERIFICATION_BUCKET='verification-documents')
+    def test_bucket_name_comes_from_the_dedicated_env_setting(self):
+        self.assertEqual(VerificationDocumentStorage().bucket_name, 'verification-documents')
+
+    def test_get_verification_storage_falls_back_to_default_when_unconfigured(self):
+        with override_settings(SUPABASE_VERIFICATION_BUCKET=''):
+            from utils.storage import get_verification_storage
+            self.assertIsNone(get_verification_storage())
+
+    def test_get_verification_storage_returns_the_private_backend_when_configured(self):
+        with override_settings(SUPABASE_VERIFICATION_BUCKET='verification-documents'):
+            from utils.storage import get_verification_storage
+            storage = get_verification_storage()
+            self.assertIsInstance(storage, VerificationDocumentStorage)
+            self.assertEqual(storage.bucket_name, 'verification-documents')
+
+    def test_field_uses_the_private_bucket_when_env_var_is_set_at_boot(self):
+        # Real subprocess, booted with SUPABASE_VERIFICATION_BUCKET already
+        # in the environment -- the only way to observe the field-level
+        # wiring this repo's settings actually use in production, since
+        # get_verification_storage() is called once at Django app-loading
+        # time, before any in-process override_settings could take effect.
+        import os
+        import subprocess
+        import sys
+
+        script = (
+            "import django, os\n"
+            "os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'settings.testing')\n"
+            "django.setup()\n"
+            "from apps.users.models import OrganizationVerification\n"
+            "from utils.storage import VerificationDocumentStorage\n"
+            "field = OrganizationVerification._meta.get_field('registration_document')\n"
+            "assert isinstance(field.storage, VerificationDocumentStorage), field.storage\n"
+            "assert field.storage.bucket_name == 'verification-documents', field.storage.bucket_name\n"
+            "print('OK')\n"
+        )
+        env = {**os.environ, 'SUPABASE_VERIFICATION_BUCKET': 'verification-documents'}
+        result = subprocess.run([sys.executable, '-c', script], capture_output=True, text=True, env=env, cwd=os.getcwd())
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('OK', result.stdout)
+
+    def test_signed_urls_are_temporary_and_never_public(self):
+        storage = VerificationDocumentStorage()
+        # querystring_auth=True + a custom_domain of None is what makes
+        # .url() return a boto3-presigned, expiring S3 URL instead of the
+        # public bucket's permanent /storage/v1/object/public/... path (see
+        # AWS_S3_CUSTOM_DOMAIN in settings/base.py, which VerificationDocumentStorage
+        # deliberately does not inherit).
+        self.assertTrue(storage.querystring_auth)
+        self.assertIsNone(storage.custom_domain)
+        self.assertEqual(storage.querystring_expire, 300)
+
+
+class OrganizationVerificationAccessTest(APITestCase):
+    """Authorization for GET /users/organization-verification/me/ -- reuses
+    the existing organization membership/RBAC model rather than a new one
+    (see MyOrganizationVerificationView and
+    OrganizationVerificationSerializer._can_view_documents)."""
+
+    def setUp(self):
+        self.owner, self.org = make_org_and_owner(email='doc-owner@example.com')
+
+        member_role = OrganizationRole.objects.create(
+            organization=self.org, name='Member', permissions=[OrganizationPermission.CREATE_CAMPAIGN],
+        )
+        self.plain_member = make_user(email='plain-member@example.com')
+        OrganizationMembership.objects.create(user=self.plain_member, organization=self.org, role=member_role)
+
+        self.outsider = make_user(email='outsider@example.com')
+        self.admin = make_user(email='staff-admin@example.com', role='admin')
+
+        self.verification = OrganizationVerification.objects.create(
+            organization=self.org, submitted_by=self.owner, registration_number='REG-1',
+            registration_document='reg.jpg',
+        )
+        self.verification.organization_photo.save('org.jpg', ContentFile(b'fake-bytes'), save=True)
+        self.addCleanup(lambda: self.verification.organization_photo.delete(save=False))
+
+    def _get(self):
+        return self.client.get(reverse('organization-verification-me'), {'organization_id': str(self.org.id)})
+
+    def test_non_member_cannot_access_at_all(self):
+        self.client.force_authenticate(user=self.outsider)
+        response = self._get()
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_member_without_manage_organization_sees_status_but_not_documents(self):
+        self.client.force_authenticate(user=self.plain_member)
+        response = self._get()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        verification = response.data['data']['verification']
+        self.assertEqual(verification['registration_number'], 'REG-1')
+        self.assertIsNone(verification['registration_document'])
+        self.assertIsNone(verification['organization_photo'])
+
+    def test_owner_with_manage_organization_can_see_signed_document_urls(self):
+        self.client.force_authenticate(user=self.owner)
+        response = self._get()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        verification = response.data['data']['verification']
+        self.assertIsNotNone(verification['registration_document'])
+        self.assertIsNotNone(verification['organization_photo'])
+
+    def test_platform_admin_can_see_documents_regardless_of_membership(self):
+        from apps.users.serializers import OrganizationVerificationSerializer
+        from rest_framework.request import Request
+        from rest_framework.test import APIRequestFactory
+
+        request = Request(APIRequestFactory().get('/'))
+        request.user = self.admin
+        data = OrganizationVerificationSerializer(self.verification, context={'request': request}).data
+        self.assertIsNotNone(data['registration_document'])
+        self.assertIsNotNone(data['organization_photo'])

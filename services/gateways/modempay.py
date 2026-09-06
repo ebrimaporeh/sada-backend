@@ -133,12 +133,22 @@ def _normalize_event(event) -> GatewayEvent:
     data = event.get('payload') or {}
     metadata = data.get('metadata') or {}
     provider_ref = data.get('id', '')
+    # ModemPay's webhook payload carries no event id at all (confirmed
+    # against the installed SDK -- WebhooksResource.compose_event_details()
+    # returns only {'event': type, 'payload': {...}}) -- synthesize a
+    # deterministic one from the event type + the charge/transfer id a
+    # genuine redelivery of the same real-world event reproduces this
+    # exactly; two distinct events about the same object (e.g.
+    # charge.succeeded then a later, unrelated charge.failed) differ by
+    # event_type so don't collide.
+    event_id = f'{event_type}:{provider_ref}' if provider_ref else ''
 
     if event_type == 'charge.succeeded':
         return GatewayEvent(
             type=GatewayEventType.DONATION_SUCCEEDED,
             donation_reference=metadata.get('donation_reference', ''),
             provider_reference=provider_ref,
+            event_id=event_id,
             raw=event,
         )
     if event_type in ('charge.failed', 'charge.cancelled'):
@@ -146,6 +156,7 @@ def _normalize_event(event) -> GatewayEvent:
             type=GatewayEventType.DONATION_FAILED,
             donation_reference=metadata.get('donation_reference', ''),
             provider_reference=provider_ref,
+            event_id=event_id,
             raw=event,
         )
     if event_type == 'transfer.succeeded':
@@ -153,6 +164,7 @@ def _normalize_event(event) -> GatewayEvent:
             type=GatewayEventType.PAYOUT_SUCCEEDED,
             payout_reference=metadata.get('payout_reference', ''),
             provider_reference=provider_ref,
+            event_id=event_id,
             raw=event,
         )
     if event_type in ('transfer.failed', 'transfer.reversed'):
@@ -160,8 +172,9 @@ def _normalize_event(event) -> GatewayEvent:
             type=GatewayEventType.PAYOUT_FAILED,
             payout_reference=metadata.get('payout_reference', ''),
             provider_reference=provider_ref,
+            event_id=event_id,
             raw=event,
         )
     # Unhandled event types (customer.*, payment_intent.*, charge.created, ...)
     # — acknowledge receipt, nothing for us to do.
-    return GatewayEvent(type=GatewayEventType.UNHANDLED, raw=event)
+    return GatewayEvent(type=GatewayEventType.UNHANDLED, event_id=event_id, raw=event)

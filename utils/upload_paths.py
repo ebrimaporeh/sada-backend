@@ -37,6 +37,10 @@ def organization_logo_path(instance, filename: str) -> str:
     return f'organizations/{instance.id}/logo_{_timestamp()}.{_ext(filename)}'
 
 
+def organization_cover_path(instance, filename: str) -> str:
+    return f'organizations/{instance.id}/cover_{_timestamp()}.{_ext(filename)}'
+
+
 # Kept only because historical migrations (0014_alter_identityverification_
 # id_photo_back_and_more) reference these by name -- Django imports every
 # migration module to build the graph, so removing a upload_to function a

@@ -284,44 +284,59 @@ def _mark_payout_completed(payout, provider_reference=''):
     so both paths resolve a payout out of PROCESSING identically. Only emails
     on the transition — the initial request already sent one if ModemPay
     resolved it synchronously; this covers a payout left PROCESSING that only
-    resolves later."""
-    from emails.tasks import send_payout_update_email_task
+    resolves later.
 
-    was_already_completed = payout.status == payout.Status.COMPLETED
-    payout.status = payout.Status.COMPLETED
-    if provider_reference:
-        payout.provider_reference = provider_reference
-    payout.processed_at = timezone.now()
-    payout.save()
-    if not was_already_completed:
-        send_payout_update_email_task.delay(str(payout.id))
-        import services.audit_service as audit_service
-        from apps.audit.models import AuditLog
-        # actor=None -- this path only ever runs from a gateway webhook or
-        # the reconciliation sweep, never a logged-in admin request.
-        audit_service.log(
-            None, AuditLog.Action.PAYOUT_STATUS_CHANGED, payout,
-            f'Payout of D{payout.amount} to "{payout.campaign.title}" completed',
-            metadata={'status': 'completed'},
-        )
+    Re-fetches `payout` with select_for_update() inside its own atomic block
+    (mirrors donation_service.confirm_donation_by_reference) so a redelivered
+    webhook racing the reconciliation sweep for the same payout can't both
+    pass the was_already_completed check and double-post the ledger
+    transaction — the loser re-checks status under the lock and finds it
+    already COMPLETED."""
+    from apps.payments.models import Payout
+    from emails.tasks import send_payout_update_email_task
+    import services.ledger_service as ledger_service
+
+    with transaction.atomic():
+        payout = Payout.objects.select_for_update().get(pk=payout.pk)
+        was_already_completed = payout.status == payout.Status.COMPLETED
+        payout.status = payout.Status.COMPLETED
+        if provider_reference:
+            payout.provider_reference = provider_reference
+        payout.processed_at = timezone.now()
+        payout.save()
+        if not was_already_completed:
+            ledger_service.record_payout_completed(payout)
+            import services.audit_service as audit_service
+            from apps.audit.models import AuditLog
+            # actor=None -- this path only ever runs from a gateway webhook or
+            # the reconciliation sweep, never a logged-in admin request.
+            audit_service.log(
+                None, AuditLog.Action.PAYOUT_STATUS_CHANGED, payout,
+                f'Payout of D{payout.amount} to "{payout.campaign.title}" completed',
+                metadata={'status': 'completed'},
+            )
+            transaction.on_commit(lambda: send_payout_update_email_task.delay(str(payout.id)))
     return payout
 
 
 def _mark_payout_failed(payout):
+    from apps.payments.models import Payout
     from emails.tasks import send_payout_update_email_task
 
-    was_already_failed = payout.status == payout.Status.FAILED
-    payout.status = payout.Status.FAILED
-    payout.save(update_fields=['status'])
-    if not was_already_failed:
-        send_payout_update_email_task.delay(str(payout.id))
-        import services.audit_service as audit_service
-        from apps.audit.models import AuditLog
-        audit_service.log(
-            None, AuditLog.Action.PAYOUT_STATUS_CHANGED, payout,
-            f'Payout of D{payout.amount} to "{payout.campaign.title}" failed',
-            metadata={'status': 'failed'},
-        )
+    with transaction.atomic():
+        payout = Payout.objects.select_for_update().get(pk=payout.pk)
+        was_already_failed = payout.status == payout.Status.FAILED
+        payout.status = payout.Status.FAILED
+        payout.save(update_fields=['status'])
+        if not was_already_failed:
+            import services.audit_service as audit_service
+            from apps.audit.models import AuditLog
+            audit_service.log(
+                None, AuditLog.Action.PAYOUT_STATUS_CHANGED, payout,
+                f'Payout of D{payout.amount} to "{payout.campaign.title}" failed',
+                metadata={'status': 'failed'},
+            )
+            transaction.on_commit(lambda: send_payout_update_email_task.delay(str(payout.id)))
     return payout
 
 
@@ -412,7 +427,18 @@ def handle_webhook(gateway_code, payload, headers):
     event types are acknowledged, not treated as errors) — False for an
     unknown/disabled gateway code, an invalid signature, or a referenced
     donation/payout we can't find.
+
+    Deduplicated via apps.payments.models.WebhookEvent, keyed on
+    (gateway_code, event.event_id) — a redelivered event (network retry, or
+    a gateway that just sends the same event twice) is acknowledged without
+    being dispatched again. An event with no id (shouldn't happen — every
+    gateway's _normalize_event sets one) skips dedup rather than blocking
+    processing, matching this function's existing behavior before
+    WebhookEvent existed.
     """
+    from apps.payments.models import WebhookEvent
+    from django.db import IntegrityError
+
     try:
         gateway = get_gateway(gateway_code)
     except ValidationError:
@@ -423,6 +449,43 @@ def handle_webhook(gateway_code, payload, headers):
     if event is None:
         return False
 
+    if not event.event_id:
+        return _dispatch_webhook_event(gateway, event)
+
+    try:
+        # Own atomic block (a savepoint, if we're already inside one) —
+        # an IntegrityError from the unique constraint below must only
+        # roll back this insert attempt, not poison whatever transaction
+        # the caller (or Django's test client) is running in.
+        with transaction.atomic():
+            webhook_event = WebhookEvent.objects.create(
+                gateway=gateway_code, event_id=event.event_id,
+                payload=event.raw, status=WebhookEvent.Status.RECEIVED,
+            )
+    except IntegrityError:
+        existing = WebhookEvent.objects.filter(gateway=gateway_code, event_id=event.event_id).first()
+        if existing is None or existing.status != WebhookEvent.Status.FAILED:
+            # Already processed (or another request is processing it right
+            # now) -- ack without reprocessing.
+            return True
+        webhook_event = existing
+
+    try:
+        result = _dispatch_webhook_event(gateway, event)
+    except Exception:
+        WebhookEvent.objects.filter(pk=webhook_event.pk).update(status=WebhookEvent.Status.FAILED)
+        raise
+
+    WebhookEvent.objects.filter(pk=webhook_event.pk).update(
+        status=WebhookEvent.Status.PROCESSED if result else WebhookEvent.Status.FAILED,
+    )
+    return result
+
+
+def _dispatch_webhook_event(gateway, event):
+    """The actual per-event-type handling handle_webhook() wraps with
+    delivery dedup — split out so a WebhookEvent row always gets a final
+    status without the dedup bookkeeping above being duplicated per branch."""
     if event.type == GatewayEventType.DONATION_SUCCEEDED:
         from services.donation_service import confirm_donation_by_reference
         if not event.donation_reference:

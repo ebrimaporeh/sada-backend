@@ -21,10 +21,27 @@ class Donation(BaseModel):
         AFRIMONEY = 'afrimoney', 'Afrimoney'
         CARD = 'card', 'Card'
 
+    # Exactly one of campaign/organization is ever set -- a campaign donation
+    # or a direct organization donation, never both, never neither (enforced
+    # by the CheckConstraint below). campaign was the only destination before
+    # direct organization donations existed; it's nullable now purely to make
+    # room for organization-only rows, not because a campaign donation can
+    # ever legitimately omit one.
     campaign = models.ForeignKey(
         'campaigns.Campaign',
         on_delete=models.CASCADE,
+        null=True,
+        blank=True,
         related_name='donations',
+    )
+    # A direct donation to an organization itself, independent of any
+    # campaign -- see project.md's "direct organization donations" notes.
+    organization = models.ForeignKey(
+        'users.Organization',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='direct_donations',
     )
     donor = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -60,9 +77,18 @@ class Donation(BaseModel):
         ordering = ['-created_at']
         verbose_name = 'Donation'
         verbose_name_plural = 'Donations'
+        constraints = [
+            models.CheckConstraint(
+                check=(
+                    models.Q(campaign__isnull=False, organization__isnull=True)
+                    | models.Q(campaign__isnull=True, organization__isnull=False)
+                ),
+                name='donation_exactly_one_destination',
+            ),
+        ]
 
     def __str__(self):
-        return f'{self.amount} {self.currency} to {self.campaign.title}'
+        return f'{self.amount} {self.currency} to {self.destination_title}'
 
     @property
     def net_amount(self):
@@ -77,3 +103,21 @@ class Donation(BaseModel):
         if self.donor_name:
             return self.donor_name
         return 'Anonymous'
+
+    @property
+    def is_organization_donation(self):
+        return self.organization_id is not None
+
+    @property
+    def destination(self):
+        """The Campaign or Organization this donation was made to -- exactly
+        one is ever set, see the CheckConstraint above."""
+        return self.campaign if self.campaign_id else self.organization
+
+    @property
+    def destination_title(self):
+        return self.campaign.title if self.campaign_id else self.organization.organization_name
+
+    @property
+    def destination_slug(self):
+        return self.campaign.slug if self.campaign_id else self.organization.slug

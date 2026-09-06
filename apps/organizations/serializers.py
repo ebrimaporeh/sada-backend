@@ -33,6 +33,7 @@ class OrganizationSerializer(serializers.ModelSerializer):
     organization_type = serializers.CharField(source='organization_type.slug', read_only=True)
     organization_type_name = serializers.CharField(source='organization_type.name', read_only=True)
     logo = serializers.SerializerMethodField()
+    cover_image = serializers.SerializerMethodField()
     member_count = serializers.SerializerMethodField()
     created_by_name = serializers.SerializerMethodField()
     # Replaces the old free-text contact_person_name -- real members
@@ -44,8 +45,8 @@ class OrganizationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Organization
         fields = [
-            'id', 'organization_name', 'organization_type', 'organization_type_name',
-            'phone', 'phone_2', 'recovery_email_1', 'recovery_email_2', 'logo',
+            'id', 'organization_name', 'slug', 'description', 'organization_type', 'organization_type_name',
+            'phone', 'phone_2', 'recovery_email_1', 'recovery_email_2', 'logo', 'cover_image',
             'is_verified', 'member_count', 'created_by_name', 'contact_persons', 'created_at',
         ]
 
@@ -53,6 +54,12 @@ class OrganizationSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if obj.logo and request:
             return request.build_absolute_uri(obj.logo.url)
+        return None
+
+    def get_cover_image(self, obj):
+        request = self.context.get('request')
+        if obj.cover_image and request:
+            return request.build_absolute_uri(obj.cover_image.url)
         return None
 
     def get_member_count(self, obj):
@@ -66,6 +73,47 @@ class OrganizationSerializer(serializers.ModelSerializer):
             {'user_id': str(m.user_id), 'name': m.user.full_name, 'email': m.user.email, 'phone': m.user.phone}
             for m in obj.memberships.filter(is_contact_person=True).select_related('user')
         ]
+
+
+class OrganizationPublicSerializer(serializers.ModelSerializer):
+    """Public /give/<slug> donation-page shape -- deliberately lean, no
+    phone/recovery-email/member/contact-person detail (those are
+    membership-gated, see OrganizationSerializer above). This is the only
+    organization serializer safe to return to an unauthenticated request."""
+    logo = serializers.SerializerMethodField()
+    cover_image = serializers.SerializerMethodField()
+    organization_type_name = serializers.CharField(source='organization_type.name', read_only=True)
+    total_raised = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Organization
+        fields = [
+            'id', 'organization_name', 'slug', 'description', 'organization_type_name',
+            'logo', 'cover_image', 'is_verified', 'total_raised',
+        ]
+
+    def get_logo(self, obj):
+        request = self.context.get('request')
+        if obj.logo and request:
+            return request.build_absolute_uri(obj.logo.url)
+        return None
+
+    def get_cover_image(self, obj):
+        request = self.context.get('request')
+        if obj.cover_image and request:
+            return request.build_absolute_uri(obj.cover_image.url)
+        return None
+
+    def get_total_raised(self, obj):
+        import services.donation_service as donation_service
+        return donation_service.get_public_organization_total_raised(obj)
+
+
+class OrganizationUpdateSerializer(serializers.Serializer):
+    """description is the only field editable through a plain PATCH --
+    everything else either never changes post-creation (name/type) or goes
+    through OrganizationChangeRequest (phone/recovery emails)."""
+    description = serializers.CharField(required=False, allow_blank=True, max_length=2000)
 
 
 class AdminOrganizationListSerializer(serializers.ModelSerializer):

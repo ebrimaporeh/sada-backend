@@ -203,3 +203,41 @@ class PlatformSettings(BaseModel):
     def get_fee_rate(cls):
         """Returns the payout fee as a 0-1 Decimal ready for multiplication (e.g. 0.01 for 1%)."""
         return cls.get_solo().platform_fee_percent / Decimal('100')
+
+
+class WebhookEvent(BaseModel):
+    """One row per distinct gateway webhook delivery -- makes
+    payment_service.handle_webhook() safe against a redelivered event
+    (network retry, or a gateway that simply sends the same event twice).
+
+    `event_id` is the dedup key: Stripe's real `evt_...` id for Stripe,
+    or a synthesized `{event_type}:{provider_reference}` for ModemPay,
+    which sends no event id of its own at all (confirmed against the
+    installed `modempay` SDK -- WebhooksResource.compose_event_details()
+    returns only {'event': type, 'payload': {...}}). Deterministic either
+    way: a genuine redelivery of the same real-world event reproduces the
+    same key.
+
+    Uniqueness is enforced at the DB level (`unique_together`), not just
+    checked in Python -- two webhook requests racing in at the same
+    instant both attempt the insert, and only one wins; see
+    payment_service.handle_webhook() for how the loser is detected via
+    IntegrityError and treated as an already-processed duplicate.
+    """
+    class Status(models.TextChoices):
+        RECEIVED = 'received', 'Received'
+        PROCESSED = 'processed', 'Processed'
+        IGNORED = 'ignored', 'Ignored'
+        FAILED = 'failed', 'Failed'
+
+    gateway = models.CharField(max_length=20)
+    event_id = models.CharField(max_length=255)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.RECEIVED)
+    payload = models.JSONField(null=True, blank=True)
+
+    class Meta:
+        unique_together = [('gateway', 'event_id')]
+        indexes = [models.Index(fields=['gateway', 'event_id'])]
+
+    def __str__(self):
+        return f'{self.gateway}:{self.event_id} ({self.status})'

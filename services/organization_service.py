@@ -107,6 +107,44 @@ def get_organization_admin(organization_id: str) -> Organization:
     return get_object_or_404(Organization, pk=organization_id)
 
 
+def get_organization_by_slug(slug: str) -> Organization:
+    """Public lookup for the organization's own donation page (/give/<slug>)
+    -- deliberately not membership-gated, same reasoning as a public
+    campaign detail page: anyone (including a logged-out visitor) needs to
+    be able to view this and donate. Every organization is eligible to
+    receive direct donations by simply existing -- there's no separate
+    "fundraising-enabled" flag on Organization today, matching how an
+    org-owned campaign requires no additional verification/eligibility gate
+    either (see project.md's campaign-status-machine note)."""
+    from django.shortcuts import get_object_or_404
+    return get_object_or_404(Organization, slug=slug)
+
+
+def update_organization(user: User, organization: Organization, description: str = None) -> Organization:
+    """Direct edit for organization_description -- unlike phone/recovery
+    email, description isn't account-recovery-critical (see
+    OrganizationChangeRequest's docstring for that distinction), so it's a
+    plain permission-gated PATCH, not a change-request workflow."""
+    require_permission(user, organization, OrganizationPermission.MANAGE_ORGANIZATION)
+    if description is not None:
+        organization.description = description
+        organization.save(update_fields=['description'])
+    return organization
+
+
+def upload_cover_image(user: User, organization: Organization, image_file) -> Organization:
+    """Donation-page banner upload -- same permission gate as
+    update_organization, same image-compression pattern as
+    campaign_service.upload_cover."""
+    require_permission(user, organization, OrganizationPermission.MANAGE_ORGANIZATION)
+    if not image_file:
+        raise ValidationError('No image provided.')
+    from services.image_compression import process_image
+    organization.cover_image = process_image(image_file, profile='organization_cover')
+    organization.save(update_fields=['cover_image'])
+    return organization
+
+
 @transaction.atomic
 def create_organization(
     creator: User, organization_name: str, organization_type_slug: str,

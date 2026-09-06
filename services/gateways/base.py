@@ -36,11 +36,17 @@ class GatewayEventType:
 
 @dataclass
 class GatewayEvent:
-    """A webhook event, normalized to GatewayEventType."""
+    """A webhook event, normalized to GatewayEventType.
+
+    `event_id` is the dedup key payment_service.handle_webhook() uses to
+    guard against a redelivered event (see apps.payments.models.WebhookEvent) —
+    Stripe's real `evt_...` id for Stripe, a synthesized deterministic key
+    for ModemPay (which sends no event id of its own at all)."""
     type: str
     donation_reference: str = ''
     payout_reference: str = ''
     provider_reference: str = ''
+    event_id: str = ''
     raw: dict = field(default_factory=dict)
 
 

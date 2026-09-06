@@ -95,12 +95,16 @@ def _normalize_event(event) -> GatewayEvent:
     metadata = data.get('metadata') or {}
     donation_reference = metadata.get('donation_reference', '')
     provider_ref = data.get('id', '')
+    # Stripe's own event id -- present on every real Event object, unlike
+    # ModemPay (see services/gateways/modempay.py's _normalize_event).
+    event_id = event.get('id', '')
 
     if event_type == 'checkout.session.completed' and data.get('payment_status') == 'paid':
         return GatewayEvent(
             type=GatewayEventType.DONATION_SUCCEEDED,
             donation_reference=donation_reference,
             provider_reference=provider_ref,
+            event_id=event_id,
             raw=event,
         )
     if event_type in ('checkout.session.async_payment_failed', 'checkout.session.expired'):
@@ -108,9 +112,10 @@ def _normalize_event(event) -> GatewayEvent:
             type=GatewayEventType.DONATION_FAILED,
             donation_reference=donation_reference,
             provider_reference=provider_ref,
+            event_id=event_id,
             raw=event,
         )
     # Unhandled event types (payment_intent.*, charge.*, customer.*, ...) —
     # acknowledge receipt, nothing for us to do. Stripe never sends a
     # payout-side event here since this gateway never initiates a transfer.
-    return GatewayEvent(type=GatewayEventType.UNHANDLED, raw=event)
+    return GatewayEvent(type=GatewayEventType.UNHANDLED, event_id=event_id, raw=event)

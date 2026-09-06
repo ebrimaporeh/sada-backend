@@ -10,7 +10,8 @@ from rest_framework.exceptions import ValidationError
 from apps.users.models import User
 from apps.campaigns.models import Campaign
 from apps.donations.models import Donation
-from apps.payments.models import Payout, PlatformSettings
+from apps.payments.models import Payout, PlatformSettings, WebhookEvent
+from apps.ledger.models import LedgerEntry
 from services import donation_service, payment_service
 from services.gateways.registry import get_gateway, GATEWAYS
 from services.gateways.modempay import ModemPayGateway
@@ -991,6 +992,110 @@ class PayoutWebhookGatewayTest(APITestCase):
 
         self.payout.refresh_from_db()
         self.assertEqual(self.payout.status, Payout.Status.FAILED)
+
+
+class WebhookIdempotencyTest(APITestCase):
+    """A redelivered webhook (network retry, or a gateway that just sends
+    the same event twice) must be acknowledged without being reprocessed --
+    see apps.payments.models.WebhookEvent and payment_service.handle_webhook's
+    dedup guard."""
+
+    def setUp(self):
+        self.campaign = make_campaign()
+        self.donation = Donation.objects.create(
+            campaign=self.campaign,
+            amount=Decimal('200.00'),
+            provider='wave',
+            phone='+2207000000',
+            payment_reference='SD-DEDUPE1',
+            gateway='modempay',
+            status=Donation.Status.PENDING,
+        )
+        self.url = reverse('gateway-webhook', kwargs={'gateway_code': 'modempay'})
+
+    @patch('services.modempay_service.find_transaction_by_donation_reference')
+    @patch('services.modempay_service.verify_and_parse_webhook')
+    def test_modempay_charge_succeeded_redelivery_confirms_donation_once(self, mock_verify, mock_find_txn):
+        mock_verify.return_value = {
+            'event': 'charge.succeeded',
+            'payload': {'id': 'ch_dupe', 'metadata': {'donation_reference': 'SD-DEDUPE1'}},
+        }
+        mock_find_txn.return_value = None
+
+        first = self.client.post(self.url, {'any': 'payload'}, format='json')
+        second = self.client.post(self.url, {'any': 'payload'}, format='json')
+
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+        self.assertEqual(second.status_code, status.HTTP_200_OK)
+
+        self.campaign.refresh_from_db()
+        self.assertEqual(self.campaign.raised, Decimal('200.00'))
+        self.assertEqual(self.campaign.donors_count, 1)
+        self.assertEqual(WebhookEvent.objects.filter(gateway='modempay', event_id='charge.succeeded:ch_dupe').count(), 1)
+        self.assertEqual(
+            LedgerEntry.objects.filter(transaction__source_type='donation', transaction__source_id=str(self.donation.id)).count(),
+            2,  # one balanced donation_received transaction, not two
+        )
+
+    @patch('services.stripe_service.verify_and_parse_webhook')
+    def test_stripe_checkout_completed_redelivery_confirms_donation_once(self, mock_verify):
+        donation = Donation.objects.create(
+            campaign=self.campaign, amount=Decimal('25.00'), currency='usd', provider='card',
+            payment_reference='SD-STRIPE-DEDUPE', gateway='stripe', status=Donation.Status.PENDING,
+        )
+        set_platform_settings(stripe_enabled=True, stripe_settlement_currency='usd')
+        mock_verify.return_value = {
+            'id': 'evt_dupe_1',
+            'type': 'checkout.session.completed',
+            'data': {'object': {
+                'id': 'cs_dupe',
+                'payment_status': 'paid',
+                'metadata': {'donation_reference': 'SD-STRIPE-DEDUPE'},
+            }},
+        }
+        url = reverse('gateway-webhook', kwargs={'gateway_code': 'stripe'})
+        gateway_settings = {
+            'modempay': {'demo_mode': True},
+            'stripe': {'secret_key': 'sk_test', 'webhook_secret': 'whsec_test'},
+        }
+        with self.settings(PAYMENT_GATEWAYS=gateway_settings):
+            self.client.post(url, {'any': 'payload'}, format='json')
+            self.client.post(url, {'any': 'payload'}, format='json')
+
+        donation.refresh_from_db()
+        self.assertEqual(donation.status, Donation.Status.PAID)
+        self.assertEqual(WebhookEvent.objects.filter(gateway='stripe', event_id='evt_dupe_1').count(), 1)
+
+    @patch('services.modempay_service.find_transaction_by_donation_reference')
+    @patch('services.modempay_service.verify_and_parse_webhook')
+    def test_failed_delivery_is_retried_on_next_redelivery(self, mock_verify, mock_find_txn):
+        mock_verify.return_value = {
+            'event': 'charge.succeeded',
+            'payload': {'id': 'ch_retry', 'metadata': {'donation_reference': 'SD-DEDUPE1'}},
+        }
+        # First delivery: confirm_donation_by_reference blows up mid-dispatch
+        # -- WebhookEvent should land as FAILED, not PROCESSED, so a real
+        # redelivery still gets a chance to actually process the event.
+        mock_find_txn.side_effect = RuntimeError('boom')
+        with self.assertRaises(RuntimeError):
+            payment_service.handle_webhook('modempay', b'{"any": "payload"}', {})
+        self.assertEqual(
+            WebhookEvent.objects.get(gateway='modempay', event_id='charge.succeeded:ch_retry').status,
+            WebhookEvent.Status.FAILED,
+        )
+        self.donation.refresh_from_db()
+        self.assertEqual(self.donation.status, Donation.Status.PENDING)
+
+        mock_find_txn.side_effect = None
+        mock_find_txn.return_value = None
+        result = payment_service.handle_webhook('modempay', b'{"any": "payload"}', {})
+        self.assertTrue(result)
+        self.donation.refresh_from_db()
+        self.assertEqual(self.donation.status, Donation.Status.PAID)
+        self.assertEqual(
+            WebhookEvent.objects.get(gateway='modempay', event_id='charge.succeeded:ch_retry').status,
+            WebhookEvent.Status.PROCESSED,
+        )
 
 
 class SweepReconciliationTest(APITestCase):

@@ -15,11 +15,13 @@ from .serializers import (
     OrganizationRoleSerializer, OrganizationRoleCreateSerializer, OrganizationRoleUpdateSerializer,
     OrganizationMembershipSerializer, UpdateMemberSerializer,
     OrganizationInvitationSerializer, InvitationCreateSerializer,
-    AdminOrganizationListSerializer,
+    AdminOrganizationListSerializer, OrganizationPublicSerializer, OrganizationUpdateSerializer,
 )
 import services.organization_service as organization_service
+import services.donation_service as donation_service
 import services.audit_service as audit_service
 from apps.audit.models import AuditLog
+from apps.donations.serializers import DonationSerializer
 
 
 @extend_schema(tags=['Organizations'], summary='List organization types selectable for a new org')
@@ -62,15 +64,74 @@ class MyOrganizationsView(APIView):
 class OrganizationDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
-    # No PATCH here -- organization_name/organization_type stay fixed post-
-    # creation, phone/phone_2/recovery emails go through
-    # OrganizationChangeRequest, and "contact person" is now a per-member
-    # flag (see OrganizationMemberDetailView.patch), not an org-level field.
+    # organization_name/organization_type stay fixed post-creation,
+    # phone/phone_2/recovery emails go through OrganizationChangeRequest, and
+    # "contact person" is a per-member flag (see OrganizationMemberDetailView.
+    # patch) -- description is the only field this PATCH accepts, gated on
+    # manage_organization (see organization_service.update_organization).
     @extend_schema(summary='Get an organization I belong to', responses={200: OrganizationSerializer})
     def get(self, request, pk):
         organization = organization_service.get_organization(pk, request.user)
         out = OrganizationSerializer(organization, context={'request': request})
         return Response({'success': True, 'data': {'organization': out.data}})
+
+    @extend_schema(summary="Update an organization's public description", request=OrganizationUpdateSerializer)
+    def patch(self, request, pk):
+        organization = organization_service.get_organization(pk, request.user)
+        serializer = OrganizationUpdateSerializer(data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        organization = organization_service.update_organization(request.user, organization, **serializer.validated_data)
+        out = OrganizationSerializer(organization, context={'request': request})
+        return Response({'success': True, 'message': 'Organization updated.', 'data': {'organization': out.data}})
+
+
+@extend_schema(tags=['Organizations'], summary="Upload an organization's donation-page cover image")
+class OrganizationCoverUploadView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        organization = organization_service.get_organization(pk, request.user)
+        organization = organization_service.upload_cover_image(request.user, organization, request.FILES.get('cover_image'))
+        out = OrganizationSerializer(organization, context={'request': request})
+        return Response({'success': True, 'message': 'Cover image updated.', 'data': {'organization': out.data}})
+
+
+@extend_schema(
+    tags=['Organizations'], summary="Get an organization's public donation-page detail (no auth required)",
+    responses={200: OrganizationPublicSerializer},
+)
+class OrganizationPublicDonateView(APIView):
+    """Backs /give/<slug> -- the organization's permanent, campaign-
+    independent donation destination (see project.md's direct-organization-
+    donation notes). Deliberately AllowAny and slug-addressed, unlike every
+    other organization endpoint above (uuid-addressed, membership-gated)."""
+    permission_classes = [AllowAny]
+
+    def get(self, request, slug):
+        organization = organization_service.get_organization_by_slug(slug)
+        out = OrganizationPublicSerializer(organization, context={'request': request})
+        return Response({'success': True, 'data': {'organization': out.data}})
+
+
+@extend_schema(tags=['Organizations'], summary="Get an organization's donation totals (direct + campaign)")
+class OrganizationDonationStatsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        stats = donation_service.get_organization_donation_stats(request.user, pk)
+        return Response({'success': True, 'data': stats})
+
+
+@extend_schema(tags=['Organizations'], summary="List an organization's direct (non-campaign) donations")
+class OrganizationDonationListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        donations = donation_service.get_organization_donations(request.user, pk)
+        paginator = StandardResultsPagination()
+        page = paginator.paginate_queryset(donations, request)
+        serializer = DonationSerializer(page, many=True)
+        return paginator.get_paginated_response(serializer.data)
 
 
 @extend_schema(tags=['Organizations'], summary='Transfer ownership to another member')

@@ -52,7 +52,7 @@ def create_checkout_session(donation, currency, amount_minor, success_url, cance
                 'price_data': {
                     'currency': currency,
                     'unit_amount': amount_minor,
-                    'product_data': {'name': f'Donation to {donation.campaign.title}'},
+                    'product_data': {'name': f'Donation to {donation.destination_title}'},
                 },
                 'quantity': 1,
             }],

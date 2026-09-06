@@ -51,6 +51,7 @@ LOCAL_APPS = [
     'apps.campaigns',
     'apps.donations',
     'apps.payments',
+    'apps.ledger',
     'apps.notifications',
     'apps.analytics',
     'apps.zakat',
@@ -200,6 +201,15 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # filesystem is ephemeral (wiped on every deploy/restart), so anything
 # meant to run there needs uploads to live somewhere persistent instead.
 SUPABASE_STORAGE_BUCKET = config('SUPABASE_STORAGE_BUCKET', default='')
+
+# Separate, PRIVATE bucket for organization verification documents
+# (registration certificates, the org photo submitted with them) -- never
+# the same bucket as SUPABASE_STORAGE_BUCKET above, which is public. Read
+# directly by utils.storage.VerificationDocumentStorage, not used to build
+# any Django storage/URL setting here (unlike SUPABASE_STORAGE_BUCKET,
+# there's no "default" file storage flip for a single, narrowly-scoped
+# private bucket).
+SUPABASE_VERIFICATION_BUCKET = config('SUPABASE_VERIFICATION_BUCKET', default='')
 
 if SUPABASE_STORAGE_BUCKET:
     DEFAULT_FILE_STORAGE = 'storages.backends.s3.S3Storage'

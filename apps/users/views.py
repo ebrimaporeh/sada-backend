@@ -337,10 +337,17 @@ class OrganizationVerificationSubmitView(APIView):
     parameters=[OpenApiParameter('organization_id', str, required=True)],
 )
 class MyOrganizationVerificationView(APIView):
+    """Any member can see their org's verification status (same "any current
+    member" rule as OrganizationDetailView -- this was previously missing
+    entirely, so any authenticated user who knew/guessed an organization_id
+    could pull another org's verification record). The registration
+    document/organization photo URLs themselves are a further, narrower
+    gate -- see OrganizationVerificationSerializer._can_view_documents --
+    since those are the actual sensitive files, not the status metadata."""
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        organization = get_object_or_404(Organization, pk=request.query_params.get('organization_id'))
+        organization = organization_service.get_organization(request.query_params.get('organization_id'), request.user)
         verification = verification_service.get_latest_organization_verification(organization)
         data = OrganizationVerificationSerializer(verification, context={'request': request}).data if verification else None
         return Response({'success': True, 'data': {'verification': data}})

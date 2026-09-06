@@ -3,10 +3,12 @@ from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseU
 from django.db import models
 from apps.core.models import BaseModel
 from apps.core.validators import validate_image_size
+from django.utils.text import slugify
 from utils.upload_paths import (
     user_avatar_path, identity_photo_front_path, identity_photo_back_path,
-    organization_logo_path, organization_registration_document_path, organization_photo_path,
+    organization_logo_path, organization_cover_path, organization_registration_document_path, organization_photo_path,
 )
+from utils.storage import get_verification_storage
 
 
 class UserManager(BaseUserManager):
@@ -229,6 +231,16 @@ class Organization(BaseModel):
     holds (see OrganizationMembership's docstring — ownership is
     transferable, so created_by intentionally never gates anything)."""
     organization_name = models.CharField(max_length=200)
+    # Stable public identifier for the organization's own donation page
+    # (/give/<slug>) -- independent of any campaign, see project.md's direct-
+    # organization-donation notes. Auto-generated from organization_name the
+    # same way Campaign.slug is (see save() below), never client-supplied.
+    slug = models.SlugField(max_length=220, unique=True, blank=True)
+    # Short public-facing bio shown on the donation page -- distinct from
+    # anything verification-related; free text, no admin review needed
+    # (unlike phone/recovery email, this isn't account-recovery-critical,
+    # see OrganizationChangeRequest's docstring for that distinction).
+    description = models.TextField(blank=True)
     organization_type = models.ForeignKey(
         'organizations.OrganizationType', on_delete=models.PROTECT, related_name='organizations',
     )
@@ -255,6 +267,11 @@ class Organization(BaseModel):
     recovery_email_1 = models.EmailField(blank=True)
     recovery_email_2 = models.EmailField(blank=True)
     logo = models.ImageField(upload_to=organization_logo_path, null=True, blank=True, validators=[validate_image_size])
+    # Public donation-page banner -- separate from logo (set only via
+    # OrganizationVerification approval, see that model's docstring); this
+    # one is uploaded directly by an org admin (manage_organization), same
+    # pattern as Campaign.cover_image.
+    cover_image = models.ImageField(upload_to=organization_cover_path, null=True, blank=True, validators=[validate_image_size])
     # Distinct from any individual member's own User.is_verified -- an org's
     # identity verification (OrganizationVerification) is about the org
     # entity, not whichever member happened to submit it.
@@ -266,6 +283,17 @@ class Organization(BaseModel):
 
     def __str__(self):
         return self.organization_name
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            base = slugify(self.organization_name)
+            slug = base
+            n = 1
+            while Organization.objects.filter(slug=slug).exclude(pk=self.pk).exists():
+                slug = f'{base}-{n}'
+                n += 1
+            self.slug = slug
+        super().save(*args, **kwargs)
 
 
 class OrganizationVerification(BaseModel):
@@ -288,11 +316,24 @@ class OrganizationVerification(BaseModel):
     # lets admin reviewers cross-check it without opening the image.
     registration_number = models.CharField(max_length=100)
     # Proof the organization is real — a registration certificate, government
-    # letter, etc.
-    registration_document = models.ImageField(upload_to=organization_registration_document_path, validators=[validate_image_size])
+    # letter, etc. Private bucket (utils.storage.VerificationDocumentStorage)
+    # -- unlike every other ImageField in this codebase, never publicly
+    # readable; .url on this field returns a short-lived signed URL, not a
+    # permanent one, and only ever gets attached to a response after an
+    # authorization check (see MyOrganizationVerificationView).
+    registration_document = models.ImageField(
+        upload_to=organization_registration_document_path, validators=[validate_image_size],
+        storage=get_verification_storage(),
+    )
     # A photo of the organization (premises, event, logo) — copied onto
-    # Organization.logo on approval.
-    organization_photo = models.ImageField(upload_to=organization_photo_path, validators=[validate_image_size])
+    # Organization.logo on approval (see verification_service, which reads
+    # the actual bytes out of this private bucket and re-saves them into
+    # Organization.logo's own, public storage rather than copying the
+    # FieldFile reference directly).
+    organization_photo = models.ImageField(
+        upload_to=organization_photo_path, validators=[validate_image_size],
+        storage=get_verification_storage(),
+    )
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
     rejection_reason = models.TextField(blank=True)
     reviewed_by = models.ForeignKey(

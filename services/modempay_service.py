@@ -69,7 +69,7 @@ def create_payment_intent(donation, return_url='', cancel_url=''):
         # amounts aren't representable in a single charge.
         'amount': int(donation.amount),
         'currency': donation.currency or 'GMD',
-        'title': f'Donation to {donation.campaign.title}',
+        'title': f'Donation to {donation.destination_title}',
         'customer_name': donation.donor_display,
         'customer_phone': donation.phone,
         # This is how we match the async webhook back to this donation —

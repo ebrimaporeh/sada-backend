@@ -4,8 +4,11 @@ from .models import Donation
 
 class DonationSerializer(serializers.ModelSerializer):
     donor_name = serializers.SerializerMethodField()
-    campaign_title = serializers.CharField(source='campaign.title', read_only=True)
-    campaign_slug = serializers.CharField(source='campaign.slug', read_only=True)
+    campaign_title = serializers.SerializerMethodField()
+    campaign_slug = serializers.SerializerMethodField()
+    is_organization_donation = serializers.ReadOnlyField()
+    organization_id = serializers.CharField(source='organization.id', read_only=True, default=None)
+    organization_name = serializers.CharField(source='organization.organization_name', read_only=True, default=None)
     net_amount = serializers.ReadOnlyField()
 
     class Meta:
@@ -14,22 +17,37 @@ class DonationSerializer(serializers.ModelSerializer):
             'id', 'amount', 'currency', 'gateway', 'provider', 'phone', 'status',
             'is_anonymous', 'message', 'fee', 'net_amount',
             'donor_name', 'campaign_title', 'campaign_slug',
+            'is_organization_donation', 'organization_id', 'organization_name',
             'payment_reference', 'paid_at', 'created_at',
         ]
 
     def get_donor_name(self, obj):
         return obj.donor_display
 
+    def get_campaign_title(self, obj):
+        return obj.campaign.title if obj.campaign_id else None
+
+    def get_campaign_slug(self, obj):
+        return obj.campaign.slug if obj.campaign_id else None
+
 
 class DonationCreateSerializer(serializers.ModelSerializer):
-    campaign_id = serializers.UUIDField(write_only=True)
+    # Exactly one of these two must be given -- see validate() below.
+    # Both write-only/optional at the field level; the exactly-one rule is
+    # a cross-field check, so it belongs in validate(), not validate_<field>
+    # (see serializers.md).
+    campaign_id = serializers.UUIDField(write_only=True, required=False)
+    organization_id = serializers.UUIDField(write_only=True, required=False)
     # Not model-reflected on purpose: no choices= here, since gateways are
     # registered in services/gateways/registry.py, not a fixed enum.
     gateway = serializers.CharField(required=False, default='modempay')
 
     class Meta:
         model = Donation
-        fields = ['campaign_id', 'amount', 'gateway', 'provider', 'phone', 'is_anonymous', 'message', 'donor_name']
+        fields = [
+            'campaign_id', 'organization_id', 'amount', 'gateway', 'provider',
+            'phone', 'is_anonymous', 'message', 'donor_name',
+        ]
 
     def validate_amount(self, value):
         # The real min/max are per-gateway and admin-configurable
@@ -55,6 +73,14 @@ class DonationCreateSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         from services.gateways.registry import get_gateway, donation_amount_limits
+
+        has_campaign = bool(data.get('campaign_id'))
+        has_organization = bool(data.get('organization_id'))
+        if has_campaign == has_organization:
+            raise serializers.ValidationError(
+                'Provide exactly one of campaign_id or organization_id.'
+            )
+
         gateway_code = data.get('gateway') or 'modempay'
         gateway = get_gateway(gateway_code)
 
@@ -84,7 +110,10 @@ class DonationCreateSerializer(serializers.ModelSerializer):
 class AdminDonationSerializer(serializers.ModelSerializer):
     donor_name = serializers.SerializerMethodField()
     donor_email = serializers.SerializerMethodField()
-    campaign_title = serializers.CharField(source='campaign.title', read_only=True)
+    campaign_title = serializers.SerializerMethodField()
+    is_organization_donation = serializers.ReadOnlyField()
+    organization_id = serializers.CharField(source='organization.id', read_only=True, default=None)
+    organization_name = serializers.CharField(source='organization.organization_name', read_only=True, default=None)
     net_amount = serializers.ReadOnlyField()
 
     class Meta:
@@ -92,8 +121,9 @@ class AdminDonationSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'amount', 'currency', 'gateway', 'provider', 'phone', 'status',
             'is_anonymous', 'message', 'fee', 'net_amount',
-            'donor_name', 'donor_email', 'campaign_title', 'payment_reference',
-            'provider_reference', 'paid_at', 'refunded_at', 'refund_reason', 'created_at',
+            'donor_name', 'donor_email', 'campaign_title',
+            'is_organization_donation', 'organization_id', 'organization_name',
+            'payment_reference', 'provider_reference', 'paid_at', 'refunded_at', 'refund_reason', 'created_at',
         ]
 
     def get_donor_name(self, obj):
@@ -103,6 +133,9 @@ class AdminDonationSerializer(serializers.ModelSerializer):
         if obj.donor:
             return obj.donor.email
         return 'Anonymous'
+
+    def get_campaign_title(self, obj):
+        return obj.campaign.title if obj.campaign_id else None
 
 
 class AdminDonationUpdateSerializer(serializers.ModelSerializer):

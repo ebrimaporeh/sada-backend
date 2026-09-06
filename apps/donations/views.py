@@ -42,7 +42,7 @@ class DonationCreateView(APIView):
         actor_name = donor.full_name if donor else (donation.donor_name or 'Anonymous donor')
         audit_service.log(
             donor, AuditLog.Action.DONATION_CREATED, donation,
-            f'{actor_name} donated D{donation.amount} to "{donation.campaign.title}"',
+            f'{actor_name} donated D{donation.amount} to "{donation.destination_title}"',
             actor_name=actor_name,
         )
 
@@ -60,7 +60,7 @@ class DonationCreateView(APIView):
             )
 
         events_service.track(
-            Event.Type.DONATION_STARTED, user=donor, campaign=donation.campaign,
+            Event.Type.DONATION_STARTED, user=donor, campaign=donation.campaign if donation.campaign_id else None,
             metadata={'amount': str(donation.amount), 'provider': donation.provider},
             ip_address=consent_service.get_client_ip(request) or None,
         )
@@ -175,7 +175,7 @@ class AdminDonationRefundView(APIView):
         donation = donation_service.refund_donation(donation, reason=serializer.validated_data['reason'])
         audit_service.log(
             request.user, AuditLog.Action.PAYMENT_REFUNDED, donation,
-            f'{request.user.full_name} refunded D{donation.amount} donation to "{donation.campaign.title}"',
+            f'{request.user.full_name} refunded D{donation.amount} donation to "{donation.destination_title}"',
             metadata={'reason': serializer.validated_data['reason']},
         )
         out = AdminDonationSerializer(donation)

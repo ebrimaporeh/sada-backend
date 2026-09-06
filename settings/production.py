@@ -22,6 +22,14 @@ CSRF_COOKIE_SECURE = True
 
 CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', cast=Csv())
 
+# Django only trusts these for cookie-authenticated POST/PUT/DELETE (session
+# auth via allauth/admin) -- the SPA's own JWT-authenticated calls aren't
+# cookie-based and don't need this, but without it any session-authenticated
+# cross-origin request (e.g. the Django admin behind a proxy, or allauth's
+# social-login callbacks) is rejected. Defaults to the same origins as CORS
+# since in practice that's the one domain that legitimately calls this API.
+CSRF_TRUSTED_ORIGINS = config('CSRF_TRUSTED_ORIGINS', default=','.join(CORS_ALLOWED_ORIGINS), cast=Csv())
+
 # ─── Caching ─────────────────────────────────────────────────────────────────
 
 CACHES = {

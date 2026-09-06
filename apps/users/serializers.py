@@ -1,5 +1,6 @@
 import re
 from rest_framework import serializers
+from apps.organizations.permissions import OrganizationPermission
 from .models import User, IdentityVerification, Organization, OrganizationVerification, OrganizationChangeRequest
 
 
@@ -316,6 +317,26 @@ class OrganizationVerificationSerializer(serializers.ModelSerializer):
     def get_reviewed_by_name(self, obj):
         return obj.reviewed_by.full_name if obj.reviewed_by else None
 
+    def _can_view_documents(self, obj) -> bool:
+        """Registration certificate / org photo live in the private
+        verification bucket (see apps/users/models.py) -- unlike the rest
+        of this serializer's fields (status, registration number, reviewer
+        name), which any org member can already see via
+        MyOrganizationVerificationView. Viewing the actual documents needs
+        manage_organization specifically, or platform staff reviewing it
+        through the admin endpoints (HasResourceAccess already gates those
+        views themselves, but this serializer is reused by both, so the
+        check lives here once rather than twice)."""
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        if not user or not user.is_authenticated:
+            return False
+        if user.is_staff or user.role == User.Role.ADMIN:
+            return True
+        from services.organization_service import get_membership
+        membership = get_membership(user, obj.organization)
+        return bool(membership and OrganizationPermission.MANAGE_ORGANIZATION in membership.role.permissions)
+
     def _absolute_url(self, field):
         request = self.context.get('request')
         if field and request:
@@ -323,9 +344,13 @@ class OrganizationVerificationSerializer(serializers.ModelSerializer):
         return None
 
     def get_registration_document(self, obj):
+        if not self._can_view_documents(obj):
+            return None
         return self._absolute_url(obj.registration_document)
 
     def get_organization_photo(self, obj):
+        if not self._can_view_documents(obj):
+            return None
         return self._absolute_url(obj.organization_photo)
 
 

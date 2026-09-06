@@ -1,4 +1,5 @@
 from django.core.exceptions import ValidationError
+from django.core.files.base import ContentFile
 from django.db import transaction
 from django.utils import timezone
 
@@ -168,9 +169,19 @@ def approve_organization_verification(verification_id: str, admin_user: User) ->
         verification.save(update_fields=['status', 'reviewed_by', 'reviewed_at'])
 
         # The submitted org photo becomes the org's public logo on approval.
+        # organization_photo lives in the private verification bucket
+        # (utils.storage.VerificationDocumentStorage) while Organization.logo
+        # is public -- a plain `org.logo = verification.organization_photo`
+        # would only copy the *name* (path string), leaving org.logo
+        # pointing at a path that exists in the private bucket but not the
+        # public one. Read the actual bytes through the private storage and
+        # re-save them into org.logo's own (public) storage instead.
         org = verification.organization
         org.is_verified = True
-        org.logo = verification.organization_photo
+        if verification.organization_photo:
+            filename = verification.organization_photo.name.rsplit('/', 1)[-1]
+            with verification.organization_photo.open('rb') as source:
+                org.logo.save(filename, ContentFile(source.read()), save=False)
         org.save(update_fields=['is_verified', 'logo'])
 
     send_organization_verification_reviewed_email_task.delay(str(verification.id))

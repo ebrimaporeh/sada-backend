@@ -678,6 +678,11 @@ def expire_overdue_campaigns(limit=500):
     campaign_ids = list(
         Campaign.objects.filter(
             status=Campaign.Status.ACTIVE,
+            # Explicit, not just relying on SQL's NULL-excludes-from-`<`
+            # semantics -- an open-ended campaign (deadline=None) must never
+            # be picked up by this sweep, see project.md/architecture notes
+            # on campaigns without a deadline.
+            deadline__isnull=False,
             deadline__lt=today,
         ).order_by('deadline').values_list('pk', flat=True)[:limit]
     )

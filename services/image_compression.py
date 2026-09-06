@@ -23,6 +23,7 @@ PROFILES = {
     'avatar':           {'max_dimension': 1600, 'quality': 90},
     'campaign_cover':   {'max_dimension': 1920, 'quality': 85},
     'campaign_gallery': {'max_dimension': 1920, 'quality': 85},
+    'organization_cover': {'max_dimension': 1920, 'quality': 85},
     'campaign_update':  {'max_dimension': 1600, 'quality': 82},
     'category':         {'max_dimension': 800,  'quality': 82},
     'document':         {'max_dimension': 2000, 'quality': 90},

@@ -30,10 +30,10 @@ class UserAdmin(BaseUserAdmin):
 
 @admin.register(Organization)
 class OrganizationAdmin(admin.ModelAdmin):
-    list_display = ('organization_name', 'organization_type', 'created_by', 'is_verified', 'created_at')
+    list_display = ('organization_name', 'slug', 'organization_type', 'created_by', 'is_verified', 'created_at')
     list_filter = ('organization_type', 'is_verified')
-    search_fields = ('organization_name', 'created_by__email')
-    readonly_fields = ('id', 'created_at', 'updated_at')
+    search_fields = ('organization_name', 'slug', 'created_by__email')
+    readonly_fields = ('id', 'slug', 'created_at', 'updated_at')
 
 
 @admin.register(OrganizationVerification)

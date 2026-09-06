@@ -102,15 +102,36 @@ def send_campaign_suspended_email_task(self, user_id, campaign_id, reason='', no
 def send_donation_received_email_task(self, donation_id):
     from apps.donations.models import Donation
     from emails.service import email_service
+    from services.donation_service import _donation_recipients
     try:
-        donation = Donation.objects.select_related('campaign', 'campaign__owner').get(pk=donation_id)
+        donation = Donation.objects.select_related(
+            'campaign', 'campaign__owner', 'organization',
+        ).get(pk=donation_id)
     except Donation.DoesNotExist:
         logger.warning('send_donation_received_email_task: donation %s not found', donation_id)
         return
-    owner = donation.campaign.owner
-    if not owner or not owner.notify_donations_received:
+    recipients = [r for r in _donation_recipients(donation) if r and r.notify_donations_received]
+    if not recipients:
         return
-    _retry_on_failure(self, email_service.send_donation_received_email(owner, donation), f'donation received email for donation {donation_id}')
+    if len(recipients) == 1:
+        # Campaign donation (the common case) -- preserve the exact prior
+        # single-recipient retry behavior.
+        _retry_on_failure(
+            self, email_service.send_donation_received_email(recipients[0], donation),
+            f'donation received email for donation {donation_id}',
+        )
+        return
+    # Direct organization donation: multiple recipients (every member
+    # holding manage_organization). Deliberately don't route a failed send
+    # through _retry_on_failure here -- that would retry the whole task and
+    # re-send to every recipient who already succeeded. Failures are logged
+    # instead; this is a notification convenience, not money-moving.
+    for recipient in recipients:
+        if not email_service.send_donation_received_email(recipient, donation):
+            logger.warning(
+                'send_donation_received_email_task: failed to email %s for donation %s',
+                recipient.email, donation_id,
+            )
 
 
 @shared_task(**RETRY_KWARGS)
@@ -131,7 +152,7 @@ def send_donation_refunded_email_task(self, donation_id):
     from apps.donations.models import Donation
     from emails.service import email_service
     try:
-        donation = Donation.objects.select_related('campaign', 'donor').get(pk=donation_id)
+        donation = Donation.objects.select_related('campaign', 'organization', 'donor').get(pk=donation_id)
     except Donation.DoesNotExist:
         logger.warning('send_donation_refunded_email_task: donation %s not found', donation_id)
         return

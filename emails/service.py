@@ -114,33 +114,45 @@ class EmailService:
         )
 
     def send_donation_received_email(self, owner, donation) -> bool:
+        is_org = donation.is_organization_donation
         return self._send(
             to=owner.email,
-            subject=f'New donation to "{donation.campaign.title}"!',
+            subject=f'New donation to "{donation.destination_title}"!',
             template='emails/donation_received.html',
             context={
                 'owner_name': owner.full_name or owner.email,
                 'donor_name': donation.donor_display,
                 'amount': donation.amount,
                 'message': donation.message,
-                'campaign_title': donation.campaign.title,
-                'campaign_slug': donation.campaign.slug,
-                'campaign_raised': donation.campaign.raised,
-                'campaign_goal': donation.campaign.goal,
-                'campaign_progress_percent': donation.campaign.progress_percent,
+                'is_organization_donation': is_org,
+                'destination_title': donation.destination_title,
+                # Campaign donations link to the campaign's own manage page;
+                # organization donations link to the org's Donations dashboard
+                # (no campaign progress to show there, see the template).
+                'destination_url': (
+                    f'/organizations/{donation.organization_id}/donations' if is_org
+                    else f'/my-campaigns/{donation.campaign.slug}'
+                ),
+                'campaign_raised': None if is_org else donation.campaign.raised,
+                'campaign_goal': None if is_org else donation.campaign.goal,
+                'campaign_progress_percent': None if is_org else donation.campaign.progress_percent,
             },
         )
 
     def send_donation_refunded_email(self, donor, donation) -> bool:
+        is_org = donation.is_organization_donation
         return self._send(
             to=donor.email,
-            subject=f'Your donation to "{donation.campaign.title}" was refunded',
+            subject=f'Your donation to "{donation.destination_title}" was refunded',
             template='emails/donation_refunded.html',
             context={
                 'donor_name': donor.full_name or donor.email,
                 'amount': donation.amount,
-                'campaign_title': donation.campaign.title,
-                'campaign_slug': donation.campaign.slug,
+                'campaign_title': donation.destination_title,
+                'destination_url': (
+                    f'/give/{donation.organization.slug}' if is_org
+                    else f'/campaigns/{donation.campaign.slug}'
+                ),
                 'payment_reference': donation.payment_reference,
                 'reason': donation.refund_reason,
             },
