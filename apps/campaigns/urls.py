@@ -16,6 +16,7 @@ urlpatterns = [
     # Owner routes
     path('my/', views.MyCampaignListView.as_view(), name='my-campaign-list'),
     path('my/<slug:slug>/pause/', views.MyCampaignTogglePauseView.as_view(), name='my-campaign-pause'),
+    path('my/<slug:slug>/launch/', views.MyCampaignLaunchView.as_view(), name='my-campaign-launch'),
     path('my/<slug:slug>/cover/', views.MyCampaignUploadCoverView.as_view(), name='my-campaign-cover'),
     path('my/<slug:slug>/media/', views.CampaignMediaView.as_view(), name='campaign-media'),
     path('my/<slug:slug>/media/<uuid:image_id>/', views.CampaignGalleryImageDeleteView.as_view(), name='campaign-media-delete'),

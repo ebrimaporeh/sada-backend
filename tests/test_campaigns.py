@@ -1,8 +1,11 @@
 from decimal import Decimal
 from django.core import mail
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.http import Http404
 from django.test.utils import CaptureQueriesContext
 from django.db import connection
 from rest_framework import status
+from rest_framework.exceptions import ValidationError
 from rest_framework.test import APITestCase
 
 from apps.users.models import User
@@ -99,20 +102,29 @@ class CreateUpdateCampaignTest(APITestCase):
         self.owner = User.objects.create_user(email='creator@example.com', password='pass')
         self.category = make_category()
 
-    def test_create_campaign_goes_straight_to_active(self):
-        # No draft/pending review step today -- create_campaign approves on
-        # creation, matching the product's current "publish immediately" flow.
+    def test_create_campaign_starts_as_draft(self):
+        # Campaigns no longer go live at creation -- create_campaign only
+        # needs the "Campaign Info" step's fields; story/goal/cover image
+        # are filled in afterward and the campaign only becomes ACTIVE via
+        # an explicit launch_campaign() call (see LaunchCampaignTest below).
         campaign = campaign_service.create_campaign(self.owner, {
             'category_id': self.category.id,
             'title': 'New Well',
-            'short_description': 'Water for the village',
-            'story': 'Long story here.',
-            'goal': Decimal('5000.00'),
         })
-        self.assertEqual(campaign.status, Campaign.Status.ACTIVE)
-        self.assertIsNotNone(campaign.approved_at)
+        self.assertEqual(campaign.status, Campaign.Status.DRAFT)
+        self.assertIsNone(campaign.approved_at)
         self.assertEqual(campaign.owner, self.owner)
         self.assertTrue(campaign.slug)
+
+    def test_create_campaign_does_not_require_story_goal_or_description(self):
+        # Would raise (missing required fields) if the serializer/service
+        # still demanded these at creation time.
+        campaign = campaign_service.create_campaign(self.owner, {
+            'category_id': self.category.id,
+            'title': 'Just a title for now',
+        })
+        self.assertEqual(campaign.short_description, '')
+        self.assertEqual(campaign.story, '')
 
     def test_create_campaign_with_unknown_category_id_leaves_category_null(self):
         campaign = campaign_service.create_campaign(self.owner, {
@@ -168,6 +180,60 @@ class DeleteCampaignTest(APITestCase):
         with self.assertRaises(ValueError):
             campaign_service.delete_campaign(campaign)
         self.assertTrue(Campaign.objects.filter(pk=campaign.pk).exists())
+
+
+class LaunchCampaignTest(APITestCase):
+    """launch_campaign -- the one manual "go live" action a DRAFT campaign
+    from the new create-early/finish-in-a-stepper flow needs before it's
+    public. make_campaign()'s own defaults already give a real
+    short_description/story/goal, so most of these only need to override
+    the one field under test."""
+
+    def test_launch_succeeds_when_complete(self):
+        owner = User.objects.create_user(email='launcher1@example.com', password='pass')
+        campaign = make_campaign(
+            owner=owner, status=Campaign.Status.DRAFT,
+            short_description='A complete, thirty-character-plus description.',
+            story='A' * 100,
+            cover_image=SimpleUploadedFile('cover.jpg', b'fake', content_type='image/jpeg'),
+        )
+        launched = campaign_service.launch_campaign(owner, campaign.slug)
+        self.assertEqual(launched.status, Campaign.Status.ACTIVE)
+        self.assertIsNotNone(launched.approved_at)
+
+    def test_launch_rejects_a_non_draft_campaign(self):
+        owner = User.objects.create_user(email='launcher2@example.com', password='pass')
+        campaign = make_campaign(owner=owner, status=Campaign.Status.ACTIVE)
+        with self.assertRaises(ValidationError):
+            campaign_service.launch_campaign(owner, campaign.slug)
+
+    def test_launch_rejects_a_short_story(self):
+        owner = User.objects.create_user(email='launcher3@example.com', password='pass')
+        campaign = make_campaign(owner=owner, status=Campaign.Status.DRAFT, story='too short')
+        with self.assertRaises(ValidationError) as ctx:
+            campaign_service.launch_campaign(owner, campaign.slug)
+        self.assertIn('story', ctx.exception.detail)
+
+    def test_launch_rejects_a_zero_goal(self):
+        owner = User.objects.create_user(email='launcher4@example.com', password='pass')
+        campaign = make_campaign(owner=owner, status=Campaign.Status.DRAFT, goal=Decimal('0'))
+        with self.assertRaises(ValidationError) as ctx:
+            campaign_service.launch_campaign(owner, campaign.slug)
+        self.assertIn('goal', ctx.exception.detail)
+
+    def test_launch_rejects_a_missing_cover_image(self):
+        owner = User.objects.create_user(email='launcher5@example.com', password='pass')
+        campaign = make_campaign(owner=owner, status=Campaign.Status.DRAFT)
+        with self.assertRaises(ValidationError) as ctx:
+            campaign_service.launch_campaign(owner, campaign.slug)
+        self.assertIn('cover_image', ctx.exception.detail)
+
+    def test_launch_rejects_a_stranger(self):
+        owner = User.objects.create_user(email='launcher6@example.com', password='pass')
+        stranger = User.objects.create_user(email='launch-stranger@example.com', password='pass')
+        campaign = make_campaign(owner=owner, status=Campaign.Status.DRAFT)
+        with self.assertRaises(Http404):
+            campaign_service.launch_campaign(stranger, campaign.slug)
 
 
 class CampaignUpdateNotificationTest(APITestCase):

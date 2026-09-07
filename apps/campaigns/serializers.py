@@ -203,6 +203,17 @@ class CampaignCreateSerializer(serializers.ModelSerializer):
     # and checks create_campaign permission before ever calling the service
     # layer -- see CampaignCreateView.
     organization_id = serializers.UUIDField(write_only=True, required=False, allow_null=True)
+    # Overridden to required=False even though the model fields aren't
+    # blank=True -- campaign creation now only needs the "Campaign Info"
+    # step's fields (title/category/region/beneficiary/...); story/goal are
+    # filled in afterward via this same serializer used partial=True by
+    # MyCampaignDetailView.patch, and re-checked for real at launch time
+    # (see campaign_service.launch_campaign). Partial updates already
+    # ignored per-field `required` regardless -- this only changes the
+    # non-partial create path.
+    short_description = serializers.CharField(max_length=500, required=False)
+    story = serializers.CharField(required=False)
+    goal = serializers.DecimalField(max_digits=12, decimal_places=2, required=False)
 
     class Meta:
         model = Campaign

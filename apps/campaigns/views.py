@@ -321,6 +321,20 @@ class MyCampaignTogglePauseView(APIView):
         return campaign_service.success_response({'campaign': serializer.data})
 
 
+class MyCampaignLaunchView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(summary='Launch (publish) my draft campaign')
+    def post(self, request, slug):
+        campaign = campaign_service.launch_campaign(request.user, slug)
+        audit_service.log(
+            request.user, AuditLog.Action.CAMPAIGN_PUBLISHED, campaign,
+            f'{request.user.full_name} launched campaign "{campaign.title}"',
+        )
+        serializer = CampaignDetailSerializer(campaign, context={'request': request})
+        return campaign_service.success_response({'campaign': serializer.data})
+
+
 class MyCampaignUploadCoverView(APIView):
     permission_classes = [IsAuthenticated]
 

@@ -199,18 +199,30 @@ def get_owner_campaign(user, slug, required_permission=None):
 
 
 def create_campaign(user, validated_data, organization=None):
+    from decimal import Decimal
     from apps.campaigns.models import Campaign, Category
     category_id = validated_data.pop('category_id', None)
     category = None
     if category_id:
         category = Category.objects.filter(id=category_id).first()
 
+    # `goal` has no model-level default and isn't nullable, so it needs an
+    # explicit placeholder when the "Campaign Info" step (all this is
+    # called with now) doesn't send one yet -- 0 reads as "not set" to
+    # launch_campaign's own completeness check just as well as None would.
+    goal = validated_data.pop('goal', None)
+
+    # Status is deliberately left unset here -- the model's own default
+    # (Campaign.Status.DRAFT) applies. A campaign only becomes ACTIVE via
+    # an explicit launch_campaign() call below, once it's actually
+    # complete; creation itself only needs the "Campaign Info" step's
+    # fields (title/category/region/beneficiary/...), not story/goal/cover
+    # image, which get filled in afterward via ordinary PATCH updates.
     campaign = Campaign.objects.create(
         owner=user,
         organization=organization,
         category=category,
-        status=Campaign.Status.ACTIVE,
-        approved_at=timezone.now(),
+        goal=goal if goal is not None else Decimal('0'),
         **validated_data,
     )
     return campaign
@@ -239,6 +251,43 @@ def toggle_pause_campaign(user, slug):
     else:
         raise ValueError('Only active or paused campaigns can be toggled.')
     campaign.save(update_fields=['status'])
+    return campaign
+
+
+def launch_campaign(user, slug):
+    """The one manual, explicit "go live" action -- a campaign created via
+    create_campaign() starts DRAFT and stays DRAFT (however long the owner
+    takes filling in the setup stepper's remaining steps: story, images,
+    goal/deadline) until this is called. Re-validates completeness
+    server-side rather than trusting the frontend stepper's own client-side
+    checks -- the length thresholds below intentionally match
+    CampaignForm.jsx's existing validation (short_description >=30, story
+    >=100) so the two never disagree. Deadline is deliberately NOT
+    required -- open-ended campaigns are a real, already-supported feature.
+    """
+    from rest_framework.exceptions import ValidationError
+    from apps.campaigns.models import Campaign
+    from apps.organizations.permissions import OrganizationPermission
+
+    campaign = get_owner_campaign(user, slug, required_permission=OrganizationPermission.EDIT_CAMPAIGN)
+    if campaign.status != Campaign.Status.DRAFT:
+        raise ValidationError('Only draft campaigns can be launched.')
+
+    errors = {}
+    if not campaign.short_description or len(campaign.short_description) < 30:
+        errors['short_description'] = 'Add a short description (at least 30 characters) before launching.'
+    if not campaign.story or len(campaign.story) < 100:
+        errors['story'] = 'Your story needs at least 100 characters before launching.'
+    if not campaign.goal or campaign.goal <= 0:
+        errors['goal'] = 'Set a fundraising goal before launching.'
+    if not campaign.cover_image:
+        errors['cover_image'] = 'Add a cover photo before launching.'
+    if errors:
+        raise ValidationError(errors)
+
+    campaign.status = Campaign.Status.ACTIVE
+    campaign.approved_at = timezone.now()
+    campaign.save(update_fields=['status', 'approved_at'])
     return campaign
 
 
