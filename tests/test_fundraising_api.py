@@ -74,7 +74,7 @@ class PosterCreateTest(APITestCase):
         self.client.force_authenticate(owner)
         response = self.client.post(reverse('poster-list-create'), {
             'destination_type': DestinationType.CAMPAIGN, 'campaign_id': str(campaign.id),
-            'name': 'Ramadan Poster', 'template': Poster.Template.CLASSIC,
+            'name': 'Ramadan Poster', 'template': Poster.Template.SQUARE,
         })
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         self.assertTrue(ShareLink.objects.filter(poster__name='Ramadan Poster').exists())
@@ -85,7 +85,7 @@ class PosterCreateTest(APITestCase):
         self.client.force_authenticate(stranger)
         response = self.client.post(reverse('poster-list-create'), {
             'destination_type': DestinationType.CAMPAIGN, 'campaign_id': str(campaign.id),
-            'name': 'Untitled', 'template': Poster.Template.CLASSIC,
+            'name': 'Untitled', 'template': Poster.Template.SQUARE,
         })
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
@@ -96,7 +96,7 @@ class PosterCreateTest(APITestCase):
         self.client.force_authenticate(member)
         response = self.client.post(reverse('poster-list-create'), {
             'destination_type': DestinationType.CAMPAIGN, 'campaign_id': str(campaign.id),
-            'name': 'Campaign Poster', 'template': Poster.Template.MODERN,
+            'name': 'Campaign Poster', 'template': Poster.Template.STORY,
         })
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
@@ -107,7 +107,7 @@ class PosterCreateTest(APITestCase):
         self.client.force_authenticate(member)
         response = self.client.post(reverse('poster-list-create'), {
             'destination_type': DestinationType.CAMPAIGN, 'campaign_id': str(campaign.id),
-            'name': 'Untitled', 'template': Poster.Template.CLASSIC,
+            'name': 'Untitled', 'template': Poster.Template.SQUARE,
         })
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
@@ -116,7 +116,7 @@ class PosterCreateTest(APITestCase):
         self.client.force_authenticate(owner)
         response = self.client.post(reverse('poster-list-create'), {
             'destination_type': DestinationType.ORGANIZATION, 'organization_id': str(org.id),
-            'name': 'Homepage Poster', 'template': Poster.Template.MINIMAL,
+            'name': 'Homepage Poster', 'template': Poster.Template.WIDE,
         })
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         self.assertEqual(response.data['data']['poster']['destination']['type'], DestinationType.ORGANIZATION)
@@ -127,7 +127,7 @@ class PosterCreateTest(APITestCase):
         self.client.force_authenticate(member)
         response = self.client.post(reverse('poster-list-create'), {
             'destination_type': DestinationType.ORGANIZATION, 'organization_id': str(org.id),
-            'name': 'Untitled', 'template': Poster.Template.MINIMAL,
+            'name': 'Untitled', 'template': Poster.Template.WIDE,
         })
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
@@ -137,7 +137,7 @@ class PosterCreateTest(APITestCase):
         self.client.force_authenticate(stranger)
         response = self.client.post(reverse('poster-list-create'), {
             'destination_type': DestinationType.ORGANIZATION, 'organization_id': str(org.id),
-            'name': 'Untitled', 'template': Poster.Template.MINIMAL,
+            'name': 'Untitled', 'template': Poster.Template.WIDE,
         })
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
@@ -145,7 +145,7 @@ class PosterCreateTest(APITestCase):
         owner = User.objects.create_user(email='owner3@example.com', password='pass')
         self.client.force_authenticate(owner)
         response = self.client.post(reverse('poster-list-create'), {
-            'destination_type': DestinationType.CAMPAIGN, 'name': 'Untitled', 'template': Poster.Template.CLASSIC,
+            'destination_type': DestinationType.CAMPAIGN, 'name': 'Untitled', 'template': Poster.Template.SQUARE,
         })
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -161,7 +161,7 @@ class PosterUpdateDuplicateDeleteTest(APITestCase):
         self.client.force_authenticate(self.owner)
         create = self.client.post(reverse('poster-list-create'), {
             'destination_type': DestinationType.CAMPAIGN, 'campaign_id': str(self.campaign.id),
-            'name': 'Original', 'template': Poster.Template.CLASSIC,
+            'name': 'Original', 'template': Poster.Template.SQUARE,
         })
         self.poster_id = create.data['data']['poster']['id']
 
@@ -171,6 +171,13 @@ class PosterUpdateDuplicateDeleteTest(APITestCase):
         }, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(response.data['data']['poster']['design']['version'], 1)
+
+    def test_owner_can_change_size_mid_edit(self):
+        response = self.client.patch(reverse('poster-detail', args=[self.poster_id]), {
+            'template': Poster.Template.STORY,
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(response.data['data']['poster']['template'], Poster.Template.STORY)
 
     def test_stranger_cannot_update(self):
         stranger = User.objects.create_user(email='pstranger@example.com', password='pass')
@@ -208,7 +215,7 @@ class PosterUpdateDuplicateDeleteTest(APITestCase):
         self.client.force_authenticate(other_owner)
         self.client.post(reverse('poster-list-create'), {
             'destination_type': DestinationType.CAMPAIGN, 'campaign_id': str(other_campaign.id),
-            'name': "Other's Poster", 'template': Poster.Template.BOLD,
+            'name': "Other's Poster", 'template': Poster.Template.SQUARE,
         })
         self.client.force_authenticate(self.owner)
         response = self.client.get(reverse('poster-list-create'))
@@ -232,7 +239,7 @@ class PosterImageUploadTest(APITestCase):
         self.client.force_authenticate(owner)
         create = self.client.post(reverse('poster-list-create'), {
             'destination_type': DestinationType.CAMPAIGN, 'campaign_id': str(campaign.id),
-            'name': 'Image Poster', 'template': Poster.Template.CLASSIC,
+            'name': 'Image Poster', 'template': Poster.Template.SQUARE,
         })
         poster_id = create.data['data']['poster']['id']
 
@@ -249,7 +256,7 @@ class PosterImageUploadTest(APITestCase):
         self.client.force_authenticate(owner)
         create = self.client.post(reverse('poster-list-create'), {
             'destination_type': DestinationType.CAMPAIGN, 'campaign_id': str(campaign.id),
-            'name': 'Image Poster', 'template': Poster.Template.CLASSIC,
+            'name': 'Image Poster', 'template': Poster.Template.SQUARE,
         })
         poster_id = create.data['data']['poster']['id']
 
@@ -269,7 +276,7 @@ class ShareLinkRedirectTest(APITestCase):
         self.client.force_authenticate(owner)
         create = self.client.post(reverse('poster-list-create'), {
             'destination_type': DestinationType.CAMPAIGN, 'campaign_id': str(campaign.id),
-            'name': 'QR Poster', 'template': Poster.Template.CLASSIC,
+            'name': 'QR Poster', 'template': Poster.Template.SQUARE,
         })
         code = create.data['data']['poster']['share_code']
         self.client.force_authenticate(None)

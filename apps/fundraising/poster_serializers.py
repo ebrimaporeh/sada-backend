@@ -80,3 +80,8 @@ class PosterUpdateSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=200, required=False)
     design = serializers.JSONField(required=False)
     status = serializers.ChoiceField(choices=Poster.Status.choices, required=False)
+    # Lets the editor's mid-edit size selector (PosterEditor.jsx ->
+    # ElementsPanel.jsx) keep this in sync with the regenerated
+    # design.width/height it sends alongside it -- template is otherwise
+    # only set once at creation (PosterCreateSerializer).
+    template = serializers.ChoiceField(choices=Poster.Template.choices, required=False)

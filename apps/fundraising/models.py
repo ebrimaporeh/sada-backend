@@ -32,11 +32,15 @@ class DestinationType(models.TextChoices):
 
 class Poster(BaseModel):
     class Template(models.TextChoices):
-        CLASSIC = 'classic', 'Classic'
-        MODERN = 'modern', 'Modern'
-        MINIMAL = 'minimal', 'Minimal'
-        BOLD = 'bold', 'Bold'
-        COMMUNITY = 'community', 'Community'
+        """Size/aspect-ratio choice, not a design style -- every template
+        renders the same composition (destination's cover photo full-bleed,
+        dark scrim, title/org/description + QR anchored bottom-left, see
+        the frontend's templateCompositions.js), just at a different frame
+        shape matched to how people actually share it: a square feed post,
+        a vertical story/status, or a wide link-preview banner."""
+        SQUARE = 'square', 'Square'
+        STORY = 'story', 'Story'
+        WIDE = 'wide', 'Wide'
 
     class Status(models.TextChoices):
         DRAFT = 'draft', 'Draft'

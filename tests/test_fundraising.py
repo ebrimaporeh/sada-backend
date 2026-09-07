@@ -59,7 +59,7 @@ class PosterModelConstraintTest(APITestCase):
     def test_cannot_save_poster_with_neither_destination(self):
         with self.assertRaises(Exception):
             Poster.objects.create(
-                destination_type=DestinationType.CAMPAIGN, name='Untitled', template=Poster.Template.CLASSIC,
+                destination_type=DestinationType.CAMPAIGN, name='Untitled', template=Poster.Template.SQUARE,
             )
 
     def test_cannot_save_poster_with_both_destinations(self):
@@ -68,14 +68,14 @@ class PosterModelConstraintTest(APITestCase):
         with self.assertRaises(Exception):
             Poster.objects.create(
                 destination_type=DestinationType.CAMPAIGN, campaign=campaign, organization=org,
-                name='Untitled', template=Poster.Template.CLASSIC,
+                name='Untitled', template=Poster.Template.SQUARE,
             )
 
     def test_can_save_poster_for_campaign_destination(self):
         campaign = make_campaign()
         poster = Poster.objects.create(
             destination_type=DestinationType.CAMPAIGN, campaign=campaign,
-            name='Ramadan Poster', template=Poster.Template.CLASSIC,
+            name='Ramadan Poster', template=Poster.Template.SQUARE,
         )
         self.assertEqual(poster.campaign, campaign)
         self.assertIsNone(poster.organization)
@@ -84,7 +84,7 @@ class PosterModelConstraintTest(APITestCase):
         _, org = make_org_and_owner()
         poster = Poster.objects.create(
             destination_type=DestinationType.ORGANIZATION, organization=org,
-            name='Homepage Poster', template=Poster.Template.MODERN,
+            name='Homepage Poster', template=Poster.Template.STORY,
         )
         self.assertEqual(poster.organization, org)
         self.assertIsNone(poster.campaign)
