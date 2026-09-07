@@ -69,6 +69,12 @@ class Donation(BaseModel):
     is_anonymous = models.BooleanField(default=False)
     message = models.TextField(blank=True)
     fee = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    # Set only for donations made through an embedded widget with a
+    # configured Embed.return_url -- a frozen copy taken at creation time
+    # (see donation_service.create_donation), not a live reference, so a
+    # later edit to the embed doesn't retroactively change where this
+    # donor's success page sends them. Blank for every other donation.
+    source_url = models.URLField(max_length=2000, blank=True, default='')
     paid_at = models.DateTimeField(null=True, blank=True)
     refunded_at = models.DateTimeField(null=True, blank=True)
     refund_reason = models.TextField(blank=True)

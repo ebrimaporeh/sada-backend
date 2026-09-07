@@ -23,7 +23,7 @@ class EmbedDetailSerializer(serializers.ModelSerializer):
         model = Embed
         fields = [
             'id', 'name', 'layout', 'configuration', 'is_active', 'destination',
-            'embed_url', 'created_at', 'updated_at',
+            'embed_url', 'return_url', 'created_at', 'updated_at',
         ]
 
     def get_destination(self, obj):
@@ -58,6 +58,10 @@ class EmbedCreateSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=200)
     layout = serializers.ChoiceField(choices=Embed.Layout.choices, required=False)
     configuration = serializers.JSONField(required=False)
+    # Required at creation -- an embed with nowhere configured to send
+    # donors back to defeats the point of the return-to-site feature (see
+    # Donation.source_url), so this is no longer opt-in.
+    return_url = serializers.URLField(required=True)
 
     def validate(self, attrs):
         destination_type = attrs['destination_type']
@@ -72,3 +76,9 @@ class EmbedUpdateSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=200, required=False)
     layout = serializers.ChoiceField(choices=Embed.Layout.choices, required=False)
     configuration = serializers.JSONField(required=False)
+    # `required=True` here doesn't force every PATCH to include it --
+    # EmbedDetailView.patch always instantiates this with partial=True, and
+    # DRF skips the required check entirely for a key that's simply absent
+    # from a partial update. It only takes effect if return_url IS included
+    # in the request: then it can't be blank, same as at creation.
+    return_url = serializers.URLField(required=True)

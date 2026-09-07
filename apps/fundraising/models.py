@@ -148,6 +148,15 @@ class Embed(BaseModel):
     # one JSON blob (not individual columns) since this is genuinely
     # free-form presentation config, same reasoning as Poster.design.
     configuration = models.JSONField(default=dict, blank=True)
+    # Where to send a donor back to once they finish donating through this
+    # embed (e.g. the embedder's homepage) -- set by the embed's own owner,
+    # never by anything a donor's request supplies. Donation.source_url
+    # freezes a copy of this at donation-creation time (see
+    # donation_service.create_donation) so later edits here don't
+    # retroactively change where a past donor's success page points.
+    # Optional: blank means the success page behaves as if this embed
+    # didn't exist -- no return-to-site prompt.
+    return_url = models.URLField(max_length=2000, blank=True, default='')
     is_active = models.BooleanField(default=True)
 
     class Meta:

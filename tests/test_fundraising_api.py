@@ -298,7 +298,7 @@ class EmbedCreateAndLifecycleTest(APITestCase):
         self.client.force_authenticate(owner)
         response = self.client.post(reverse('embed-list-create'), {
             'destination_type': DestinationType.CAMPAIGN, 'campaign_id': str(campaign.id),
-            'name': 'Homepage Widget', 'layout': Embed.Layout.CARD,
+            'name': 'Homepage Widget', 'layout': Embed.Layout.CARD, 'return_url': 'https://example.com',
         })
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         self.assertTrue(response.data['data']['embed']['is_active'])
@@ -308,7 +308,7 @@ class EmbedCreateAndLifecycleTest(APITestCase):
         self.client.force_authenticate(owner)
         response = self.client.post(reverse('embed-list-create'), {
             'destination_type': DestinationType.ORGANIZATION, 'organization_id': str(org.id),
-            'name': 'Homepage Widget',
+            'name': 'Homepage Widget', 'return_url': 'https://example.com',
         })
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
@@ -317,9 +317,36 @@ class EmbedCreateAndLifecycleTest(APITestCase):
         stranger = User.objects.create_user(email='estranger@example.com', password='pass')
         self.client.force_authenticate(stranger)
         response = self.client.post(reverse('embed-list-create'), {
-            'destination_type': DestinationType.CAMPAIGN, 'campaign_id': str(campaign.id), 'name': 'Untitled',
+            'destination_type': DestinationType.CAMPAIGN, 'campaign_id': str(campaign.id), 'name': 'Untitled', 'return_url': 'https://example.com',
         })
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_return_url_persists_and_is_returned(self):
+        owner = User.objects.create_user(email='eowner6@example.com', password='pass')
+        campaign = make_campaign(owner=owner)
+        self.client.force_authenticate(owner)
+        create = self.client.post(reverse('embed-list-create'), {
+            'destination_type': DestinationType.CAMPAIGN, 'campaign_id': str(campaign.id),
+            'name': 'Widget', 'return_url': 'https://example.com/home',
+        })
+        self.assertEqual(create.data['data']['embed']['return_url'], 'https://example.com/home')
+
+        embed_id = create.data['data']['embed']['id']
+        update = self.client.patch(reverse('embed-detail', args=[embed_id]), {
+            'return_url': 'https://example.com/other-page',
+        }, format='json')
+        self.assertEqual(update.status_code, status.HTTP_200_OK, update.data)
+        self.assertEqual(update.data['data']['embed']['return_url'], 'https://example.com/other-page')
+
+    def test_invalid_return_url_is_a_validation_error(self):
+        owner = User.objects.create_user(email='eowner7@example.com', password='pass')
+        campaign = make_campaign(owner=owner)
+        self.client.force_authenticate(owner)
+        response = self.client.post(reverse('embed-list-create'), {
+            'destination_type': DestinationType.CAMPAIGN, 'campaign_id': str(campaign.id),
+            'name': 'Widget', 'return_url': 'javascript:alert(1)',
+        })
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_invalid_layout_choice_is_a_validation_error(self):
         owner = User.objects.create_user(email='eowner2@example.com', password='pass')
@@ -327,7 +354,7 @@ class EmbedCreateAndLifecycleTest(APITestCase):
         self.client.force_authenticate(owner)
         response = self.client.post(reverse('embed-list-create'), {
             'destination_type': DestinationType.CAMPAIGN, 'campaign_id': str(campaign.id),
-            'name': 'Untitled', 'layout': 'not-a-real-layout',
+            'name': 'Untitled', 'layout': 'not-a-real-layout', 'return_url': 'https://example.com',
         })
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -336,7 +363,7 @@ class EmbedCreateAndLifecycleTest(APITestCase):
         campaign = make_campaign(owner=owner)
         self.client.force_authenticate(owner)
         create = self.client.post(reverse('embed-list-create'), {
-            'destination_type': DestinationType.CAMPAIGN, 'campaign_id': str(campaign.id), 'name': 'Widget',
+            'destination_type': DestinationType.CAMPAIGN, 'campaign_id': str(campaign.id), 'name': 'Widget', 'return_url': 'https://example.com',
         })
         embed_id = create.data['data']['embed']['id']
 
@@ -351,7 +378,7 @@ class EmbedCreateAndLifecycleTest(APITestCase):
         campaign = make_campaign(owner=owner)
         self.client.force_authenticate(owner)
         create = self.client.post(reverse('embed-list-create'), {
-            'destination_type': DestinationType.CAMPAIGN, 'campaign_id': str(campaign.id), 'name': 'Widget',
+            'destination_type': DestinationType.CAMPAIGN, 'campaign_id': str(campaign.id), 'name': 'Widget', 'return_url': 'https://example.com',
         })
         embed_id = create.data['data']['embed']['id']
         response = self.client.post(reverse('embed-duplicate', args=[embed_id]))
@@ -363,7 +390,7 @@ class EmbedCreateAndLifecycleTest(APITestCase):
         campaign = make_campaign(owner=owner)
         self.client.force_authenticate(owner)
         create = self.client.post(reverse('embed-list-create'), {
-            'destination_type': DestinationType.CAMPAIGN, 'campaign_id': str(campaign.id), 'name': 'Widget',
+            'destination_type': DestinationType.CAMPAIGN, 'campaign_id': str(campaign.id), 'name': 'Widget', 'return_url': 'https://example.com',
         })
         embed_id = create.data['data']['embed']['id']
         response = self.client.delete(reverse('embed-detail', args=[embed_id]))
@@ -377,7 +404,7 @@ class EmbedPublicViewTest(APITestCase):
         campaign = make_campaign(owner=owner, goal=Decimal('5000.00'), raised=Decimal('1000.00'))
         self.client.force_authenticate(owner)
         create = self.client.post(reverse('embed-list-create'), {
-            'destination_type': DestinationType.CAMPAIGN, 'campaign_id': str(campaign.id), 'name': 'Widget',
+            'destination_type': DestinationType.CAMPAIGN, 'campaign_id': str(campaign.id), 'name': 'Widget', 'return_url': 'https://example.com',
         })
         embed_id = create.data['data']['embed']['id']
 
@@ -394,7 +421,7 @@ class EmbedPublicViewTest(APITestCase):
         campaign = make_campaign(owner=owner)
         self.client.force_authenticate(owner)
         create = self.client.post(reverse('embed-list-create'), {
-            'destination_type': DestinationType.CAMPAIGN, 'campaign_id': str(campaign.id), 'name': 'Widget',
+            'destination_type': DestinationType.CAMPAIGN, 'campaign_id': str(campaign.id), 'name': 'Widget', 'return_url': 'https://example.com',
         })
         embed_id = create.data['data']['embed']['id']
         self.client.post(reverse('embed-deactivate', args=[embed_id]))
@@ -409,7 +436,7 @@ class EmbedPublicViewTest(APITestCase):
         campaign = make_campaign(owner=owner, deadline=None)
         self.client.force_authenticate(owner)
         create = self.client.post(reverse('embed-list-create'), {
-            'destination_type': DestinationType.CAMPAIGN, 'campaign_id': str(campaign.id), 'name': 'Widget',
+            'destination_type': DestinationType.CAMPAIGN, 'campaign_id': str(campaign.id), 'name': 'Widget', 'return_url': 'https://example.com',
         })
         embed_id = create.data['data']['embed']['id']
 

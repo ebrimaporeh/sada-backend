@@ -10,6 +10,7 @@ from rest_framework.exceptions import ValidationError
 from apps.users.models import User
 from apps.campaigns.models import Campaign
 from apps.donations.models import Donation
+from apps.fundraising.models import DestinationType, Embed
 from apps.payments.models import Payout, PlatformSettings, WebhookEvent
 from apps.ledger.models import LedgerEntry
 from services import donation_service, payment_service
@@ -223,6 +224,42 @@ class DonationCreateGatewayTest(APITestCase):
         self.assertEqual(donation.provider_reference, 'sec_123')
         self.assertEqual(donation.status, Donation.Status.PENDING)
         mock_create.assert_called_once()
+
+    @patch('services.modempay_service.create_payment_intent')
+    def test_create_donation_freezes_source_url_from_a_valid_embed(self, mock_create):
+        mock_create.return_value = {
+            'status': True,
+            'data': {'payment_link': 'https://pay.modempay.com/abc', 'intent_secret': 'sec_123'},
+        }
+        embed = Embed.objects.create(
+            destination_type=DestinationType.CAMPAIGN, campaign=self.campaign,
+            name='Widget', return_url='https://example.com/home',
+        )
+        donation, _, _ = donation_service.create_donation(None, {
+            'campaign_id': self.campaign.id,
+            'amount': Decimal('100.00'),
+            'provider': 'wave',
+            'phone': '+2207000000',
+            'embed_id': embed.id,
+        })
+        self.assertEqual(donation.source_url, 'https://example.com/home')
+
+    @patch('services.modempay_service.create_payment_intent')
+    def test_create_donation_ignores_an_unknown_embed_id(self, mock_create):
+        mock_create.return_value = {
+            'status': True,
+            'data': {'payment_link': 'https://pay.modempay.com/abc', 'intent_secret': 'sec_123'},
+        }
+        donation, payment_link, error_message = donation_service.create_donation(None, {
+            'campaign_id': self.campaign.id,
+            'amount': Decimal('100.00'),
+            'provider': 'wave',
+            'phone': '+2207000000',
+            'embed_id': '00000000-0000-0000-0000-000000000000',
+        })
+        self.assertIsNone(error_message)
+        self.assertIsNotNone(payment_link)
+        self.assertEqual(donation.source_url, '')
 
     @patch('services.modempay_service.create_payment_intent')
     def test_create_donation_marks_failed_when_intent_fails(self, mock_create):

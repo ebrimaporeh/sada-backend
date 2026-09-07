@@ -43,6 +43,7 @@ class EmbedListCreateView(APIView):
         embed = embed_service.create_embed(
             request.user, destination_type=data['destination_type'], campaign=campaign, organization=organization,
             name=data['name'], layout=data.get('layout'), configuration=data.get('configuration'),
+            return_url=data.get('return_url'),
         )
         out = EmbedDetailSerializer(embed, context={'request': request})
         return Response({'success': True, 'message': 'Embed created.', 'data': {'embed': out.data}}, status=201)

@@ -52,10 +52,22 @@ def create_donation(donor, validated_data):
     from apps.donations.models import Donation
     from apps.campaigns.models import Campaign
     from apps.users.models import Organization
+    from apps.fundraising.models import Embed
     from services.gateways.registry import get_gateway
 
     campaign_id = validated_data.pop('campaign_id', None)
     organization_id = validated_data.pop('organization_id', None)
+    # A reference only -- resolved to the embed's own owner-configured
+    # return_url here, server-side, never trusting a client-supplied URL
+    # directly (see DonationCreateSerializer.embed_id's own comment). An
+    # unknown/inactive embed, or one with no return_url set, just means no
+    # source_url -- never blocks the donation itself.
+    embed_id = validated_data.pop('embed_id', None)
+    validated_data['source_url'] = ''
+    if embed_id:
+        embed = Embed.objects.filter(pk=embed_id, is_active=True).first()
+        if embed and embed.return_url:
+            validated_data['source_url'] = embed.return_url
     # Raises ValidationError here (before any lock/DB write) for an unknown
     # or disabled gateway, rather than creating an orphaned PENDING donation
     # that _initiate_payment would only discover was unpayable afterward.

@@ -18,7 +18,7 @@ class DonationSerializer(serializers.ModelSerializer):
             'is_anonymous', 'message', 'fee', 'net_amount',
             'donor_name', 'campaign_title', 'campaign_slug',
             'is_organization_donation', 'organization_id', 'organization_name',
-            'payment_reference', 'paid_at', 'created_at',
+            'payment_reference', 'source_url', 'paid_at', 'created_at',
         ]
 
     def get_donor_name(self, obj):
@@ -41,12 +41,18 @@ class DonationCreateSerializer(serializers.ModelSerializer):
     # Not model-reflected on purpose: no choices= here, since gateways are
     # registered in services/gateways/registry.py, not a fixed enum.
     gateway = serializers.CharField(required=False, default='modempay')
+    # A *reference*, never a URL -- the client (the embed widget) only ever
+    # sends which embed a donation came through; donation_service.create_donation
+    # resolves the actual return_url server-side from that embed's own
+    # owner-configured value. Never trust a client-supplied URL directly
+    # here (open-redirect risk on the success page later).
+    embed_id = serializers.UUIDField(write_only=True, required=False, allow_null=True)
 
     class Meta:
         model = Donation
         fields = [
             'campaign_id', 'organization_id', 'amount', 'gateway', 'provider',
-            'phone', 'is_anonymous', 'message', 'donor_name',
+            'phone', 'is_anonymous', 'message', 'donor_name', 'embed_id',
         ]
 
     def validate_amount(self, value):

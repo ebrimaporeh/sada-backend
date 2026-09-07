@@ -34,13 +34,14 @@ def get_public_embed(embed_id) -> Embed:
     return get_object_or_404(Embed.objects.select_related('campaign', 'campaign__organization', 'organization'), pk=embed_id)
 
 
-def create_embed(user, *, destination_type, campaign=None, organization=None, name, layout=None, configuration=None) -> Embed:
+def create_embed(user, *, destination_type, campaign=None, organization=None, name, layout=None, configuration=None, return_url=None) -> Embed:
     fundraising_destination.check_destination_manage_access(
         user, destination_type=destination_type, campaign=campaign, organization=organization,
     )
     return Embed.objects.create(
         destination_type=destination_type, campaign=campaign, organization=organization,
         created_by=user, name=name, layout=layout or Embed.Layout.CARD, configuration=configuration or {},
+        return_url=return_url or '',
     )
 
 
