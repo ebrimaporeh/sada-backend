@@ -24,7 +24,12 @@ class PosterListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Poster
-        fields = ['id', 'name', 'template', 'status', 'destination', 'share_code', 'created_at', 'updated_at']
+        # `design` included (unlike a typical trimmed-down list serializer)
+        # so PostersListPage.jsx can render each card from the poster's own
+        # actual design instead of just the destination's raw cover photo --
+        # see PosterThumbnail.jsx. Same JSONField already loaded with the
+        # base queryset, no extra query.
+        fields = ['id', 'name', 'template', 'design', 'status', 'destination', 'share_code', 'created_at', 'updated_at']
 
     def get_destination(self, obj):
         return fundraising_destination.serialize_destination(obj, self.context.get('request'))
