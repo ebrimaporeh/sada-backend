@@ -2,6 +2,7 @@ from decimal import Decimal
 from unittest.mock import patch
 
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -465,6 +466,54 @@ class MyOrganizationsAndDetailViewTest(APITestCase):
         response = self.client.get(reverse('organization-detail', args=[self.org.id]))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['data']['organization']['organization_name'], self.org.organization_name)
+
+
+def make_fake_image_upload(name='logo.png'):
+    import io
+    from PIL import Image
+    buffer = io.BytesIO()
+    Image.new('RGB', (10, 10), color='blue').save(buffer, format='PNG')
+    buffer.seek(0)
+    return SimpleUploadedFile(name, buffer.read(), content_type='image/png')
+
+
+class OrganizationLogoUploadTest(APITestCase):
+    def setUp(self):
+        self.owner, self.org = make_org_and_owner()
+
+    def test_owner_can_upload_a_logo(self):
+        self.client.force_authenticate(user=self.owner)
+        response = self.client.post(
+            reverse('organization-logo-upload', args=[self.org.id]),
+            {'logo': make_fake_image_upload()}, format='multipart',
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertIsNotNone(response.data['data']['organization']['logo'])
+        self.org.refresh_from_db()
+        self.assertTrue(bool(self.org.logo))
+
+    def test_member_without_manage_organization_permission_is_denied(self):
+        member, _ = make_member(self.org, permissions=[])
+        self.client.force_authenticate(user=member)
+        response = self.client.post(
+            reverse('organization-logo-upload', args=[self.org.id]),
+            {'logo': make_fake_image_upload()}, format='multipart',
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_non_member_is_denied(self):
+        outsider = User.objects.create_user(email='logo-outsider@example.com', password='pass')
+        self.client.force_authenticate(user=outsider)
+        response = self.client.post(
+            reverse('organization-logo-upload', args=[self.org.id]),
+            {'logo': make_fake_image_upload()}, format='multipart',
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_missing_file_is_rejected(self):
+        self.client.force_authenticate(user=self.owner)
+        response = self.client.post(reverse('organization-logo-upload', args=[self.org.id]), {}, format='multipart')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
 class CampaignOrganizationPermissionTest(APITestCase):

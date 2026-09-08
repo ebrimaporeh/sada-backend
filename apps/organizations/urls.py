@@ -21,6 +21,7 @@ urlpatterns = [
     path('', views.OrganizationCreateView.as_view(), name='organization-create'),
     path('<uuid:pk>/', views.OrganizationDetailView.as_view(), name='organization-detail'),
     path('<uuid:pk>/cover/', views.OrganizationCoverUploadView.as_view(), name='organization-cover-upload'),
+    path('<uuid:pk>/logo/', views.OrganizationLogoUploadView.as_view(), name='organization-logo-upload'),
     path('<uuid:pk>/donations/', views.OrganizationDonationListView.as_view(), name='organization-donation-list'),
     path('<uuid:pk>/donations/stats/', views.OrganizationDonationStatsView.as_view(), name='organization-donation-stats'),
     path('<uuid:pk>/transfer-ownership/', views.TransferOwnershipView.as_view(), name='organization-transfer-ownership'),

@@ -145,6 +145,22 @@ def upload_cover_image(user: User, organization: Organization, image_file) -> Or
     return organization
 
 
+def upload_logo_image(user: User, organization: Organization, image_file) -> Organization:
+    """Branding mark shown wherever the org appears across the platform
+    (OrganizationOverview, fundraiser cards, etc.) -- distinct from
+    cover_image (donation-page banner only). Same permission gate and
+    compression pattern as upload_cover_image. Note this can also get set
+    indirectly by verification_service on approval (copied from the
+    verification photo) -- a manual upload here simply overwrites that."""
+    require_permission(user, organization, OrganizationPermission.MANAGE_ORGANIZATION)
+    if not image_file:
+        raise ValidationError('No image provided.')
+    from services.image_compression import process_image
+    organization.logo = process_image(image_file, profile='logo')
+    organization.save(update_fields=['logo'])
+    return organization
+
+
 @transaction.atomic
 def create_organization(
     creator: User, organization_name: str, organization_type_slug: str,

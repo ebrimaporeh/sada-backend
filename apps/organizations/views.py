@@ -96,6 +96,17 @@ class OrganizationCoverUploadView(APIView):
         return Response({'success': True, 'message': 'Cover image updated.', 'data': {'organization': out.data}})
 
 
+@extend_schema(tags=['Organizations'], summary="Upload an organization's logo")
+class OrganizationLogoUploadView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        organization = organization_service.get_organization(pk, request.user)
+        organization = organization_service.upload_logo_image(request.user, organization, request.FILES.get('logo'))
+        out = OrganizationSerializer(organization, context={'request': request})
+        return Response({'success': True, 'message': 'Logo updated.', 'data': {'organization': out.data}})
+
+
 @extend_schema(
     tags=['Organizations'], summary="Get an organization's public donation-page detail (no auth required)",
     responses={200: OrganizationPublicSerializer},
