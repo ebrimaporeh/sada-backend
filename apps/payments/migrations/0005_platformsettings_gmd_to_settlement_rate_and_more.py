@@ -14,7 +14,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='platformsettings',
             name='gmd_to_settlement_rate',
-            field=models.DecimalField(decimal_places=4, default=Decimal('70.0000'), help_text='How many GMD equal 1 unit of the Stripe settlement currency above — e.g. 70 means D70 = 1 unit. Update this to match the real exchange rate; a stale rate over/undercharges every card donation.', max_digits=10),
+            field=models.DecimalField(decimal_places=4, default=Decimal('70.0000'), help_text='How many GMD equal 1 unit of the Stripe settlement currency above - e.g. 70 means D70 = 1 unit. Update this to match the real exchange rate; a stale rate over/undercharges every card donation.', max_digits=10),
         ),
         migrations.AddField(
             model_name='platformsettings',
@@ -24,7 +24,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='platformsettings',
             name='stripe_enabled',
-            field=models.BooleanField(default=False, help_text='Whether donors can pay by card via Stripe. Requires Stripe API keys to already be configured in the environment — this switch only controls whether the (already-configured) gateway is offered.'),
+            field=models.BooleanField(default=False, help_text='Whether donors can pay by card via Stripe. Requires Stripe API keys to already be configured in the environment - this switch only controls whether the (already-configured) gateway is offered.'),
         ),
         migrations.AddField(
             model_name='platformsettings',

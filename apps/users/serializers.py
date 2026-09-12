@@ -5,7 +5,7 @@ from .models import User, IdentityVerification, Organization, OrganizationVerifi
 
 
 class OrganizationSerializer(serializers.ModelSerializer):
-    """Read-only for now — organization_name/organization_type are tied to
+    """Read-only for now - organization_name/organization_type are tied to
     what was (or will be) verified, so editing them post-registration is
     deliberately out of scope until the verification flow exists."""
     organization_type = serializers.CharField(source='organization_type.slug', read_only=True)
@@ -86,7 +86,7 @@ class UserSerializer(serializers.ModelSerializer):
 
 class UserUpdateSerializer(serializers.ModelSerializer):
     # Avatar uploads instantly through its own endpoint (POST /users/me/avatar/)
-    # rather than riding along with text-field edits — see MyAvatarUploadView.
+    # rather than riding along with text-field edits - see MyAvatarUploadView.
     class Meta:
         model = User
         fields = [
@@ -182,7 +182,7 @@ class AdminUserListSerializer(serializers.ModelSerializer):
 
 
 class AdminUserCreateSerializer(serializers.ModelSerializer):
-    # Not a static ChoiceField — the set of assignable roles is the live
+    # Not a static ChoiceField - the set of assignable roles is the live
     # Role table (an admin can create new ones at runtime), so validity has
     # to be checked against the database, not a hardcoded pair.
     role = serializers.CharField()
@@ -204,7 +204,7 @@ class AdminUserCreateSerializer(serializers.ModelSerializer):
 
 
 class PublicFundraiserSerializer(serializers.ModelSerializer):
-    """A campaign owner's public profile — deliberately minimal. Never add
+    """A campaign owner's public profile - deliberately minimal. Never add
     email, phone, role, payment fields, or anything from IdentityVerification/
     OrganizationVerification here; is_verified is the only verification-
     related field ever exposed publicly (just the badge, never the
@@ -230,7 +230,7 @@ class PublicFundraiserSerializer(serializers.ModelSerializer):
     def get_avatar(self, obj):
         request = self.context.get('request')
         # Organizations upload a logo (via Organization.logo, set on
-        # verification approval) rather than the generic User.avatar —
+        # verification approval) rather than the generic User.avatar -
         # fall back to it so a fundraiser card isn't just blank/initials.
         image = obj.avatar or getattr(getattr(obj, 'organization', None), 'logo', None)
         if image and request:

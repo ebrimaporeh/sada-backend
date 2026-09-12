@@ -1,4 +1,4 @@
-"""Sets an avatar for every individual user using randomuser.me — a free,
+"""Sets an avatar for every individual user using randomuser.me - a free,
 no-auth API built specifically for realistic modern placeholder profile
 photos (model-released, not historical/archival), and sets each
 organization's logo from the locally-generated initials badges. Replaces
@@ -135,7 +135,7 @@ def main():
     for email, gender in USERS.items():
         user = users.get(email)
         if not user:
-            print(f'[skip] {email} — not found')
+            print(f'[skip] {email} - not found')
             continue
         print(f'--- {user.get("full_name") or email} (avatar) ---')
         results[email] = seed_avatar(email, user['id'], gender)
@@ -145,7 +145,7 @@ def main():
     for email, filename in ORG_LOGO_FILES.items():
         user = users.get(email)
         if not user:
-            print(f'[skip] {email} — not found')
+            print(f'[skip] {email} - not found')
             continue
         print(f'--- {user.get("full_name") or email} (org logo) ---')
         results[email] = seed_logo(email, user['id'], filename)

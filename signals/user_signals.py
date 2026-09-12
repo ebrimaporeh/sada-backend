@@ -17,7 +17,7 @@ def user_post_save(sender, instance, created, **kwargs):
 
 def sync_role_group_membership(user):
     """Django Group membership is the actual permission-check target now
-    (see permissions.roles.user_has_resource) — keep it in sync with the
+    (see permissions.roles.user_has_resource) - keep it in sync with the
     `role` field, which stays the single source of truth for a user's
     *identity* (which named role they hold). Runs on every save, but is a
     no-op read-then-compare when membership already matches, so it's cheap

@@ -83,7 +83,7 @@ def reject_verification(verification_id: str, admin_user: User, reason: str = ''
 
 def revoke_verification(user: User, admin_user: User) -> None:
     """Called when an admin flips a verified user back to unverified (e.g. via
-    the admin user editor) — marks their approved submission as rejected so
+    the admin user editor) - marks their approved submission as rejected so
     verification.status and user.is_verified can never contradict each other,
     and so the user sees why and can resubmit rather than hitting a dead end.
 

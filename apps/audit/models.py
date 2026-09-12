@@ -118,4 +118,4 @@ class AuditLog(BaseModel):
         return self.VERBS.get(self.action, 'updated')
 
     def __str__(self):
-        return f'{self.get_action_display()} — {self.actor_name or self.actor_email or "System"}'
+        return f'{self.get_action_display()} - {self.actor_name or self.actor_email or "System"}'

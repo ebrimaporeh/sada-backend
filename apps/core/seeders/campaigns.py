@@ -56,7 +56,7 @@ This project is supported by the local school committee, parents association, an
             slug='flood-relief-basse-2026',
             owner=U.get('isatou.ceesay@example.gm'),
             category=cats.get('disaster'),
-            title='Flood Relief Fund — Basse 2026',
+            title='Flood Relief Fund - Basse 2026',
             short_description='Flash floods in Basse Santa Su have displaced over 2,000 families. Help us provide emergency food, shelter and clean water.',
             story="""On May 12th, 2026, severe flash floods devastated Basse Santa Su in the Upper River Region. Over 2,000 families were displaced overnight, losing their homes, livestock, and food supplies.
 
@@ -71,7 +71,7 @@ Our team is on the ground coordinating relief efforts with local authorities. Ev
 Please give generously and share this campaign widely. Lives depend on it.""",
             goal=Decimal('1000000.00'), raised=Decimal('834000.00'), donors_count=1243,
             deadline=today + timedelta(days=25), status=active,
-            region='basse', beneficiary='Flood Victims — Basse Santa Su', beneficiary_relationship='Community',
+            region='basse', beneficiary='Flood Victims - Basse Santa Su', beneficiary_relationship='Community',
             is_urgent=True, is_featured=True,
             approved_at=timezone.now() - timedelta(days=23),
         ),
@@ -109,7 +109,7 @@ This campaign will fund the installation of a deep borehole with a solar-powered
 
 The project is partnered with the North Bank Region Water Authority and will be maintained by a democratically elected community water committee.
 
-Clean water changes everything — health, school attendance, women's time, and community prosperity.""",
+Clean water changes everything - health, school attendance, women's time, and community prosperity.""",
             goal=Decimal('450000.00'), raised=Decimal('198000.00'), donors_count=276,
             deadline=today + timedelta(days=147), status=active,
             region='kerewan', beneficiary='Farafenni North Ward Community', beneficiary_relationship='Community',
@@ -122,7 +122,7 @@ Clean water changes everything — health, school attendance, women's time, and 
             category=cats.get('medical'),
             title='Baby Modou Needs Heart Surgery',
             short_description='Modou is only 8 months old and was born with a congenital heart defect. His family needs help to fund life-saving surgery in Senegal.',
-            story="""Baby Modou Drammeh was born with a congenital ventricular septal defect (VSD) — a hole in the heart. Without surgery, doctors say he will not survive past two years.
+            story="""Baby Modou Drammeh was born with a congenital ventricular septal defect (VSD) - a hole in the heart. Without surgery, doctors say he will not survive past two years.
 
 The surgery can be performed at Hôpital Principal in Dakar, Senegal, but the total cost including transport, surgery, and recovery care is D 250,000.
 
@@ -143,7 +143,7 @@ Please help give baby Modou a chance to live, grow up, and thrive. Share this ca
             short_description='Provide full secondary school scholarships to 20 talented girls from rural Gambia whose families cannot afford school fees.',
             story="""Despite recent progress, many talented girls in rural Gambia are forced to drop out of secondary school because their families cannot afford the fees, uniforms, and supplies.
 
-This scholarship fund will cover one full academic year for 20 girls from the North Bank, Upper River, and Central River Regions — including school fees, uniforms, books, and a monthly transport stipend.
+This scholarship fund will cover one full academic year for 20 girls from the North Bank, Upper River, and Central River Regions - including school fees, uniforms, books, and a monthly transport stipend.
 
 Scholars are selected based on academic performance and financial need, in partnership with regional education offices and community leaders.
 
@@ -158,9 +158,9 @@ Education is the most powerful investment we can make in The Gambia's future."""
             slug='gambia-u17-football-afcon',
             owner=U.get('gff@example.gm'),
             category=cats.get('sports'),
-            title='Scorpions U17 — Road to AFCON',
+            title='Scorpions U17 - Road to AFCON',
             short_description='Help The Gambia U17 national football team travel to and compete at the Africa U17 Cup of Nations in Abidjan.',
-            story="""The Gambia U17 national football team has qualified for the Africa U17 Cup of Nations (AFCON) in Côte d'Ivoire — a remarkable achievement for our small nation!
+            story="""The Gambia U17 national football team has qualified for the Africa U17 Cup of Nations (AFCON) in Côte d'Ivoire - a remarkable achievement for our small nation!
 
 However, the Gambia Football Federation needs additional funds to cover travel, accommodation, training camp, and equipment for the squad.
 
@@ -240,7 +240,7 @@ Omar always said: "Education is the candle that lights the darkness." Let's keep
             owner=U.get('ousman@sada.gm'),
             category=cats.get('business'),
             title="Launch Gambia's First Free Coding Bootcamp",
-            short_description='Train 100 young Gambians in software development, data science and digital skills — completely free.',
+            short_description='Train 100 young Gambians in software development, data science and digital skills - completely free.',
             story="""The Gambia has incredible young talent, but limited access to quality tech education. We are launching a 6-month intensive coding bootcamp in Banjul for 100 young Gambians aged 18-28.
 
 The curriculum covers:
@@ -265,7 +265,7 @@ The course is completely free for students. All they need is the determination t
             category=cats.get('religious'),
             title='New Wudu (Ablution) Water System for Bakau Mosque',
             short_description="Bakau Central Mosque's water system is failing. Help us install a reliable new system for daily prayers.",
-            story="""Bakau Central Mosque serves hundreds of worshippers daily, but our ablution water system — installed over 20 years ago — is now failing regularly, leaving worshippers without water for wudu ahead of prayers.
+            story="""Bakau Central Mosque serves hundreds of worshippers daily, but our ablution water system - installed over 20 years ago - is now failing regularly, leaving worshippers without water for wudu ahead of prayers.
 
 This campaign will fund a full replacement: new piping, storage tanks, and taps across the mosque's ablution area, sized for daily demand during Friday prayers and Ramadan.
 
@@ -283,7 +283,7 @@ All funds are managed transparently by the mosque committee, with receipts publi
             category=cats.get('education'),
             title="UTG Students' Union Graduation Support Fund",
             short_description='Help cover graduation fees and regalia for final-year UTG students who cannot afford them.',
-            story="""Every year, a number of final-year students at the University of The Gambia are unable to complete their graduation requirements — regalia hire, graduation fees, and transcript costs — due to financial hardship.
+            story="""Every year, a number of final-year students at the University of The Gambia are unable to complete their graduation requirements - regalia hire, graduation fees, and transcript costs - due to financial hardship.
 
 The UTG Students' Union is raising funds to support these students directly, so financial hardship never stands between a student and their graduation ceremony.
 

@@ -24,7 +24,7 @@ class Command(BaseCommand):
 
         sent = email_service.send_plain_email(
             to=recipient,
-            subject=f'{settings.SITE_NAME} — Resend test email',
+            subject=f'{settings.SITE_NAME} - Resend test email',
             message=(
                 'This is a test email confirming that Resend is configured correctly '
                 f'for {settings.SITE_NAME}.\n\n'

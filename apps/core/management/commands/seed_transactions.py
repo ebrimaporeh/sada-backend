@@ -14,7 +14,7 @@ from apps.payments.models import Payout, PlatformSettings
 from apps.users.models import User
 
 
-# Guest (unauthenticated) donor names — realistic Gambian names, distinct from
+# Guest (unauthenticated) donor names - realistic Gambian names, distinct from
 # the seeded user accounts so guest-checkout donations look authentic.
 GUEST_DONORS = [
     ('Ebrima', 'Sanneh'), ('Fatoumatta', 'Jallow'), ('Momodou', 'Ceesay'),
@@ -95,7 +95,7 @@ def quantize(amount):
 class Command(BaseCommand):
     help = (
         'Seed many realistic donations and payouts/withdrawals of every status, '
-        'spread across the last year, linked to existing campaigns and users — '
+        'spread across the last year, linked to existing campaigns and users - '
         'for exercising the admin Finances dashboard and charts.'
     )
 
@@ -112,7 +112,7 @@ class Command(BaseCommand):
 
         campaigns = list(Campaign.objects.select_related('owner').all())
         if not campaigns:
-            self.stdout.write(self.style.ERROR('No campaigns found — run `seed_data` first.'))
+            self.stdout.write(self.style.ERROR('No campaigns found - run `seed_data` first.'))
             return
 
         donor_pool = list(User.objects.filter(role=User.Role.USER))
@@ -220,7 +220,7 @@ class Command(BaseCommand):
         # bulk_create's insert path runs each field's pre_save(), and
         # DateTimeField.pre_save() for auto_now/auto_now_add fields does a
         # setattr(instance, ...) side effect that clobbers our backdated
-        # values back to "now" — reapply them before the bulk_update fix-up.
+        # values back to "now" - reapply them before the bulk_update fix-up.
         target_timestamps = [(inst, inst.created_at) for inst in instances]
         Donation.objects.bulk_create(instances)
         for inst, dt in target_timestamps:
@@ -316,8 +316,8 @@ class Command(BaseCommand):
     def _payout_note(self, status):
         if status == Payout.Status.FAILED:
             return random.choice([
-                'Disbursement failed — insufficient payout balance at ModemPay.',
-                'Transfer failed — network timeout, please retry.',
+                'Disbursement failed - insufficient payout balance at ModemPay.',
+                'Transfer failed - network timeout, please retry.',
                 'Disbursement rejected by provider.',
             ])
         if status == Payout.Status.CANCELLED:

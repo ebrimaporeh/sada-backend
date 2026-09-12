@@ -35,7 +35,7 @@ def create_donation(donor, validated_data):
     confirming it exists.
 
     Returns (donation, payment_link, error_message). payment_link is the
-    gateway's hosted checkout URL the frontend must redirect the donor to —
+    gateway's hosted checkout URL the frontend must redirect the donor to -
     None if the intent could not be created (donation is left FAILED in
     that case). error_message is set alongside a None payment_link only
     when the gateway rejected the request for a reason the donor can act
@@ -101,18 +101,18 @@ def create_donation(donor, validated_data):
             if campaign.deadline and campaign.deadline < timezone.now().date():
                 raise ValidationError('This campaign has ended and is no longer accepting donations.')
 
-            # Campaigns can be overfunded — reaching (or passing) the goal doesn't
+            # Campaigns can be overfunded - reaching (or passing) the goal doesn't
             # close donations, it just pushes progress past 100%. Only an active
             # deadline/status gates whether a campaign can still receive funds.
 
-            # No platform fee on donations — donors only pay whatever ModemPay
+            # No platform fee on donations - donors only pay whatever ModemPay
             # itself charges them directly; the full amount is credited to the
             # campaign. (The platform fee is taken on payout, not donation.)
             donation = Donation.objects.create(
                 campaign=campaign,
                 donor=donor,
                 fee=Decimal('0'),
-                # Server-resolved, not client-controlled — Stripe doesn't settle
+                # Server-resolved, not client-controlled - Stripe doesn't settle
                 # in GMD at all, so its donations are charged in whatever
                 # PlatformSettings.stripe_settlement_currency an admin has set.
                 currency=gateway.default_currency,
@@ -215,7 +215,7 @@ def _confirm_donation(donation):
             link=_donation_destination_link(donation),
         )
 
-    # Deferred to on_commit — enqueueing before the transaction lands would
+    # Deferred to on_commit - enqueueing before the transaction lands would
     # let a worker pick this up and query a donation row that isn't there yet
     # (or worse, email out a confirmation for a donation that later rolled back).
     transaction.on_commit(lambda: send_donation_received_email_task.delay(str(donation.id)))
@@ -262,7 +262,7 @@ def admin_update_donation(donation, validated_data):
     see organization_service.get_organization_donation_stats).
 
     A plain serializer.save() here would let amount/status changes silently
-    desync the campaign's ledger from what was actually paid — this recomputes
+    desync the campaign's ledger from what was actually paid - this recomputes
     the campaign delta the same way _confirm_donation() does.
     """
     from apps.campaigns.models import Campaign
@@ -310,12 +310,12 @@ def admin_update_donation(donation, validated_data):
 @transaction.atomic
 def refund_donation(donation, reason=''):
     """Refund a PAID donation via its own gateway and unwind its
-    contribution to the campaign's totals — the reverse of _confirm_donation().
+    contribution to the campaign's totals - the reverse of _confirm_donation().
 
     Re-fetches the donation with a row lock so two concurrent refund
     attempts on the same donation can't both pass the PAID check before
     either commits. Raises ValidationError if the donation isn't PAID or
-    the gateway declines the refund (real money reversing — surfaced to the
+    the gateway declines the refund (real money reversing - surfaced to the
     admin, not silently swallowed).
     """
     from apps.campaigns.models import Campaign
@@ -380,7 +380,7 @@ def refund_donation(donation, reason=''):
 def confirm_donation_by_reference(reference, provider_reference=''):
     """Row-locked so two near-simultaneous callers for the same reference
     (a redelivered webhook alongside the reconciliation sweep, say) can't
-    both read status=PENDING before either commits and double-confirm —
+    both read status=PENDING before either commits and double-confirm -
     the second caller re-checks status after acquiring the lock and finds
     it already PAID. WebhookEvent (payment_service.handle_webhook) is the
     primary guard against a redelivered webhook specifically; this closes
@@ -397,7 +397,7 @@ def confirm_donation_by_reference(reference, provider_reference=''):
 
 def fail_donation_by_reference(reference):
     """Mark a still-pending donation as failed/cancelled from a webhook event.
-    No campaign totals to unwind — a PENDING donation was never credited.
+    No campaign totals to unwind - a PENDING donation was never credited.
     Row-locked for the same reason as confirm_donation_by_reference above."""
     from apps.donations.models import Donation
     import services.audit_service as audit_service
@@ -423,7 +423,7 @@ def reconcile_donation_by_reference(reference):
 
     The webhook is the primary confirmation path, but it can't reach a
     localhost backend at all in dev, and could in principle be missed/delayed
-    even in production — this is the fallback. Safe to call repeatedly: a
+    even in production - this is the fallback. Safe to call repeatedly: a
     no-op once the donation is no longer PENDING. Returns the (possibly
     updated) donation, or None if the reference doesn't exist.
     """
@@ -457,7 +457,7 @@ def reconcile_donation_by_reference(reference):
 def sweep_pending_donations(older_than_minutes=15, limit=50):
     """Reconcile PENDING donations old enough that their webhook should have
     already arrived. Runs on a periodic schedule (see apps/donations/tasks.py)
-    as the safety net for missed/delayed webhooks — the same fallback
+    as the safety net for missed/delayed webhooks - the same fallback
     reconcile_donation_by_reference() provides on-demand, just self-triggered
     instead of waiting for a donor to check their status.
 
@@ -531,7 +531,7 @@ DONOR_SORT_OPTIONS = {
 
 
 def get_public_campaign_donors(slug, sort='latest'):
-    """Donor list for the public campaign page — any visible campaign, not owner-scoped."""
+    """Donor list for the public campaign page - any visible campaign, not owner-scoped."""
     from apps.donations.models import Donation
     from apps.campaigns.models import Campaign
     campaign = get_object_or_404(

@@ -32,11 +32,11 @@ class HasResourceAccess(BasePermission):
         # 3. A resource that depends on the object itself, not just the
         #    method (e.g. UserDetailView covers both regular users and
         #    staff through one endpoint, and which resource applies
-        #    depends on which kind the target row is) — set a callable
+        #    depends on which kind the target row is) - set a callable
         #    instead, checked once the object has been fetched:
         resource_by_target = lambda request, obj: Resource.STAFF_EDIT if ... else Resource.USERS_EDIT
 
-    A view with none of these set always denies — that's a programming
+    A view with none of these set always denies - that's a programming
     error (a forgotten tag), not an access decision, so it fails closed
     rather than silently granting access to everyone.
     """

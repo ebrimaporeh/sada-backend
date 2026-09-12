@@ -23,7 +23,7 @@ os.makedirs(LOCAL_DIR, exist_ok=True)
 
 class Auth:
     """Holds the current access token, refreshing it via the refresh token
-    (if provided) whenever a request comes back 401 — access tokens are
+    (if provided) whenever a request comes back 401 - access tokens are
     15 minutes in production, easy to outlive during a long seeding run."""
     def __init__(self, access, refresh):
         self.access = access
@@ -125,7 +125,7 @@ def main():
     for email, query in AVATAR_QUERIES.items():
         user = users.get(email)
         if not user:
-            print(f'[skip] {email} — not found')
+            print(f'[skip] {email} - not found')
             continue
         print(f'--- {user.get("full_name") or email} (avatar) ---')
         results[email] = seed_one(email, user['id'], query, 'avatar', 'avatar')
@@ -135,7 +135,7 @@ def main():
     for email, query in ORG_LOGO_QUERIES.items():
         user = users.get(email)
         if not user:
-            print(f'[skip] {email} — not found')
+            print(f'[skip] {email} - not found')
             continue
         print(f'--- {user.get("full_name") or email} (org logo) ---')
         results[email] = seed_one(email, user['id'], query, 'logo', 'organization-logo')

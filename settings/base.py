@@ -12,7 +12,7 @@ DEBUG = config('DEBUG', default=False, cast=bool)
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost', cast=Csv())
 
 # Bounds the whole request body (including multipart file uploads) Django will
-# parse before rejecting with a 400 — a backstop above the per-field
+# parse before rejecting with a 400 - a backstop above the per-field
 # validate_image_size checks on individual ImageFields.
 DATA_UPLOAD_MAX_MEMORY_SIZE = config('DATA_UPLOAD_MAX_MEMORY_SIZE', default=10 * 1024 * 1024, cast=int)
 FILE_UPLOAD_MAX_MEMORY_SIZE = config('FILE_UPLOAD_MAX_MEMORY_SIZE', default=10 * 1024 * 1024, cast=int)
@@ -196,7 +196,7 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 # ─── Media storage (Supabase Storage, S3-compatible) ────────────────────────
-# Falls back to local disk (above) when SUPABASE_STORAGE_BUCKET isn't set —
+# Falls back to local disk (above) when SUPABASE_STORAGE_BUCKET isn't set -
 # e.g. running tests, or before a Supabase project exists. Railway's
 # filesystem is ephemeral (wiped on every deploy/restart), so anything
 # meant to run there needs uploads to live somewhere persistent instead.
@@ -214,7 +214,7 @@ SUPABASE_VERIFICATION_BUCKET = config('SUPABASE_VERIFICATION_BUCKET', default=''
 if SUPABASE_STORAGE_BUCKET:
     DEFAULT_FILE_STORAGE = 'storages.backends.s3.S3Storage'
 
-    # .strip() everything credential/signing-related — a stray trailing
+    # .strip() everything credential/signing-related - a stray trailing
     # space or newline from copy-pasting into an env var UI is invisible
     # but gets included in the SigV4 signature, producing a
     # SignatureDoesNotMatch that looks exactly like a wrong key.
@@ -227,7 +227,7 @@ if SUPABASE_STORAGE_BUCKET:
     AWS_QUERYSTRING_AUTH = config('SUPABASE_STORAGE_QUERYSTRING_AUTH', default=False, cast=bool)
     AWS_DEFAULT_ACL = None
     # Django's default (False) calls HeadObject before every save to check
-    # for a name collision and auto-rename — Supabase's storage access keys
+    # for a name collision and auto-rename - Supabase's storage access keys
     # aren't granted that permission, so it fails with a 403 before the
     # actual upload ever happens. Not needed anyway: every upload_paths.py
     # function already includes a microsecond timestamp, so collisions
@@ -235,7 +235,7 @@ if SUPABASE_STORAGE_BUCKET:
     AWS_S3_FILE_OVERWRITE = True
 
     # Uploads go through the S3-compatible endpoint above, but Supabase serves
-    # public reads from a different path on the main project domain — set
+    # public reads from a different path on the main project domain - set
     # this as the custom domain so file .url() calls resolve to that instead
     # of the S3 endpoint (which isn't the public-read URL).
     _supabase_url = config('SUPABASE_URL', default='').strip().replace('https://', '').replace('http://', '')
@@ -243,7 +243,7 @@ if SUPABASE_STORAGE_BUCKET:
         AWS_S3_CUSTOM_DOMAIN = f'{_supabase_url}/storage/v1/object/public/{AWS_STORAGE_BUCKET_NAME}'
 
 # ─── Email (Resend, via django-anymail) ─────────────────────────────────────
-# Every environment sends over Resend's HTTPS API — never SMTP. Railway (and
+# Every environment sends over Resend's HTTPS API - never SMTP. Railway (and
 # most PaaS hosts) block outbound SMTP (port 587) entirely, which is why this
 # is the default here rather than just in settings/production.py; local dev
 # uses the same backend so "it works on my machine" actually means something.
@@ -257,7 +257,7 @@ EMAIL_REPLY_TO = config('EMAIL_REPLY_TO', default='')
 ANYMAIL = {
     'RESEND_API_KEY': config('RESEND_API_KEY', default=''),
 }
-# Not read by Anymail itself — kept as a plain setting for logging/reference
+# Not read by Anymail itself - kept as a plain setting for logging/reference
 # (e.g. which Resend account/project a deploy is wired to).
 RESEND_API_NAME = config('RESEND_API_NAME', default='')
 
@@ -313,7 +313,7 @@ FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:5173')
 BACKEND_URL = config('BACKEND_URL', default='')
 
 # ─── ModemPay ────────────────────────────────────────────────────────────────
-# The real ModemPay Python SDK (modempay) reads only the secret key — it talks
+# The real ModemPay Python SDK (modempay) reads only the secret key - it talks
 # to https://api.modempay.com directly, so there's no API URL to configure.
 
 MODEMPAY_SECRET_KEY = config('MODEMPAY_SECRET_API_KEY', default='')
@@ -323,11 +323,11 @@ MODEMPAY_MERCHANT_ID = config('MODEMPAY_MERCHANT_ID', default='')
 DEMO_MODE = config('DEMO_MODE', default=True, cast=bool)
 
 # ─── Stripe ──────────────────────────────────────────────────────────────────
-# Donation-only — see services/gateways/stripe_gateway.py. Credentials only;
+# Donation-only - see services/gateways/stripe_gateway.py. Credentials only;
 # whether the gateway is actually offered, and what currency/exchange rate a
 # GMD donation gets converted at, are admin-editable DB fields on
 # PlatformSettings (stripe_enabled, stripe_settlement_currency,
-# gmd_to_settlement_rate) — not env vars, so an admin can change them at
+# gmd_to_settlement_rate) - not env vars, so an admin can change them at
 # runtime without a deploy. See apps/payments/models.py::PlatformSettings.
 STRIPE_SECRET_KEY = config('STRIPE_SECRET_KEY', default='')
 STRIPE_PUBLISHABLE_KEY = config('STRIPE_PUBLISHABLE_KEY', default='')
@@ -335,7 +335,7 @@ STRIPE_WEBHOOK_SECRET = config('STRIPE_WEBHOOK_SECRET', default='')
 
 # ─── Payment gateways ────────────────────────────────────────────────────────
 # services/gateways/registry.py looks up a gateway's config here by code for
-# credentials — whether a gateway is *enabled* is a DB-backed PlatformSettings
+# credentials - whether a gateway is *enabled* is a DB-backed PlatformSettings
 # field (registry._is_enabled), not read from this dict at all. Each
 # gateway's own credentials stay in its own *_SECRET_KEY-style vars above,
 # read directly by its service module as before; this dict is what the

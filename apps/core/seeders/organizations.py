@@ -49,7 +49,7 @@ ORGANIZATIONS_DATA = [
         user=dict(
             email='naatip@example.gm', password='User@1234',
             role=User.Role.USER, email_verified=True, phone='+220 7300007', region='banjul',
-            bio='National Agency Against Trafficking in Persons — Government of The Gambia.',
+            bio='National Agency Against Trafficking in Persons - Government of The Gambia.',
         ),
         org=dict(
             organization_name='National Agency Against Trafficking in Persons (NAATIP)',

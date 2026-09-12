@@ -25,7 +25,7 @@ def verify_google_token(id_token_str: str) -> dict:
 
     Raises:
         ValidationError: If token is invalid, verification fails, or Google
-            itself hasn't verified the token's email address (see below —
+            itself hasn't verified the token's email address (see below -
             this is a real account-takeover vector, not a theoretical one).
     """
     client_id = config('GOOGLE_OAUTH_CLIENT_ID', default=None)
@@ -44,7 +44,7 @@ def verify_google_token(id_token_str: str) -> dict:
 
         # get_or_create_google_user() logs the caller straight into an
         # *existing* account matching this email with no further
-        # confirmation — so this claim is the entire trust boundary for
+        # confirmation - so this claim is the entire trust boundary for
         # every already-registered account on the platform. Google includes
         # email_verified=False for some accounts (e.g. legacy/Workspace
         # accounts with an admin-added, never-confirmed address); without
@@ -123,7 +123,7 @@ def get_or_create_google_user(google_data: dict) -> tuple[User, bool]:
                 'first_name': name_parts[0] if name_parts else '',
                 'last_name': ' '.join(name_parts[1:]),
                 'email_verified': True,  # Google verifies emails
-                # is_verified is identity (government ID) verification — a
+                # is_verified is identity (government ID) verification - a
                 # separate manual process regardless of signup method. Google
                 # proves email ownership only, not who someone actually is.
                 'google_sub': google_sub,
@@ -140,7 +140,7 @@ def get_or_create_google_user(google_data: dict) -> tuple[User, bool]:
             _set_avatar_from_google(user, google_data.get('picture'))
         elif google_sub and user.google_sub != google_sub:
             # An existing email/password account signing in via Google for the
-            # first time — link it the same way an explicit "Connect Google"
+            # first time - link it the same way an explicit "Connect Google"
             # action would.
             user.google_sub = google_sub
             user.save(update_fields=['google_sub'])

@@ -101,7 +101,7 @@ class ChangePasswordView(APIView):
 
 @extend_schema(tags=['Authentication'])
 class SetPasswordView(APIView):
-    """For accounts with no usable password yet (Google-only signups) —
+    """For accounts with no usable password yet (Google-only signups) -
     see ChangePasswordView for accounts that already have one."""
     permission_classes = [IsAuthenticated]
 

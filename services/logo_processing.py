@@ -1,17 +1,17 @@
 """Normalizes admin-uploaded site logos to a standard size and format.
 
-Uploaded logo files land in wildly inconsistent shapes — the most common
+Uploaded logo files land in wildly inconsistent shapes - the most common
 case being a small wordmark centered in a much larger padded canvas
 (e.g. a 500x500 square where the actual artwork is only 90px tall in the
 middle). Since the frontend sizes logos by height (`h-8`, `h-9`, ...),
 that padding makes the visible artwork render tiny regardless of what
-CSS class is applied — there's no fixed height that fixes a variable,
+CSS class is applied - there's no fixed height that fixes a variable,
 unpredictable amount of built-in whitespace.
 
 This trims each upload to its actual artwork's bounding box, adds a
 small consistent margin back, caps it at one standard max size, and
 always re-encodes as WebP (still fully supports the transparency this
-needs) — so every uploaded logo behaves the same in the header/footer/
+needs) - so every uploaded logo behaves the same in the header/footer/
 sidebar regardless of what canvas size or file type it arrived in.
 """
 import io
@@ -22,7 +22,7 @@ STANDARD_MAX_WIDTH = 800
 STANDARD_MAX_HEIGHT = 240
 PADDING_RATIO = 0.06  # breathing room around the trimmed artwork, relative to its largest side
 MIN_PADDING_PX = 4
-# Compressed/re-saved PNGs are rarely a perfectly flat background — corner
+# Compressed/re-saved PNGs are rarely a perfectly flat background - corner
 # pixels can drift a few values from the "true" background color even with
 # no visible noise. Below this per-pixel difference is treated as background,
 # not content, or getbbox() would trim to nothing (or the whole canvas).
@@ -46,7 +46,7 @@ def _detect_bbox_and_background(image: Image.Image):
 
     background_color = rgba.getpixel((0, 0))
     background = Image.new('RGBA', rgba.size, background_color)
-    # Compare on RGB (as grayscale) — the alpha bands are identical (both
+    # Compare on RGB (as grayscale) - the alpha bands are identical (both
     # fully opaque) so an RGBA diff's getbbox() would look at alpha alone
     # and find nothing, regardless of how different the actual colors are.
     diff = ImageChops.difference(rgba.convert('RGB'), background.convert('RGB')).convert('L')

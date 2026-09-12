@@ -1,7 +1,7 @@
 """One-off script: fetches relatable free images from Wikimedia Commons and
 uploads a cover + 2 gallery images for every production campaign via the
 admin media endpoint. Saves a local copy under media/campaign_seed_images/
-too. Not part of the app — run manually, then safe to delete."""
+too. Not part of the app - run manually, then safe to delete."""
 import os
 import sys
 import time
@@ -78,7 +78,7 @@ def main():
         slug, cid, title = c['slug'], c['id'], c['title']
         queries = QUERIES.get(slug)
         if not queries:
-            print(f'[skip] {slug} — no query mapping')
+            print(f'[skip] {slug} - no query mapping')
             continue
 
         print(f'--- {title} ({slug}) ---')

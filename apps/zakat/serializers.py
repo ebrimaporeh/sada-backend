@@ -26,7 +26,7 @@ class ZakatSettingsSerializer(serializers.ModelSerializer):
 
 
 class ZakatCalculationInputSerializer(serializers.Serializer):
-    """Assets/liabilities a donor enters — mirrors the classical zakatable
+    """Assets/liabilities a donor enters - mirrors the classical zakatable
     wealth categories: cash and savings, gold/silver holdings, business
     trade goods, investments, money owed to them (receivables), minus
     debts they owe (liabilities are deducted before comparing to nisab)."""

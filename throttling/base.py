@@ -26,7 +26,7 @@ class _DevBypassAnonThrottle(AnonRateThrottle):
 
 class LoginThrottle(_DevBypassAnonThrottle):
     scope = 'login'
-    rate = '10/15min'  # not a valid DRF rate string — parse_rate is overridden below to honor it
+    rate = '10/15min'  # not a valid DRF rate string - parse_rate is overridden below to honor it
 
     def parse_rate(self, rate):
         return (10, 15 * 60)

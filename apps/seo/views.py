@@ -44,7 +44,7 @@ def _absolute_media_url(request, field):
 
 def _default_og_image(request):
     """Falls back to the admin-configured logo (the on-background variant
-    exists specifically for this — see SiteSettings.logo_with_background's
+    exists specifically for this - see SiteSettings.logo_with_background's
     help_text) when a campaign/fundraiser has no image of their own."""
     site = SiteSettings.get_solo()
     return _absolute_media_url(request, site.logo_with_background or site.logo)

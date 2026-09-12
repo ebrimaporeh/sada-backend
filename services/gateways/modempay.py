@@ -1,4 +1,4 @@
-"""ModemPay adapter — a thin wrapper around services/modempay_service.py.
+"""ModemPay adapter - a thin wrapper around services/modempay_service.py.
 
 Deliberately delegates every call straight through to the existing
 module rather than reimplementing anything: this adapter is a pure
@@ -58,7 +58,7 @@ class ModemPayGateway(PaymentGateway):
         return modempay_service.reverse_transaction(donation.provider_reference)
 
     def verify_webhook(self, payload, signature):
-        # payload is the raw request body (bytes) — pass it through as a
+        # payload is the raw request body (bytes) - pass it through as a
         # string rather than a re-serialized dict, so the HMAC modempay
         # computes matches the exact bytes it originally signed.
         if isinstance(payload, bytes):
@@ -71,9 +71,9 @@ class ModemPayGateway(PaymentGateway):
     @property
     def supported_donation_methods(self):
         # wave/aps/afrimoney are the Donation.Provider choices ModemPay's
-        # checkout actually offers — card isn't in this set (that's Stripe's).
+        # checkout actually offers - card isn't in this set (that's Stripe's).
         # Each is individually admin-toggleable (PlatformSettings.wave_enabled/
-        # aps_enabled/afrimoney_enabled) — e.g. flip APS off on its own if it
+        # aps_enabled/afrimoney_enabled) - e.g. flip APS off on its own if it
         # starts failing, without taking Wave or Afrimoney down too.
         from apps.payments.models import PlatformSettings
         platform = PlatformSettings.get_solo()
@@ -176,5 +176,5 @@ def _normalize_event(event) -> GatewayEvent:
             raw=event,
         )
     # Unhandled event types (customer.*, payment_intent.*, charge.created, ...)
-    # — acknowledge receipt, nothing for us to do.
+    # - acknowledge receipt, nothing for us to do.
     return GatewayEvent(type=GatewayEventType.UNHANDLED, event_id=event_id, raw=event)

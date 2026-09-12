@@ -2,7 +2,7 @@
 
 Nothing outside this package (and registry.py, which is the one place
 allowed to import a concrete adapter by name) should ever import
-ModemPayGateway/StripeGateway/etc directly — services/serializers/views all
+ModemPayGateway/StripeGateway/etc directly - services/serializers/views all
 go through registry.get_gateway(code) instead, so switching or adding a
 gateway is a settings + registry change, not a call-site change.
 """
@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 
 @dataclass
 class GatewayIntent:
-    """Result of successfully creating a payment intent with a gateway —
+    """Result of successfully creating a payment intent with a gateway -
     payment_link is a hosted checkout URL to redirect the donor to (both
     ModemPay's mobile-money checkout and Stripe's Checkout page work this
     way)."""
@@ -22,7 +22,7 @@ class GatewayIntent:
 
 
 class GatewayEventType:
-    # The vocabulary payment_service.handle_*_webhook() dispatches on —
+    # The vocabulary payment_service.handle_*_webhook() dispatches on -
     # every gateway's verify_webhook() translates its own event names
     # (ModemPay's "charge.succeeded", Stripe's "checkout.session.completed",
     # ...) into these, so the dispatch logic never has to know which
@@ -39,7 +39,7 @@ class GatewayEvent:
     """A webhook event, normalized to GatewayEventType.
 
     `event_id` is the dedup key payment_service.handle_webhook() uses to
-    guard against a redelivered event (see apps.payments.models.WebhookEvent) —
+    guard against a redelivered event (see apps.payments.models.WebhookEvent) -
     Stripe's real `evt_...` id for Stripe, a synthesized deterministic key
     for ModemPay (which sends no event id of its own at all)."""
     type: str
@@ -55,23 +55,23 @@ class PaymentGateway(ABC):
 
     Donation-side methods are required of every gateway. Payout-side methods
     (get_balance/check_transfer_fee/request_disbursement) only need real
-    implementations from gateways with supports_payouts=True — the default
+    implementations from gateways with supports_payouts=True - the default
     implementations here raise, so a donation-only gateway (Stripe: card
     payments can't disburse to a Gambian mobile-money wallet) never has to
     fake a payout API it doesn't have.
     """
     code = ''
     supports_payouts = False
-    # The HTTP header a webhook's signature arrives in — gateways don't
+    # The HTTP header a webhook's signature arrives in - gateways don't
     # agree on a name (ModemPay: x-modem-signature, Stripe: Stripe-Signature),
     # so the generic webhook view reads this rather than hardcoding one.
     signature_header = ''
     # Whether this gateway needs a phone number to charge (ModemPay's mobile-
-    # money networks do; Stripe's card checkout doesn't) — read by
+    # money networks do; Stripe's card checkout doesn't) - read by
     # DonationCreateSerializer so "phone required" isn't hardcoded to one
     # gateway there either.
     requires_phone = True
-    # The currency this gateway actually settles in, server-side — not
+    # The currency this gateway actually settles in, server-side - not
     # client-controlled. GMD for ModemPay; Stripe doesn't support GMD as a
     # settlement currency at all, so a Stripe donation is charged in
     # whatever PlatformSettings.stripe_settlement_currency an admin has
@@ -97,12 +97,12 @@ class PaymentGateway(ABC):
     @abstractmethod
     def retrieve_payment_intent(self, provider_reference) -> dict | None:
         """Fetch a payment intent's current status directly from the
-        gateway — used to reconcile a donation when a webhook is missed."""
+        gateway - used to reconcile a donation when a webhook is missed."""
 
     @abstractmethod
     def intent_status(self, intent) -> str:
         """Normalize a retrieve_payment_intent() result to one of
-        'successful' / 'failed' / 'pending' — each gateway has its own raw
+        'successful' / 'failed' / 'pending' - each gateway has its own raw
         status vocabulary (ModemPay: successful/failed/cancelled/...;
         Stripe: a status + a separate payment_status), so callers doing
         reconciliation dispatch on this instead of a gateway-specific string."""
@@ -126,16 +126,16 @@ class PaymentGateway(ABC):
     @abstractmethod
     def refund_donation(self, donation) -> dict | None:
         """Refund a PAID donation's original charge. Required of every
-        donation gateway (unlike the payout-only methods below) — refunding
+        donation gateway (unlike the payout-only methods below) - refunding
         what you charged is a base capability, not something only some
         gateways support. Returns the gateway's raw refund result on
-        success, or None if the refund could not be processed — never
+        success, or None if the refund could not be processed - never
         raises."""
 
     @property
     def supported_donation_methods(self) -> set:
         """Payment methods this gateway can charge a donation through
-        (ModemPay: wave/aps; Stripe: card) — read by GatewayListView so the
+        (ModemPay: wave/aps; Stripe: card) - read by GatewayListView so the
         frontend can build its provider picker from actual server config
         instead of a hand-maintained constant. Defaults to {default_method}
         for a single-method gateway; override for a multi-method one."""
@@ -156,7 +156,7 @@ class PaymentGateway(ABC):
 
     def retrieve_transfer(self, provider_reference) -> dict | None:
         """Fetch a payout transfer's current status directly from the
-        gateway — used to reconcile a payout stuck PROCESSING when the
+        gateway - used to reconcile a payout stuck PROCESSING when the
         success/failure webhook is missed or delayed."""
         raise NotImplementedError(f'{self.code} does not support payouts.')
 

@@ -6,7 +6,7 @@ ALLOWED_HOSTS = ['*']
 
 CORS_ALLOW_ALL_ORIGINS = True
 
-# EMAIL_BACKEND is already forced to Anymail's Resend backend in base.py —
+# EMAIL_BACKEND is already forced to Anymail's Resend backend in base.py -
 # don't override it here. Local dev sends real emails via Resend, same as
 # production; there is no console/SMTP fallback.
 

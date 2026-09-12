@@ -11,36 +11,36 @@ def _secret_key():
 
 def _as_dict(stripe_object):
     """Stripe's SDK objects (StripeObject/Event/Session) support []
-    indexing but NOT dict's .get() — converting once here means every
+    indexing but NOT dict's .get() - converting once here means every
     caller (stripe_gateway.py, tests) can treat every Stripe response as a
     plain dict, same as modempay_service's responses already are."""
     return stripe_object.to_dict() if hasattr(stripe_object, 'to_dict') else stripe_object
 
 
 def create_checkout_session(donation, currency, amount_minor, success_url, cancel_url):
-    """Create a Stripe Checkout Session for a donation — a hosted, full-page
+    """Create a Stripe Checkout Session for a donation - a hosted, full-page
     redirect, same shape as ModemPay's payment_link: the frontend sends the
     donor to `url`, Stripe collects card details on its own page, and the
     donor lands back on `success_url`/`cancel_url`.
 
     `amount_minor` is the already-converted, already-minor-unit amount (e.g.
-    cents for usd) — conversion from the donor's GMD amount happens once, in
+    cents for usd) - conversion from the donor's GMD amount happens once, in
     services/gateways/stripe_gateway.py, using the admin-configured
     PlatformSettings.gmd_to_settlement_rate, not here, so this function has
     no currency-math opinion of its own to get wrong twice.
 
-    `adaptive_pricing` is explicitly disabled below — left on its Dashboard
+    `adaptive_pricing` is explicitly disabled below - left on its Dashboard
     default, Stripe would re-convert this already-converted amount into the
     donor's local currency using Stripe's own live FX rate (plus a 2-4% fee
     the donor pays), which is exactly what made the admin-configured rate
     above look like it was being ignored on the Checkout page. Our own
-    accounting was never actually wrong — `amount_total`/`currency` on the
-    Session always reflect what we set — but the donor-facing price did not
+    accounting was never actually wrong - `amount_total`/`currency` on the
+    Session always reflect what we set - but the donor-facing price did not
     match what the admin rate implied, which is the real-world bug. See
     https://docs.stripe.com/payments/currencies/localize-prices/adaptive-pricing.
 
     Returns the SDK's Session as a plain dict on success (has `id`, `url`),
-    or None on failure — never raises.
+    or None on failure - never raises.
     """
     try:
         session = stripe.checkout.Session.create(
@@ -56,7 +56,7 @@ def create_checkout_session(donation, currency, amount_minor, success_url, cance
                 },
                 'quantity': 1,
             }],
-            # How the async webhook matches this event back to our donation —
+            # How the async webhook matches this event back to our donation -
             # authoritative, same pattern as ModemPay's donation_reference.
             metadata={'donation_reference': donation.payment_reference},
             customer_email=donation.donor.email if donation.donor and donation.donor.email else None,
@@ -73,7 +73,7 @@ def create_checkout_session(donation, currency, amount_minor, success_url, cance
 
 
 def retrieve_checkout_session(session_id):
-    """Fetch a Checkout Session's current status directly from Stripe —
+    """Fetch a Checkout Session's current status directly from Stripe -
     used to reconcile a donation when a webhook is missed. Returns the raw
     Session dict (has payment_status: 'paid'/'unpaid'/'no_payment_required'),
     or None on failure."""
@@ -116,7 +116,7 @@ def refund_checkout_session(session_id):
 def verify_and_parse_webhook(payload, signature, secret=None):
     """Validate an incoming webhook signature and return the parsed Stripe
     Event, or None if invalid. `payload` must be the raw request body
-    (str/bytes) — Stripe signs the exact bytes sent, not a re-serialized
+    (str/bytes) - Stripe signs the exact bytes sent, not a re-serialized
     version of them."""
     key = secret or settings.PAYMENT_GATEWAYS['stripe']['webhook_secret']
     if not signature or not key:

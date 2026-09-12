@@ -23,7 +23,7 @@ class PayoutCreateSerializer(serializers.ModelSerializer):
 
     def validate_provider(self, value):
         # Payouts are modempay-only (Stripe/card donations have no payout
-        # path to a Gambian mobile-money wallet) — Payout.Provider has more
+        # path to a Gambian mobile-money wallet) - Payout.Provider has more
         # choices for historical reasons (shared with Donation/Payment), but
         # only modempay's supported networks can actually be paid out.
         from services.gateways.registry import get_gateway
@@ -107,6 +107,6 @@ class PlatformSettingsSerializer(serializers.ModelSerializer):
         from django.conf import settings
         if value and not settings.PAYMENT_GATEWAYS.get('stripe', {}).get('secret_key'):
             raise serializers.ValidationError(
-                'Cannot enable Stripe — STRIPE_SECRET_KEY is not configured on this server.'
+                'Cannot enable Stripe - STRIPE_SECRET_KEY is not configured on this server.'
             )
         return value

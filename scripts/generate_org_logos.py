@@ -1,5 +1,5 @@
 """Generates simple colored initials-badge logos locally for each seeded
-organization — deliberately not pulled from the internet, since searching
+organization - deliberately not pulled from the internet, since searching
 for "university seal" / "government emblem" etc. kept surfacing real
 institutions' actual trademarked logos and, in one case, a photo of real
 sitting heads of state. A generated placeholder avoids that entirely."""

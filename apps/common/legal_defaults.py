@@ -1,10 +1,10 @@
-"""Seed markdown content for LegalContent — transcribed from the frontend's
+"""Seed markdown content for LegalContent - transcribed from the frontend's
 previously-hardcoded Help/Trust & Safety/Privacy/Terms pages, so switching
 those pages over to admin-editable markdown doesn't change what's shown
 until an admin actually edits something.
 
 Uses {{variable}} tags (site_name, platform_fee_percent, contact_email, ...)
-wherever the original hardcoded text named the site or the platform fee —
+wherever the original hardcoded text named the site or the platform fee -
 see src/utils/legalVariables.js on the frontend, which resolves these
 against live settings (SiteSettings, PlatformSettings) at render time, so
 e.g. changing the platform fee in Settings updates every page that
@@ -13,10 +13,10 @@ mentions it without anyone editing this content. The admin editor's
 """
 
 DEFAULT_HELP_CONTENT = """### How do I start a campaign?
-Create a free account, click "Start a Campaign", and fill in your campaign details — title, story, goal, and deadline. Your campaign goes live immediately, no waiting on approval.
+Create a free account, click "Start a Campaign", and fill in your campaign details - title, story, goal, and deadline. Your campaign goes live immediately, no waiting on approval.
 
 ### What fees does {{site_name}} charge?
-Donations carry no {{site_name}} fee — donors only pay whatever their mobile money provider itself charges. A {{platform_fee_percent}}% platform fee applies only when a campaign owner withdraws raised funds.
+Donations carry no {{site_name}} fee - donors only pay whatever their mobile money provider itself charges. A {{platform_fee_percent}}% platform fee applies only when a campaign owner withdraws raised funds.
 
 ### How do I donate to a campaign?
 Find a campaign you want to support, click "Donate Now", enter your amount and mobile money number, then confirm the payment prompt on your phone. Your donation is recorded as soon as the payment clears.
@@ -46,7 +46,7 @@ DEFAULT_TRUST_SAFETY_CONTENT = """## Campaign Review
 Every campaign submitted to {{site_name}} is reviewed by our moderation team. We verify that the campaign story is genuine, the beneficiary information is plausible, and the fundraising goal is appropriate. Campaigns that do not meet our standards are suspended with a reason provided to the organiser.
 
 ## Secure Payments
-All donations are processed through ModemPay, a licensed mobile money gateway covering Wave and APS Wallet. {{site_name}} never stores your payment credentials. Payment confirmations happen directly between your mobile network and ModemPay — we only record the result.
+All donations are processed through ModemPay, a licensed mobile money gateway covering Wave and APS Wallet. {{site_name}} never stores your payment credentials. Payment confirmations happen directly between your mobile network and ModemPay - we only record the result.
 
 ## Donor Protection
 We display each campaign's donation history and progress toward its goal, so donors can see exactly how a campaign is doing. Campaign owners can verify their identity with a government ID for an added trust badge.
@@ -58,10 +58,10 @@ If you believe a campaign is fraudulent or violates our policies, use the Report
 For urgent concerns, reach us through the Help Center below, or email {{contact_email}}. We aim to respond to trust and safety reports promptly."""
 
 DEFAULT_PRIVACY_CONTENT = """## What We Collect
-- Account information — name, email address, phone number, and profile photo when you register.
-- Campaign information — title, story, images, beneficiary details, and fundraising goal that you provide when creating a campaign.
-- Donation records — amount, payment provider, timestamp, and optional message for each donation made through the platform.
-- Usage data — pages visited, device type, and browser to help us improve the platform. We do not use third-party advertising trackers.
+- Account information - name, email address, phone number, and profile photo when you register.
+- Campaign information - title, story, images, beneficiary details, and fundraising goal that you provide when creating a campaign.
+- Donation records - amount, payment provider, timestamp, and optional message for each donation made through the platform.
+- Usage data - pages visited, device type, and browser to help us improve the platform. We do not use third-party advertising trackers.
 
 ## How We Use It
 - To operate your account and process donations.
@@ -71,13 +71,13 @@ DEFAULT_PRIVACY_CONTENT = """## What We Collect
 - We do not sell your personal data to third parties.
 
 ## Who We Share It With
-- ModemPay — your mobile number and donation amount are shared to process payments.
-- Our moderation team — campaign details may be reviewed if a campaign is reported.
-- Law enforcement — only when required by law or to protect users from harm.
+- ModemPay - your mobile number and donation amount are shared to process payments.
+- Our moderation team - campaign details may be reviewed if a campaign is reported.
+- Law enforcement - only when required by law or to protect users from harm.
 
 ## Donor Visibility
 - By default, your name and donation amount are shown on the campaign page.
-- You can choose to donate anonymously — your name will be hidden from the public campaign page.
+- You can choose to donate anonymously - your name will be hidden from the public campaign page.
 - Your contact details are never visible to campaign owners.
 
 ## Data Retention
@@ -105,7 +105,7 @@ You must be at least 18 years old to create a campaign or make a donation. By re
 Campaign owners are responsible for the accuracy of all information provided. Campaigns must have a genuine, lawful purpose. The following are prohibited: false or misleading campaigns, campaigns that promote violence, illegal activity, or discrimination, and campaigns where the stated beneficiary has not consented. Campaigns go live immediately on creation; {{site_name}} reserves the right to suspend or remove any campaign that violates these rules at any time.
 
 ## 4. Fees
-Donations carry no {{site_name}} fee — donors only pay whatever their mobile money provider itself charges to process the payment. A {{platform_fee_percent}}% platform fee is deducted only when a campaign owner withdraws raised funds. Fees are clearly disclosed before each withdrawal is confirmed.
+Donations carry no {{site_name}} fee - donors only pay whatever their mobile money provider itself charges to process the payment. A {{platform_fee_percent}}% platform fee is deducted only when a campaign owner withdraws raised funds. Fees are clearly disclosed before each withdrawal is confirmed.
 
 ## 5. Withdrawals
 Campaign owners may withdraw funds at any time. {{site_name}} reserves the right to hold funds pending investigation if fraud is suspected. Funds held as part of an active investigation may not be released until the investigation is resolved.

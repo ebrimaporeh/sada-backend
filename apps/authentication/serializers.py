@@ -4,7 +4,7 @@ from apps.users.models import User
 
 
 class RegisterSerializer(serializers.Serializer):
-    """Deliberately minimal — just enough to create the account. Name
+    """Deliberately minimal - just enough to create the account. Name
     (individual) and organization profile details (organization) are no
     longer collected here; they're filled in during onboarding after
     signup, via the existing profile/organization update endpoints."""

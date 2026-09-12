@@ -27,7 +27,7 @@ class EmailService:
             )
             msg.attach_alternative(html_content, 'text/html')
             for attachment in attachments or []:
-                # (filename, content, mimetype) tuples — Django's own attach() signature.
+                # (filename, content, mimetype) tuples - Django's own attach() signature.
                 msg.attach(*attachment)
             msg.send()
             return True
@@ -45,7 +45,7 @@ class EmailService:
 
     def send_password_reset_email(self, user, reset_url: str, to_email: str = None) -> bool:
         # to_email overrides where the email goes (not user.email) for an
-        # organization resetting via a recovery email — the whole point of a
+        # organization resetting via a recovery email - the whole point of a
         # recovery address is to work even when the primary inbox is down.
         return self._send(
             to=to_email or user.email,
@@ -305,7 +305,7 @@ class EmailService:
             'pending': f'Your withdrawal of D{payout.net_amount} is on hold',
             'failed': f'Your withdrawal of D{payout.net_amount} could not be completed',
         }
-        # Organizations' recovery emails are CC'd on withdrawal updates too —
+        # Organizations' recovery emails are CC'd on withdrawal updates too -
         # this is real money moving, so every registered contact should see
         # it. The org (if any) belongs to the campaign, not the requesting
         # member -- owner.organization stopped existing once Organization

@@ -114,7 +114,7 @@ RATE_LIMIT_DELAY = 1.5  # seconds between downloads
 
 def _fetch(keywords: str, width: int, height: int, lock: int) -> bytes | None:
     """Try loremflickr first, fall back to picsum."""
-    # loremflickr — real topic-relevant images from Flickr CC
+    # loremflickr - real topic-relevant images from Flickr CC
     url = f"https://loremflickr.com/{width}/{height}/{keywords}?lock={lock}"
     try:
         r = requests.get(url, timeout=REQUEST_TIMEOUT, allow_redirects=True)
@@ -123,7 +123,7 @@ def _fetch(keywords: str, width: int, height: int, lock: int) -> bytes | None:
     except Exception:
         pass
 
-    # picsum — deterministic placeholder (beautiful, but generic)
+    # picsum - deterministic placeholder (beautiful, but generic)
     slug_seed = keywords.split(",")[0].replace(" ", "-")
     url = f"https://picsum.photos/seed/{slug_seed}-{lock}/{width}/{height}"
     try:
@@ -165,7 +165,7 @@ class Command(BaseCommand):
         for idx, slug in enumerate(slugs, start=1):
             config = CAMPAIGN_CONFIG.get(slug)
             if not config:
-                self.stdout.write(self.style.WARNING(f"[{idx}/{total}] No config for '{slug}' — skipping"))
+                self.stdout.write(self.style.WARNING(f"[{idx}/{total}] No config for '{slug}' - skipping"))
                 continue
 
             try:
@@ -176,7 +176,7 @@ class Command(BaseCommand):
 
             if campaign.cover_image and not force:
                 self.stdout.write(
-                    f"[{idx}/{total}] '{campaign.title}' already has images — skipping (use --force to overwrite)"
+                    f"[{idx}/{total}] '{campaign.title}' already has images - skipping (use --force to overwrite)"
                 )
                 continue
 

@@ -209,7 +209,7 @@ class CampaignDetailView(APIView):
 
 
 class CampaignRecordViewView(APIView):
-    """Explicit view-tracking beacon — fired by the frontend only when the
+    """Explicit view-tracking beacon - fired by the frontend only when the
     public campaign detail page is actually shown, not by every fetch of
     campaign data (donate/donate-success pages reuse the same GET above
     without inflating the count)."""

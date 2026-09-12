@@ -1,7 +1,7 @@
 from django.db import migrations
 
 # Same access moderator/finance_officer had under the old hardcoded
-# ROLE_RESOURCES dict (permissions/roles.py, pre-Django-Groups) — seeded
+# ROLE_RESOURCES dict (permissions/roles.py, pre-Django-Groups) - seeded
 # here so switching to admin-editable Groups doesn't change anyone's
 # access until an admin actually edits something on the Staff page.
 DEFAULT_ROLE_RESOURCES = {
@@ -13,7 +13,7 @@ DEFAULT_ROLE_RESOURCES = {
 def seed_role_groups(apps, schema_editor):
     # Permission rows for a just-created model's Meta.permissions are
     # normally created by the post_migrate signal, which only fires once
-    # *all* migrations in this `migrate` run have finished — too late for
+    # *all* migrations in this `migrate` run have finished - too late for
     # a data migration in the same run to query them. Force creation now.
     from django.apps import apps as django_apps
     from django.contrib.auth.management import create_permissions

@@ -1,13 +1,13 @@
-"""Append-only double-entry ledger — the authoritative record of every
+"""Append-only double-entry ledger - the authoritative record of every
 money movement (donations received, refunds, payouts, admin corrections).
 
-`Campaign.raised` (apps/campaigns/models.py) stays exactly as it is today —
+`Campaign.raised` (apps/campaigns/models.py) stays exactly as it is today -
 a denormalized, F()-updated read-model for cheap access. This app doesn't
 replace it; it's the durable, immutable record that read-model is
 conceptually derived from. See services/ledger_service.py for the only
 supported way to write to these tables.
 
-Nothing here imports apps.donations/apps.payments/apps.campaigns — a
+Nothing here imports apps.donations/apps.payments/apps.campaigns - a
 Transaction points at its originating Donation/Payout the same
 denormalized way apps.audit.AuditLog points at its target (`source_type`/
 `source_id`, not a real FK), so this app has zero dependency on them.
@@ -21,12 +21,12 @@ class Account(BaseModel):
 
     `type` is deliberately broader than what this first pass actually
     posts to (only PLATFORM_CLEARING/PLATFORM_FEES/CAMPAIGN/SUSPENSE are
-    ever created by services/ledger_service.py today) — ORGANIZATION/USER
+    ever created by services/ledger_service.py today) - ORGANIZATION/USER
     exist so a future organization- or investor-balance account is a new
     `get_or_create_account()` call with a new `type`, not a schema change.
 
     `code` is the deterministic identity of an account (e.g.
-    'campaign:<uuid>', 'platform_clearing:modempay') — always resolved via
+    'campaign:<uuid>', 'platform_clearing:modempay') - always resolved via
     services/ledger_service.py's helpers, never constructed ad hoc, so the
     same logical account is never accidentally split across two rows.
     """
@@ -131,7 +131,7 @@ class Transaction(BaseModel, ImmutableModel):
         ]
 
     def __str__(self):
-        return f'{self.get_entry_type_display()} — {self.description}'
+        return f'{self.get_entry_type_display()} - {self.description}'
 
 
 class LedgerEntry(BaseModel, ImmutableModel):

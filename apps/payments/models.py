@@ -12,7 +12,7 @@ class Payment(BaseModel):
         REFUNDED = 'refunded', 'Refunded'
 
     class Provider(models.TextChoices):
-        # ModemPay is the payment gateway, not itself a provider — these are
+        # ModemPay is the payment gateway, not itself a provider - these are
         # the underlying networks it processes payments through. Visa/
         # Mastercard/ModemPay Bank are planned but not live yet.
         WAVE = 'wave', 'Wave'
@@ -51,8 +51,8 @@ class Payout(BaseModel):
         # Model-level choices mirror what ModemPay processes generally;
         # which of these are actually payable-out right now is enforced
         # separately by get_gateway('modempay').supported_payout_methods
-        # (wave/afrimoney — ModemPay's payout docs don't list aps as a
-        # transfer network). Payouts are modempay-only, full stop — no other
+        # (wave/afrimoney - ModemPay's payout docs don't list aps as a
+        # transfer network). Payouts are modempay-only, full stop - no other
         # gateway can disburse to a Gambian mobile-money wallet.
         WAVE = 'wave', 'Wave'
         APS = 'aps', 'APS Wallet'
@@ -97,19 +97,19 @@ class Payout(BaseModel):
 class PlatformSettings(BaseModel):
     """Singleton row of admin-editable platform config.
 
-    Donations carry no platform-side fee — donors only pay whatever the
+    Donations carry no platform-side fee - donors only pay whatever the
     payment provider (ModemPay) itself charges them directly. This fee is
     taken only when a campaign owner withdraws (Payout), not on donation.
 
     Gateway on/off switches live here (not env vars) so an admin can flip
-    them at runtime — services/gateways/registry.py reads `<code>_enabled`
+    them at runtime - services/gateways/registry.py reads `<code>_enabled`
     off this row via getattr(), so adding a new gateway later just means
     adding one more `<code>_enabled` field here, no registry code change.
-    Credentials (API keys/webhook secrets) stay in env vars regardless —
+    Credentials (API keys/webhook secrets) stay in env vars regardless -
     those are secrets, not something that belongs in an admin-editable DB row.
 
     Per-gateway donation min/max amounts follow the same `<code>_enabled`
-    getattr() convention (see registry.donation_amount_limits) — each
+    getattr() convention (see registry.donation_amount_limits) - each
     gateway ultimately enforces its own limits externally (e.g. ModemPay
     rejects a payment intent above what it allows), and that policy can
     change on their end without warning, so this is admin-editable rather
@@ -158,7 +158,7 @@ class PlatformSettings(BaseModel):
     stripe_enabled = models.BooleanField(
         default=False,
         help_text='Whether donors can pay by card via Stripe. Requires Stripe API keys to '
-                   'already be configured in the environment — this switch only controls '
+                   'already be configured in the environment - this switch only controls '
                    'whether the (already-configured) gateway is offered.',
     )
     stripe_min_donation_amount = models.DecimalField(
@@ -172,7 +172,7 @@ class PlatformSettings(BaseModel):
                    'below this.',
     )
     # Stripe doesn't support GMD as a settlement currency, so a card donation
-    # is actually charged in this currency instead — converted from the
+    # is actually charged in this currency instead - converted from the
     # donor's GMD amount using gmd_to_settlement_rate below.
     stripe_settlement_currency = models.CharField(
         max_length=3, default='usd',
@@ -180,7 +180,7 @@ class PlatformSettings(BaseModel):
     )
     gmd_to_settlement_rate = models.DecimalField(
         max_digits=10, decimal_places=4, default=Decimal('70.0000'),
-        help_text='How many GMD equal 1 unit of the Stripe settlement currency above — '
+        help_text='How many GMD equal 1 unit of the Stripe settlement currency above - '
                    'e.g. 70 means D70 = 1 unit. Update this to match the real exchange rate; '
                    'a stale rate over/undercharges every card donation.',
     )

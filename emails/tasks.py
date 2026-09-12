@@ -7,7 +7,7 @@ RETRY_KWARGS = {'bind': True, 'max_retries': 3, 'default_retry_delay': 60}
 
 
 def _retry_on_failure(task, sent: bool, description: str):
-    """EmailService swallows send errors (returns False, logs, never raises) —
+    """EmailService swallows send errors (returns False, logs, never raises) -
     turn a failed send back into an exception so Celery's retry actually fires."""
     if not sent:
         raise task.retry(exc=Exception(f'Email send failed: {description}'))
@@ -180,7 +180,7 @@ def send_verification_reviewed_email_task(self, verification_id):
 
 
 def _get_moderation_staff():
-    """Moderators and admins — everyone with report/verification review
+    """Moderators and admins - everyone with report/verification review
     access (see permissions/roles.py). Broadcast recipients, not a single
     user, so these tasks don't use the retry-the-whole-task pattern above:
     one bad address shouldn't cause every other moderator to get a duplicate

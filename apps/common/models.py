@@ -9,7 +9,7 @@ class SiteSettings(BaseModel):
     """Singleton row of admin-editable site branding.
 
     Separate from apps.payments.PlatformSettings, which is fee/payout
-    config — this is presentation-only and safe to expose publicly
+    config - this is presentation-only and safe to expose publicly
     (unauthenticated), since the logo/name/description show on the
     landing and auth pages before anyone signs in.
     """

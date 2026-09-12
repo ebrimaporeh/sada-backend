@@ -27,7 +27,7 @@ def error_response(message, errors=None, status_code=status.HTTP_400_BAD_REQUEST
 
 def list_enabled_gateways():
     """Which gateways are actually usable right now, and what each one
-    supports — the frontend calls this instead of hand-maintaining its own
+    supports - the frontend calls this instead of hand-maintaining its own
     copy of "which providers exist," so an admin flipping a gateway on/off
     in Settings is immediately reflected in the donation/payout UI with no
     frontend deploy needed."""
@@ -72,7 +72,7 @@ def _compute_payout_fees(amount, provider):
     platform_fee = (amount * fee_rate).quantize(Decimal('0.01'))
     pre_provider_net = (amount - platform_fee).quantize(Decimal('0.01'))
 
-    # Payouts are modempay-only for now — Stripe (card donations) has no
+    # Payouts are modempay-only for now - Stripe (card donations) has no
     # payout API to a Gambian mobile-money wallet, so there's nothing to
     # select here yet.
     provider_fee = get_gateway('modempay').check_transfer_fee(pre_provider_net, provider)
@@ -139,12 +139,12 @@ def request_payout(user, validated_data):
 
     # Our own ledger (campaign.raised) can show funds as available before
     # ModemPay has actually settled them into the pooled payout_balance
-    # wallet real disbursements draw from — check that directly so a
+    # wallet real disbursements draw from - check that directly so a
     # shortfall fails cleanly here instead of after creating a Payout row.
     # ModemPay charges its transfer fee ON TOP of the transfer amount, out
     # of this same pooled balance (confirmed against real transfer
     # responses: balance_before - balance_after == amount + fee, the
-    # beneficiary receives the full transfer amount) — so what actually
+    # beneficiary receives the full transfer amount) - so what actually
     # leaves payout_balance is net + provider_fee, i.e. pre_provider_net.
     balance = get_gateway('modempay').get_balance()
     if balance is None:
@@ -152,7 +152,7 @@ def request_payout(user, validated_data):
     payout_balance = Decimal(str(balance.get('payout_balance', 0)))
     if pre_provider_net > payout_balance:
         raise ValidationError(
-            'Withdrawal is on hold — funds are still settling with our payment provider. '
+            'Withdrawal is on hold - funds are still settling with our payment provider. '
             'Please try again shortly or contact support if this persists.'
         )
 
@@ -170,7 +170,7 @@ def request_payout(user, validated_data):
         **validated_data,
     )
 
-    # Trigger disbursement — this is async in practice; a "completed" result
+    # Trigger disbursement - this is async in practice; a "completed" result
     # here (or from DEMO_MODE) is a real terminal state, otherwise ModemPay
     # confirms for real later via the transfer.succeeded/failed webhook.
     try:
@@ -205,7 +205,7 @@ def request_payout(user, validated_data):
 
     if result is None:
         # request_disbursement() returned None only when no transfer was
-        # ever created at ModemPay (rejected outright, or the call errored) —
+        # ever created at ModemPay (rejected outright, or the call errored) -
         # there's no transfer to wait on, so this is a real terminal failure,
         # not something a webhook will ever resolve. No specific message is
         # available here (a 4xx with one goes through the ValidationError
@@ -221,7 +221,7 @@ def request_payout(user, validated_data):
         payout.status = Payout.Status.FAILED
         payout.notes = payout.notes or 'The payment provider could not process this withdrawal.'
     else:
-        # ModemPay accepted the transfer but it's still processing —
+        # ModemPay accepted the transfer but it's still processing -
         # transfer.succeeded/transfer.failed webhook resolves it for real.
         payout.provider_reference = result.get('id', '')
         payout.status = Payout.Status.PROCESSING
@@ -282,7 +282,7 @@ def get_admin_owner_payouts(owner_id):
 def _mark_payout_completed(payout, provider_reference=''):
     """Shared by the transfer.succeeded webhook and reconcile_payout_by_reference
     so both paths resolve a payout out of PROCESSING identically. Only emails
-    on the transition — the initial request already sent one if ModemPay
+    on the transition - the initial request already sent one if ModemPay
     resolved it synchronously; this covers a payout left PROCESSING that only
     resolves later.
 
@@ -290,7 +290,7 @@ def _mark_payout_completed(payout, provider_reference=''):
     (mirrors donation_service.confirm_donation_by_reference) so a redelivered
     webhook racing the reconciliation sweep for the same payout can't both
     pass the was_already_completed check and double-post the ledger
-    transaction — the loser re-checks status under the lock and finds it
+    transaction - the loser re-checks status under the lock and finds it
     already COMPLETED."""
     from apps.payments.models import Payout
     from emails.tasks import send_payout_update_email_task
@@ -344,7 +344,7 @@ def reconcile_payout_by_reference(reference):
     """Check a payout's own gateway directly for its real transfer status and
     complete/fail it if needed.
 
-    Mirrors donation_service.reconcile_donation_by_reference() — the
+    Mirrors donation_service.reconcile_donation_by_reference() - the
     transfer.succeeded/failed webhook is the primary resolution path, but this
     is the fallback for a payout stuck PROCESSING because a webhook was missed
     or delayed. Payouts are modempay-only, so this always reconciles against
@@ -382,7 +382,7 @@ def sweep_processing_payouts(older_than_minutes=30, limit=50):
     apps/payments/tasks.py) as the safety net for missed/delayed webhooks.
 
     Payouts get a longer staleness window than donations
-    (donation_service.sweep_pending_donations) — a mobile-money transfer
+    (donation_service.sweep_pending_donations) - a mobile-money transfer
     settling can legitimately take longer than a donor completing checkout.
     `limit` caps how many payouts one sweep run touches, so a large backlog
     is worked off over several runs instead of one run making `limit`
@@ -414,24 +414,24 @@ def sweep_processing_payouts(older_than_minutes=30, limit=50):
 
 def handle_webhook(gateway_code, payload, headers):
     """Verify and process an incoming webhook from any gateway: confirm/fail
-    a donation or payout. Gateway-agnostic — dispatches on the normalized
+    a donation or payout. Gateway-agnostic - dispatches on the normalized
     GatewayEvent each gateway's own verify_webhook() produces, never on that
     gateway's raw event-name vocabulary, so adding a gateway here means
     adding a class in services/gateways/, not a new branch in this function.
 
-    `payload` is the raw request body (bytes) — not request.data — since
+    `payload` is the raw request body (bytes) - not request.data - since
     signature verification is computed over the exact bytes a gateway sent;
     `headers` is the request's header mapping, used to read whichever header
     the resolved gateway's signature actually arrives in. Returns True if the
     signature was valid and the event was handled or safely ignored (unknown
-    event types are acknowledged, not treated as errors) — False for an
+    event types are acknowledged, not treated as errors) - False for an
     unknown/disabled gateway code, an invalid signature, or a referenced
     donation/payout we can't find.
 
     Deduplicated via apps.payments.models.WebhookEvent, keyed on
-    (gateway_code, event.event_id) — a redelivered event (network retry, or
+    (gateway_code, event.event_id) - a redelivered event (network retry, or
     a gateway that just sends the same event twice) is acknowledged without
-    being dispatched again. An event with no id (shouldn't happen — every
+    being dispatched again. An event with no id (shouldn't happen - every
     gateway's _normalize_event sets one) skips dedup rather than blocking
     processing, matching this function's existing behavior before
     WebhookEvent existed.
@@ -453,7 +453,7 @@ def handle_webhook(gateway_code, payload, headers):
         return _dispatch_webhook_event(gateway, event)
 
     try:
-        # Own atomic block (a savepoint, if we're already inside one) —
+        # Own atomic block (a savepoint, if we're already inside one) -
         # an IntegrityError from the unique constraint below must only
         # roll back this insert attempt, not poison whatever transaction
         # the caller (or Django's test client) is running in.
@@ -484,7 +484,7 @@ def handle_webhook(gateway_code, payload, headers):
 
 def _dispatch_webhook_event(gateway, event):
     """The actual per-event-type handling handle_webhook() wraps with
-    delivery dedup — split out so a WebhookEvent row always gets a final
+    delivery dedup - split out so a WebhookEvent row always gets a final
     status without the dedup bookkeeping above being duplicated per branch."""
     if event.type == GatewayEventType.DONATION_SUCCEEDED:
         from services.donation_service import confirm_donation_by_reference
@@ -517,5 +517,5 @@ def _dispatch_webhook_event(gateway, event):
         return True
 
     # GatewayEventType.UNHANDLED (customer.*, payment_intent.*, charge.created,
-    # ...) — acknowledge receipt, nothing for us to do.
+    # ...) - acknowledge receipt, nothing for us to do.
     return True

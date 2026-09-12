@@ -1,4 +1,4 @@
-# Backend — AI Operating Instructions
+# Backend - AI Operating Instructions
 
 ## Stack
 
@@ -9,9 +9,9 @@
 
 ## Entry Points
 
-- `manage.py` — Django management (runserver, migrate, etc.)
-- `config/urls.py` — Root URL configuration
-- `settings/` — Split settings (base / development / production / testing)
+- `manage.py` - Django management (runserver, migrate, etc.)
+- `config/urls.py` - Root URL configuration
+- `settings/` - Split settings (base / development / production / testing)
 
 ## Key Patterns
 
@@ -22,7 +22,7 @@
 5. **Permissions**: Use `permissions/base.py` classes. Always set `permission_classes` on every view.
 6. **Pagination**: Use `pagination.base.StandardResultsPagination` globally (already configured in DRF settings).
 7. **Error responses**: Use `utils/exceptions.py` custom handler (already wired in DRF settings).
-8. **Emails**: Go through `emails/service.py` — never use `send_mail` directly in views.
+8. **Emails**: Go through `emails/service.py` - never use `send_mail` directly in views.
 
 ## Commands
 

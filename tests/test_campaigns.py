@@ -664,7 +664,7 @@ class CampaignLifecycleSweepTest(APITestCase):
 
     def test_close_funded_campaigns_does_not_duplicate_goal_reached_notification(self):
         """donation_service._confirm_donation already sends GOAL_REACHED in
-        real time when a donation pushes raised over goal — the sweep only
+        real time when a donation pushes raised over goal - the sweep only
         records the status transition, it must not re-notify."""
         campaign = make_campaign(goal=Decimal('1000.00'), raised=Decimal('1000.00'))
 

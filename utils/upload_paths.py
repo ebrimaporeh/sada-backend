@@ -4,8 +4,8 @@ Keeps uploads organized by owner/slug and timestamped to the microsecond,
 instead of Django's default flat "upload_to/original-filename.ext" (which
 gives no browsable structure and silently suffixes colliding filenames).
 Microsecond precision matters here specifically because several of these
-fields are uploaded in pairs or batches in the same request — verification
-front/back photos, campaign gallery images — where second-level timestamps
+fields are uploaded in pairs or batches in the same request - verification
+front/back photos, campaign gallery images - where second-level timestamps
 could collide.
 """
 from django.utils import timezone

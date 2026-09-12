@@ -1,13 +1,13 @@
 """Compresses and standardizes uploaded images to WebP.
 
 The frontend already compresses images before upload (see
-src/utils/imageCompression.js) — this exists as the backend half of
+src/utils/imageCompression.js) - this exists as the backend half of
 that system, not a duplicate of it: it re-validates rather than always
 redoing the heavy lifting, but guarantees every image stored ends up
 WebP and within its profile's size bounds regardless of what actually
 uploaded it (a client that skipped the JS step, a direct API call, a
 future mobile app). "Already compressed" is a byte-size-per-megapixel
-heuristic — genuinely compressed photos land well under this; a raw
+heuristic - genuinely compressed photos land well under this; a raw
 camera photo or a source PNG sit far above it.
 """
 import io
@@ -17,7 +17,7 @@ from django.core.files.base import ContentFile
 # (max_dimension, quality-if-recompressing) per upload purpose. Avatars get
 # a larger dimension and higher quality than other "utility" images
 # specifically because the fundraisers masonry grid displays them large as
-# the tile's main content, not just as a small nav-bar icon — a size/quality
+# the tile's main content, not just as a small nav-bar icon - a size/quality
 # tuned for a 32px avatar chip would look visibly soft blown up that large.
 PROFILES = {
     'avatar':           {'max_dimension': 1600, 'quality': 90},
@@ -54,7 +54,7 @@ def process_image(uploaded_file, profile: str = DEFAULT_PROFILE) -> ContentFile:
     """Returns a WebP-encoded ContentFile for `uploaded_file`.
 
     If the file already looks sufficiently compressed, only the format
-    changes (no resize, near-lossless quality) — the frontend already
+    changes (no resize, near-lossless quality) - the frontend already
     sized it appropriately. Otherwise it's resized to the profile's max
     dimension and encoded at the profile's quality, same as if the
     frontend compression step had run.

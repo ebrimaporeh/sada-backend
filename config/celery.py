@@ -6,14 +6,14 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'settings.production')
 
 app = Celery('sada')
 app.config_from_object('django.conf:settings', namespace='CELERY')
-# autodiscover_tasks() with no args only scans INSTALLED_APPS for tasks.py —
+# autodiscover_tasks() with no args only scans INSTALLED_APPS for tasks.py -
 # `emails` holds tasks.py but isn't (and doesn't need to be) a registered
 # Django app, so it has to be named explicitly here too.
 app.autodiscover_tasks()
 app.autodiscover_tasks(packages=['emails'])
 
 # Reconciliation safety net for donations/payouts stuck PENDING/PROCESSING
-# because a gateway webhook was missed or delayed — requires a
+# because a gateway webhook was missed or delayed - requires a
 # `celery -A config beat` process running alongside the worker.
 app.conf.beat_schedule = {
     'sweep-pending-donations': {
@@ -25,7 +25,7 @@ app.conf.beat_schedule = {
         'schedule': crontab(minute='*/5'),
     },
     # Campaign lifecycle: closes out fully-funded campaigns and expires ones
-    # past their deadline (see apps/campaigns/tasks.py) — hourly rather than
+    # past their deadline (see apps/campaigns/tasks.py) - hourly rather than
     # every 5 minutes since deadline is day-granularity, not gateway-webhook
     # latency, and goal-reached campaigns already notify their owner in real
     # time from the donation that funded them.

@@ -19,7 +19,7 @@ def get_client():
 # re-enter what SADA's own donation form already collected). Confirmed
 # against the real API: 'aps' is NOT accepted here (payment_intents.create
 # 400s with "Network 'aps' is not allowed for this payment intent.") even
-# though it's a valid donation provider — every APS donation was failing
+# though it's a valid donation provider - every APS donation was failing
 # with this until 'aps' was removed. APS donors just get ModemPay's generic
 # hosted checkout (no network/account_number prefill) instead of Direct
 # Charge; they still pick/confirm APS there.
@@ -65,14 +65,14 @@ def create_payment_intent(donation, return_url='', cancel_url=''):
     only caller, for how this propagates into the actual API response.
     """
     params = {
-        # ModemPay's amount field is an integer (whole GMD) — fractional
+        # ModemPay's amount field is an integer (whole GMD) - fractional
         # amounts aren't representable in a single charge.
         'amount': int(donation.amount),
         'currency': donation.currency or 'GMD',
         'title': f'Donation to {donation.destination_title}',
         'customer_name': donation.donor_display,
         'customer_phone': donation.phone,
-        # This is how we match the async webhook back to this donation —
+        # This is how we match the async webhook back to this donation -
         # authoritative, unlike guessing from the provider's own id fields.
         'metadata': {'donation_reference': donation.payment_reference},
     }
@@ -113,7 +113,7 @@ def create_payment_intent(donation, return_url='', cancel_url=''):
 def retrieve_payment_intent(intent_secret):
     """Fetch a payment intent's current status directly from ModemPay.
 
-    Used to reconcile a donation when the webhook hasn't arrived — e.g. local
+    Used to reconcile a donation when the webhook hasn't arrived - e.g. local
     dev where ModemPay can't reach localhost at all, or as a safety net if a
     webhook is ever missed/delayed in production. Returns the raw PaymentIntent
     dict (has a top-level 'status': initialized/processing/requires_payment_method/
@@ -130,12 +130,12 @@ def retrieve_payment_intent(intent_secret):
 
 def get_balance():
     """Fetch current ModemPay balances. `payout_balance` is what actually
-    funds real disbursements — Campaign.raised in our own DB can show funds
+    funds real disbursements - Campaign.raised in our own DB can show funds
     as available before ModemPay has settled them into this pooled wallet.
 
-    Returns {'available_balance': ..., 'payout_balance': ...} — an
+    Returns {'available_balance': ..., 'payout_balance': ...} - an
     effectively-infinite payout_balance in DEMO_MODE since there's no real
-    wallet to check — or None if the check itself failed.
+    wallet to check - or None if the check itself failed.
     """
     if getattr(settings, 'DEMO_MODE', False):
         return {'available_balance': float('inf'), 'payout_balance': float('inf')}
@@ -159,7 +159,7 @@ def verify_and_parse_webhook(payload, signature, secret=None):
 
 
 # ModemPay's own payout docs (confirmed 2026-08) list wave/afrimoney as
-# valid transfer networks — aps isn't among them and isn't confirmed to work
+# valid transfer networks - aps isn't among them and isn't confirmed to work
 # for payouts (only verified as a donation/charge method so far). Revisit
 # this once aps-for-payouts is confirmed with ModemPay.
 SUPPORTED_PAYOUT_NETWORKS = {'wave', 'afrimoney'}
@@ -170,7 +170,7 @@ def check_transfer_fee(amount, network, currency='GMD'):
     /v1/transfers/fees, so the campaign owner is charged the network's
     actual cost instead of us guessing a flat percentage.
 
-    Returns the fee as a Decimal, or None if it couldn't be determined —
+    Returns the fee as a Decimal, or None if it couldn't be determined -
     callers should treat that as a hard stop (real money moving) rather
     than falling back to a guessed value.
     """
@@ -190,23 +190,23 @@ def check_transfer_fee(amount, network, currency='GMD'):
 def request_disbursement(reference, net_amount, phone, provider, beneficiary_name, currency='GMD'):
     """Trigger a payout transfer of `net_amount` to a mobile money number.
 
-    `net_amount` is the amount the beneficiary actually receives — the
+    `net_amount` is the amount the beneficiary actually receives - the
     caller has already deducted both the platform fee and ModemPay's own
     transfer fee (via check_transfer_fee) from the requested amount, so
     this function doesn't recompute either.
 
     Returns None on a generic/transient failure (including an unsupported
-    network — caller should really validate this before creating the
+    network - caller should really validate this before creating the
     Payout row, but we guard here too since this is where real money would
     move), or a dict with a real ModemPay `status` (pending/completed/...)
     when the transfer was accepted. Caller decides COMPLETED vs PROCESSING
-    from `result['status']` — transfers are asynchronous and confirmed for
+    from `result['status']` - transfers are asynchronous and confirmed for
     real via the `transfer.succeeded` webhook, this call only starts them.
 
     Raises django.core.exceptions.ValidationError instead, with ModemPay's
     own message (filtered through _safe_message -- see there), when the
     rejection is a 4xx the campaign owner can act on (e.g. an amount over
-    ModemPay's transfer limit) — same split as create_payment_intent, and
+    ModemPay's transfer limit) - same split as create_payment_intent, and
     for the same reason: without it, every such rejection looked identical
     to a real gateway outage. See payment_service.request_payout, the only
     caller.
@@ -249,7 +249,7 @@ def request_disbursement(reference, net_amount, phone, provider, beneficiary_nam
 
 
 def retrieve_transfer(transfer_id):
-    """Fetch a transfer's current status directly from ModemPay — used to
+    """Fetch a transfer's current status directly from ModemPay - used to
     reconcile a payout stuck PROCESSING when the transfer.succeeded/failed
     webhook is missed or delayed. Returns the raw Transfer dict (status:
     pending/completed/failed/cancelled), or None on failure."""
@@ -296,7 +296,7 @@ def find_transaction_by_donation_reference(payment_reference):
 
 def reverse_transaction(reference):
     """Refund a ModemPay donation via /v1/transactions/refund. `reference`
-    is the transaction's own id — the same id ModemPay sends in the
+    is the transaction's own id - the same id ModemPay sends in the
     charge.succeeded webhook payload and that confirm_donation_by_reference
     stores as donation.provider_reference. Returns the SDK's parsed
     Transaction dict on success, or None on failure."""
@@ -322,7 +322,7 @@ def _local_phone(phone):
 
 def _build_webhook_url():
     """Returns the webhook callback URL, or '' if none is configured for a
-    public backend (BACKEND_URL unset — the common case in local dev)."""
+    public backend (BACKEND_URL unset - the common case in local dev)."""
     backend_url = getattr(settings, 'BACKEND_URL', '')
     if not backend_url:
         return ''

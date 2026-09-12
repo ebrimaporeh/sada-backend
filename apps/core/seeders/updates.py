@@ -10,7 +10,7 @@ def _build_updates_data(campaigns, users):
             campaign=campaigns.get('help-fatou-get-kidney-surgery'),
             posted_by=users.get('omar.jallow@example.gm'),
             title='Update from the doctors',
-            content="The medical team has reviewed Fatou's case in detail. They are optimistic about the outcome of the surgery. Please continue to share this campaign — we need to reach D150,000 before the surgery date.",
+            content="The medical team has reviewed Fatou's case in detail. They are optimistic about the outcome of the surgery. Please continue to share this campaign - we need to reach D150,000 before the surgery date.",
         ),
         dict(
             campaign=campaigns.get('brikama-school-building-project'),
@@ -28,7 +28,7 @@ def _build_updates_data(campaigns, users):
             campaign=campaigns.get('flood-relief-basse-2026'),
             posted_by=users.get('isatou.ceesay@example.gm'),
             title='First relief convoy dispatched',
-            content='We have dispatched the first convoy of relief supplies to Basse — 500 food packages, 150 shelter tents, and 2,000 litres of clean water. Thank you for making this possible.',
+            content='We have dispatched the first convoy of relief supplies to Basse - 500 food packages, 150 shelter tents, and 2,000 litres of clean water. Thank you for making this possible.',
         ),
         dict(
             campaign=campaigns.get('girls-scholarship-fund-gambia'),

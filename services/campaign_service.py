@@ -48,7 +48,7 @@ def get_public_campaigns(filters=None):
         if filters.get('urgent'):
             qs = qs.filter(is_urgent=True)
         if filters.get('owner'):
-            # is_anonymous=False here too — an anonymous campaign must never
+            # is_anonymous=False here too - an anonymous campaign must never
             # be reachable via its owner's id, or that defeats the whole
             # point of the campaign's own anonymity setting.
             qs = qs.filter(owner_id=filters['owner'], is_anonymous=False)
@@ -139,12 +139,12 @@ def get_campaign_by_slug(slug):
 def record_view(slug):
     """Increment views_count for a publicly-visible campaign by slug, and
     return it (or None for an unknown/non-public slug) so the caller can
-    fire a campaign_viewed analytics event alongside — see
+    fire a campaign_viewed analytics event alongside - see
     apps.events.models.Event. This is a product-engagement signal, not an
     admin-worthy action, so it deliberately never touches apps.audit.
 
     Called explicitly by the frontend when the public campaign detail page
-    is actually viewed — kept separate from CampaignDetailView's GET so
+    is actually viewed - kept separate from CampaignDetailView's GET so
     other pages that happen to reuse the same campaign-fetch hook (donate,
     donate-success) don't inflate the count as a side effect of fetching data.
     Silently no-ops for an unknown/non-public slug rather than raising, since
@@ -498,7 +498,7 @@ def get_all_campaigns(params=None):
 
 
 def get_public_platform_stats():
-    """Real trust-badge stats for the public homepage — no fabricated numbers."""
+    """Real trust-badge stats for the public homepage - no fabricated numbers."""
     from django.utils import timezone
     from datetime import timedelta
     from apps.campaigns.models import Campaign

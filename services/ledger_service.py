@@ -39,7 +39,7 @@ def platform_clearing_account(gateway_code):
     return get_or_create_account(
         Account.Type.PLATFORM_CLEARING,
         code=f'platform_clearing:{gateway_code}',
-        name=f'Platform Clearing — {gateway_code}',
+        name=f'Platform Clearing - {gateway_code}',
     )
 
 
@@ -58,7 +58,7 @@ def campaign_account(campaign):
         code=f'campaign:{campaign.id}',
         owner_type='campaign',
         owner_id=str(campaign.id),
-        name=f'Campaign — {campaign.title}',
+        name=f'Campaign - {campaign.title}',
     )
 
 
@@ -73,7 +73,7 @@ def organization_account(organization):
         code=f'organization:{organization.id}',
         owner_type='organization',
         owner_id=str(organization.id),
-        name=f'Organization — {organization.organization_name}',
+        name=f'Organization - {organization.organization_name}',
     )
 
 
@@ -92,7 +92,7 @@ def suspense_account():
     """Where a manual/admin correction lands when there's no real gateway
     cash movement behind it -- its balance is meant to trend toward zero;
     a nonzero balance is a legible signal that something needs review."""
-    return get_or_create_account(Account.Type.SUSPENSE, code='suspense', name='Suspense — Manual Adjustments')
+    return get_or_create_account(Account.Type.SUSPENSE, code='suspense', name='Suspense - Manual Adjustments')
 
 
 def post_transaction(entry_type, description, lines, *, source=None, reverses=None,

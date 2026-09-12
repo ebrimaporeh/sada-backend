@@ -72,7 +72,7 @@ class AdminRolePermissionsListView(APIView):
 
 
 class AdminRolePermissionsUpdateView(APIView):
-    """Admin-editable at runtime — replaces a role's Group permissions
+    """Admin-editable at runtime - replaces a role's Group permissions
     wholesale with whatever set the request sends, taking effect
     immediately for every user holding that role (no deploy, no restart).
     DELETE removes the role entirely, refused while any staff member still

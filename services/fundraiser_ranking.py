@@ -19,7 +19,7 @@ ACTIVITY_WINDOW_DAYS = 30
 
 
 def annotate_activity(queryset, public_campaign_statuses):
-    """Adds `recent_donation_count` to `queryset` (a User queryset) — the
+    """Adds `recent_donation_count` to `queryset` (a User queryset) - the
     number of paid donations across the user's public campaigns within
     the last ACTIVITY_WINDOW_DAYS days.
 
@@ -54,6 +54,6 @@ def annotate_activity(queryset, public_campaign_statuses):
 
 def order_by_activity(queryset):
     """Most active fundraisers first. Ties broken by total public campaign
-    count, then lifetime raised, then newest — same stable tiebreakers the
+    count, then lifetime raised, then newest - same stable tiebreakers the
     directory used before activity ranking existed."""
     return queryset.order_by('-recent_donation_count', '-campaign_count', '-total_raised', '-created_at')

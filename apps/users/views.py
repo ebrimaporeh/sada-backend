@@ -107,7 +107,7 @@ class AdminOrganizationLogoUploadView(APIView):
     responses={200: PublicFundraiserSerializer(many=True)},
 )
 class PublicFundraiserListView(generics.ListAPIView):
-    """Anyone with at least one public, non-anonymous campaign — the
+    """Anyone with at least one public, non-anonymous campaign - the
     browsable directory. No auth required, nothing sensitive returned."""
     serializer_class = PublicFundraiserSerializer
     permission_classes = [AllowAny]
@@ -178,7 +178,7 @@ class AdminUserCreateView(APIView):
         )
         out = AdminUserSerializer(user, context={'request': request})
         return Response(
-            {'success': True, 'message': "Staff account created — they'll receive an email to set their password.", 'data': {'user': out.data}},
+            {'success': True, 'message': "Staff account created - they'll receive an email to set their password.", 'data': {'user': out.data}},
             status=status.HTTP_201_CREATED,
         )
 
@@ -214,7 +214,7 @@ class UserStatsView(generics.GenericAPIView):
 def _user_detail_resource(request, obj):
     """One endpoint serves both regular users and staff (same `User` model),
     so which resource applies depends on the *target* row, not just the
-    HTTP method — a staff target needs the staff_* resources, a regular
+    HTTP method - a staff target needs the staff_* resources, a regular
     user needs the users_* ones."""
     is_staff_target = user_service.is_staff_role(obj.role)
     if request.method == 'GET':
@@ -393,10 +393,10 @@ class AdminOrganizationVerificationActionView(APIView):
 
 @extend_schema(tags=['Verification'], summary='Request a change to a recovery-critical organization field')
 class OrganizationChangeRequestSubmitView(APIView):
-    """Phone/phone_2/recovery emails are never editable directly — see
+    """Phone/phone_2/recovery emails are never editable directly - see
     OrganizationChangeRequest's docstring for why. Phone changes queue for
     admin approval; recovery-email changes instead get confirmed by the
-    proposed address itself (see ConfirmRecoveryEmailChangeView) — either
+    proposed address itself (see ConfirmRecoveryEmailChangeView) - either
     way nothing is applied until this resolves."""
     permission_classes = [IsAuthenticated]
 
@@ -421,7 +421,7 @@ class OrganizationChangeRequestSubmitView(APIView):
 
 @extend_schema(tags=['Verification'], summary="Confirm a proposed recovery email by the token sent to it")
 class ConfirmRecoveryEmailChangeView(APIView):
-    """Public — the person clicking this link is proving control of the
+    """Public - the person clicking this link is proving control of the
     *proposed* recovery email's inbox, not necessarily logged into SADA at
     all (they may not even be a SADA user)."""
     permission_classes = [AllowAny]

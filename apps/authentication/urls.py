@@ -13,7 +13,7 @@ urlpatterns = [
     # same URL (config/urls.py includes that package's urls at
     # api/v1/auth/password-reset/) so organizations' recovery emails work
     # too. This resolves first because config/urls.py includes
-    # apps.authentication.urls (this file) BEFORE the package's own include —
+    # apps.authentication.urls (this file) BEFORE the package's own include -
     # Django tries urlpatterns in list order, so an exact-path match here
     # wins and the request never reaches the package's "" route. The
     # package's confirm/ and validate_token/ sub-paths are untouched and

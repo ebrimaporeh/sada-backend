@@ -31,7 +31,7 @@ def get_date_range(start_date_str=None, end_date_str=None):
 def get_dashboard_stats(start_date_str=None, end_date_str=None):
     """Get the dashboard's top-line "Total X" stat cards.
 
-    These are all-time cumulative totals, not scoped to the selected date range —
+    These are all-time cumulative totals, not scoped to the selected date range -
     the range only drives the charts below (donations-by-day, top campaigns/donors,
     recent donations). Campaigns in particular are created far less often than
     donations come in, so date-filtering "Total Campaigns" made it read 0 under the
@@ -126,7 +126,7 @@ def get_campaign_status_distribution(start_date_str=None, end_date_str=None):
     Not scoped to the dashboard's date range on purpose: status is a live property
     of a campaign (it can change long after creation), not an event that happened
     within the selected period, so filtering by created_at made this chart go empty
-    whenever no campaigns happened to be *created* in the last 7 days — even though
+    whenever no campaigns happened to be *created* in the last 7 days - even though
     plenty existed and had a status worth showing.
     """
     campaigns = Campaign.objects.values('status').annotate(
@@ -146,8 +146,8 @@ def get_top_campaigns(start_date_str=None, end_date_str=None, limit=5):
     """Get top campaigns by amount raised (all-time ranking).
 
     `raised` is a lifetime running total on the campaign, not something that
-    happens within a date window, so — same reasoning as the status distribution
-    and top-line stats — this isn't scoped to the dashboard's selected period.
+    happens within a date window, so - same reasoning as the status distribution
+    and top-line stats - this isn't scoped to the dashboard's selected period.
     """
     campaigns = Campaign.objects.order_by('-raised')[:limit]
 
@@ -253,7 +253,7 @@ def get_finance_summary(period=None, start_date_str=None, end_date_str=None, top
     )
 
     # Rank by donation revenue actually received *during this period*, not by
-    # when the campaign was created — a campaign created long before the
+    # when the campaign was created - a campaign created long before the
     # window can still be the top performer within it, and one created inside
     # the window but filtering on created_at was hiding every older campaign
     # (this is what made the widget show "No campaigns for this period" even

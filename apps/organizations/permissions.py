@@ -1,10 +1,10 @@
 """The fixed vocabulary of org-scoped permissions an OrganizationRole can
-grant — mirrors permissions/roles.py::Resource's role as a small, static
+grant - mirrors permissions/roles.py::Resource's role as a small, static
 list validated against at role-save time, not a Django Permission/Group
 row (those are global; a role here only ever applies within one org).
 
 Adding a new permission is a code change here, same cost/shape as adding a
-new Resource for the platform RBAC system — deliberately not a DB-editable
+new Resource for the platform RBAC system - deliberately not a DB-editable
 catalog, since this is meant to stay "basic" per the launch-phase brief.
 """
 from django.db import models

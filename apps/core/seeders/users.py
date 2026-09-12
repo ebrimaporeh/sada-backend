@@ -10,7 +10,7 @@ USERS_DATA = [
         phone='+220 9000000', region='banjul',
         bio='Platform administrator.',
     ),
-    # Demo / main user — matches DEMO_USER in mockData.js
+    # Demo / main user - matches DEMO_USER in mockData.js
     dict(
         email='ousman@sada.gm', password='User@1234',
         first_name='Ousman', last_name='Camara',

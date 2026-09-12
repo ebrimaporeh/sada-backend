@@ -36,7 +36,7 @@ def make_campaign(**kwargs):
 
 def set_platform_settings(**kwargs):
     """Gateway enable/disable and Stripe currency/rate are DB-backed
-    PlatformSettings fields now, not env/settings.py — tests toggle them
+    PlatformSettings fields now, not env/settings.py - tests toggle them
     here instead of Django's self.settings() override."""
     obj = PlatformSettings.get_solo()
     for key, value in kwargs.items():
@@ -80,7 +80,7 @@ class GatewayRegistryTest(APITestCase):
             self.assertFalse(gateway.requires_phone)
 
     def test_stripe_disabled_by_default(self):
-        # stripe_enabled defaults to False on a fresh PlatformSettings row —
+        # stripe_enabled defaults to False on a fresh PlatformSettings row -
         # a deploy shouldn't accidentally expose Stripe just because keys
         # happen to be configured in the environment.
         with self.assertRaises(ValidationError):
@@ -88,7 +88,7 @@ class GatewayRegistryTest(APITestCase):
 
     def test_gmd_to_minor_units_conversion_uses_admin_rate(self):
         # The bug this guards against: a D100 donation must NOT become
-        # $100 (or worse) — it must convert through the admin-configured
+        # $100 (or worse) - it must convert through the admin-configured
         # exchange rate first. At the default rate (70 GMD = 1 USD), D100
         # is ~$1.43, i.e. 143 cents, not 10000.
         set_platform_settings(stripe_enabled=True, gmd_to_settlement_rate=Decimal('70.0000'))
@@ -133,7 +133,7 @@ class GatewayRegistryTest(APITestCase):
 
 class GatewayListViewTest(APITestCase):
     """The frontend builds its provider picker from GET /payments/gateways/
-    instead of a hardcoded constant — this pins that contract."""
+    instead of a hardcoded constant - this pins that contract."""
 
     def test_lists_only_enabled_gateways(self):
         response = self.client.get('/api/v1/payments/gateways/')
@@ -622,12 +622,12 @@ class DonationWebhookGatewayTest(APITestCase):
 
     def test_literal_modempay_path_still_resolves(self):
         # The dashboard-registered webhook URL never changes even though the
-        # route is now generic — this pins the exact path, not just the name.
+        # route is now generic - this pins the exact path, not just the name.
         self.assertEqual(self.url, '/api/v1/payments/webhook/modempay/')
 
 
 class StripeWebhookGatewayTest(APITestCase):
-    """Mirrors DonationWebhookGatewayTest for the Stripe gateway — exercises
+    """Mirrors DonationWebhookGatewayTest for the Stripe gateway - exercises
     the same view -> handle_webhook -> registry -> StripeGateway.verify_webhook
     -> _normalize_event -> donation_service chain, mocking only the SDK
     boundary (stripe_service.verify_and_parse_webhook)."""
@@ -703,7 +703,7 @@ class StripeWebhookGatewayTest(APITestCase):
 
     def _real_signed_event(self, secret, event_type, session_object):
         """Builds a schema-complete Stripe Event payload and signs it with
-        the real v1 HMAC-SHA256 scheme construct_event() verifies — this
+        the real v1 HMAC-SHA256 scheme construct_event() verifies - this
         test doesn't mock stripe_service at all, so it exercises the actual
         cryptographic check, not just the dispatch logic around it."""
         import time, hmac, hashlib, json
@@ -724,7 +724,7 @@ class StripeWebhookGatewayTest(APITestCase):
         return payload, f't={timestamp},v1={signature}'
 
     def test_real_signature_verification_confirms_donation(self):
-        # No mocking of stripe_service — this is the actual construct_event()
+        # No mocking of stripe_service - this is the actual construct_event()
         # HMAC-SHA256 check running against a self-signed synthetic payload.
         webhook_secret = 'whsec_real_test_secret'
         payload, sig_header = self._real_signed_event(webhook_secret, 'checkout.session.completed', {
@@ -770,7 +770,7 @@ class StripeWebhookGatewayTest(APITestCase):
 
 class ReconcileDonationGatewayTest(APITestCase):
     """donation_service.reconcile_donation_by_reference is the fallback path
-    (webhook missed/delayed, or unreachable in local dev) — exercises it
+    (webhook missed/delayed, or unreachable in local dev) - exercises it
     against both gateways' own status vocabulary via intent_status()."""
 
     def setUp(self):
@@ -839,7 +839,7 @@ class ReconcileDonationGatewayTest(APITestCase):
 
 class RefundDonationGatewayTest(APITestCase):
     """donation_service.refund_donation is the admin-triggered refund
-    execution path — validates PAID-only, calls the gateway's own
+    execution path - validates PAID-only, calls the gateway's own
     refund_donation(), and unwinds campaign.raised/donors_count the same
     way _confirm_donation incremented them."""
 
@@ -909,7 +909,7 @@ class RefundDonationGatewayTest(APITestCase):
 class ReconcilePayoutGatewayTest(APITestCase):
     """payment_service.reconcile_payout_by_reference is the fallback path for
     a payout stuck PROCESSING when ModemPay's transfer.succeeded/failed
-    webhook is missed or delayed — mirrors ReconcileDonationGatewayTest."""
+    webhook is missed or delayed - mirrors ReconcileDonationGatewayTest."""
 
     def setUp(self):
         self.campaign = make_campaign()
@@ -975,7 +975,7 @@ class AdminDonationRefundViewTest(APITestCase):
 
 
 class GatewayWebhookRoutingTest(APITestCase):
-    """The route itself is generic (/payments/webhook/<gateway_code>/) —
+    """The route itself is generic (/payments/webhook/<gateway_code>/) -
     these don't touch ModemPay at all, just the URL/dispatch layer."""
 
     def test_unknown_gateway_code_returns_400_not_500(self):
@@ -1137,7 +1137,7 @@ class WebhookIdempotencyTest(APITestCase):
 
 class SweepReconciliationTest(APITestCase):
     """donation_service.sweep_pending_donations / payment_service.sweep_processing_payouts
-    are the periodic (Celery Beat) safety net — these test the query/loop
+    are the periodic (Celery Beat) safety net - these test the query/loop
     wrapper only (staleness cutoff, limit, skips fresh records); the actual
     per-record reconciliation is covered by ReconcileDonationGatewayTest /
     ReconcilePayoutGatewayTest above."""
@@ -1218,7 +1218,7 @@ class SweepReconciliationTest(APITestCase):
 
 class RequestPayoutGatewayTest(APITestCase):
     """Mocks the SDK boundary directly (not DEMO_MODE, which is read from
-    the real .env at import time and isn't test-isolated) — proving
+    the real .env at import time and isn't test-isolated) - proving
     request_payout's money-math path still produces the same outcome when
     routed through get_gateway('modempay') instead of calling
     modempay_service directly."""
@@ -1474,7 +1474,7 @@ class PayoutFeePreviewSerializerTest(APITestCase):
         response = self.client.get(
             '/api/v1/payments/payouts/fee-preview/', {'amount': '100', 'provider': 'aps'},
         )
-        # Unauthenticated request is rejected before validation runs — this
+        # Unauthenticated request is rejected before validation runs - this
         # just confirms the endpoint exists and doesn't 500; the actual
         # provider-choice rejection is exercised via the serializer test below.
         self.assertIn(response.status_code, (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN))
@@ -1492,7 +1492,7 @@ class PayoutFeePreviewSerializerTest(APITestCase):
 
 
 class PlatformSettingsGatewayAdminTest(APITestCase):
-    """Admin control over gateways — the whole point of moving enabled
+    """Admin control over gateways - the whole point of moving enabled
     flags out of env vars and into this DB-backed, PATCH-able model."""
 
     def test_admin_can_enable_stripe(self):
@@ -1676,7 +1676,7 @@ class DonationLimitsAreAdminConfigurableTest(APITestCase):
 
 class PublicCampaignDonorSortTest(APITestCase):
     """The public campaign page's donors tab sorts by latest (default) or
-    highest amount — see donation_service.DONOR_SORT_OPTIONS."""
+    highest amount - see donation_service.DONOR_SORT_OPTIONS."""
 
     def setUp(self):
         self.campaign = make_campaign()

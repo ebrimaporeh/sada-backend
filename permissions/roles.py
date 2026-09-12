@@ -122,11 +122,11 @@ SHORT_ACTION_LABELS = {
 ALL_RESOURCES = set(RESOURCE_LABELS)
 
 # The first resource in each managed role's set that has a dedicated admin
-# page, in priority order — used by the frontend to decide where to land a
+# page, in priority order - used by the frontend to decide where to land a
 # non-admin admin role after login instead of the (admin-only) dashboard,
 # and as the redirect target when a route's resource check fails. Computed
 # against the role's *current* resources (not a hardcoded per-role route)
-# since those can change at runtime — see landingRouteForResources on the
+# since those can change at runtime - see landingRouteForResources on the
 # frontend, which walks this same list.
 LANDING_RESOURCE_PRIORITY = (
     Resource.DASHBOARD_VIEW,
@@ -151,7 +151,7 @@ def _group_for_role(slug):
 
 def get_managed_role_slugs() -> set:
     """Every runtime-editable role's slug, read straight from the `Role`
-    table — the live, admin-editable catalog, not a hardcoded tuple. Not
+    table - the live, admin-editable catalog, not a hardcoded tuple. Not
     cached at import time since the whole point is that new rows can
     appear at any moment without a deploy."""
     from apps.rbac.models import Role
@@ -167,7 +167,7 @@ def get_managed_roles_with_labels() -> list:
 
 def get_role_resources(slug) -> set:
     """Current resource set for a managed role, read straight from its
-    Group's permissions — the live, admin-editable truth, not a hardcoded
+    Group's permissions - the live, admin-editable truth, not a hardcoded
     map. Returns an empty set for anything that isn't a managed role."""
     if slug not in get_managed_role_slugs():
         return set()
@@ -182,7 +182,7 @@ def get_role_resources(slug) -> set:
 def set_role_resources(slug, resources) -> set:
     """Admin-editable: replace a managed role's Group permissions wholesale
     with `resources` (an iterable of Resource keys). Silently drops any
-    key that isn't a real resource rather than erroring — a stale/typo'd
+    key that isn't a real resource rather than erroring - a stale/typo'd
     key in the request shouldn't block updating the valid ones."""
     from django.contrib.auth.models import Permission
     if slug not in get_managed_role_slugs():
@@ -195,7 +195,7 @@ def set_role_resources(slug, resources) -> set:
 
 
 def create_role(name: str, resources=None):
-    """Create a brand-new staff role — a `Role` row plus its backing Group,
+    """Create a brand-new staff role - a `Role` row plus its backing Group,
     optionally pre-granted `resources`. `slug` is derived from `name` and
     de-duplicated (name collisions append -2, -3, ...) rather than erroring,
     since the display name is what the admin actually cares about."""
@@ -221,7 +221,7 @@ def create_role(name: str, resources=None):
 
 
 def delete_role(slug: str) -> None:
-    """Refuses to delete a role that any user still holds — demoting staff
+    """Refuses to delete a role that any user still holds - demoting staff
     out from under them as a side effect of a permissions edit would be a
     surprising, silent way to lose admin access. Reassign them first."""
     from apps.rbac.models import Role
@@ -233,7 +233,7 @@ def delete_role(slug: str) -> None:
 
 
 def get_user_resources(user) -> set:
-    """Every resource this user currently has access to — the dynamic
+    """Every resource this user currently has access to - the dynamic
     source of truth mirrored to the frontend via UserSerializer.resources.
     Permissions can change at runtime now, so a hardcoded frontend map
     would go stale the moment an admin edits a role."""

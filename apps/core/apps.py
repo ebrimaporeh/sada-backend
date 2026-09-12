@@ -10,7 +10,7 @@ class CoreConfig(AppConfig):
         # Settings live in a top-level `settings` package, not `config.settings`,
         # so nothing implicitly imports `config/__init__.py` (where the Celery
         # app gets built and configured from Django settings) under entry
-        # points that don't touch ROOT_URLCONF — `manage.py shell` being the
+        # points that don't touch ROOT_URLCONF - `manage.py shell` being the
         # main one. Without this, @shared_task .delay() calls silently fall
         # back to Celery's blank default app (AMQP/localhost), not Redis.
         # AppConfig.ready() runs after settings are fully loaded on every

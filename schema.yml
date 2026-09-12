@@ -400,7 +400,7 @@ paths:
     post:
       operationId: v1_auth_set_password_create
       description: |-
-        For accounts with no usable password yet (Google-only signups) —
+        For accounts with no usable password yet (Google-only signups) -
         see ChangePasswordView for accounts that already have one.
       tags:
       - Authentication
@@ -532,7 +532,7 @@ paths:
     post:
       operationId: v1_campaigns_view_create
       description: |-
-        Explicit view-tracking beacon — fired by the frontend only when the
+        Explicit view-tracking beacon - fired by the frontend only when the
         public campaign detail page is actually shown, not by every fetch of
         campaign data (donate/donate-success pages reuse the same GET above
         without inflating the count).
@@ -2071,7 +2071,7 @@ paths:
     get:
       operationId: v1_payments_gateways_retrieve
       description: |-
-        Which payment gateways/methods are currently enabled — the donation
+        Which payment gateways/methods are currently enabled - the donation
         and withdrawal forms build their provider picker from this instead of a
         hardcoded frontend constant, so enabling Stripe (or disabling it) is a
         backend settings change, not a frontend deploy.
@@ -2139,7 +2139,7 @@ paths:
       operationId: v1_payments_payouts_fee_preview_retrieve
       description: |-
         Live fee breakdown for the withdrawal form, before the owner
-        submits — uses the exact same calculation request_payout does, so the
+        submits - uses the exact same calculation request_payout does, so the
         preview never drifts from what's actually charged.
       summary: Preview payout fees for an amount/provider
       tags:
@@ -2153,7 +2153,7 @@ paths:
     get:
       operationId: v1_payments_settings_retrieve
       description: |-
-        Public read — the platform fee is already shown to anonymous
+        Public read - the platform fee is already shown to anonymous
         visitors on the public Terms/Help pages (via the {{platform_fee_percent}}
         legal-content variable) and to campaign owners previewing a payout, so
         there's nothing sensitive here worth gating behind login. Only admins
@@ -2174,7 +2174,7 @@ paths:
     patch:
       operationId: v1_payments_settings_partial_update
       description: |-
-        Public read — the platform fee is already shown to anonymous
+        Public read - the platform fee is already shown to anonymous
         visitors on the public Terms/Help pages (via the {{platform_fee_percent}}
         legal-content variable) and to campaign owners previewing a payout, so
         there's nothing sensitive here worth gating behind login. Only admins
@@ -2243,7 +2243,7 @@ paths:
     patch:
       operationId: v1_permissions_roles_partial_update
       description: |-
-        Admin-editable at runtime — replaces a role's Group permissions
+        Admin-editable at runtime - replaces a role's Group permissions
         wholesale with whatever set the request sends, taking effect
         immediately for every user holding that role (no deploy, no restart).
         DELETE removes the role entirely, refused while any staff member still
@@ -2276,7 +2276,7 @@ paths:
     delete:
       operationId: v1_permissions_roles_destroy
       description: |-
-        Admin-editable at runtime — replaces a role's Group permissions
+        Admin-editable at runtime - replaces a role's Group permissions
         wholesale with whatever set the request sends, taking effect
         immediately for every user holding that role (no deploy, no restart).
         DELETE removes the role entirely, refused while any staff member still
@@ -2842,7 +2842,7 @@ paths:
     get:
       operationId: v1_users_fundraisers_list
       description: |-
-        Anyone with at least one public, non-anonymous campaign — the
+        Anyone with at least one public, non-anonymous campaign - the
         browsable directory. No auth required, nothing sensitive returned.
       summary: List public fundraiser profiles
       parameters:
@@ -3000,10 +3000,10 @@ paths:
     post:
       operationId: v1_users_organization_change_requests_create
       description: |-
-        Phone/phone_2/recovery emails are never editable directly — see
+        Phone/phone_2/recovery emails are never editable directly - see
         OrganizationChangeRequest's docstring for why. Phone changes queue for
         admin approval; recovery-email changes instead get confirmed by the
-        proposed address itself (see ConfirmRecoveryEmailChangeView) — either
+        proposed address itself (see ConfirmRecoveryEmailChangeView) - either
         way nothing is applied until this resolves.
       summary: Request a change to a recovery-critical organization field
       tags:
@@ -3017,7 +3017,7 @@ paths:
     post:
       operationId: v1_users_organization_change_requests_confirm_recovery_email_create
       description: |-
-        Public — the person clicking this link is proving control of the
+        Public - the person clicking this link is proving control of the
         *proposed* recovery email's inbox, not necessarily logged into SADA at
         all (they may not even be a SADA user).
       summary: Confirm a proposed recovery email by the token sent to it
@@ -3252,7 +3252,7 @@ paths:
     post:
       operationId: v1_zakat_calculate_create
       description: |-
-        Anyone — including guests — can calculate Zakat; it's not tied to
+        Anyone - including guests - can calculate Zakat; it's not tied to
         an account or a donation.
       summary: Calculate Zakat owed from asset/liability inputs
       tags:
@@ -3278,7 +3278,7 @@ paths:
     get:
       operationId: v1_zakat_recommended_campaigns_list
       description: |-
-        Public shortlist of campaigns screened for Zakat eligibility —
+        Public shortlist of campaigns screened for Zakat eligibility -
         see services/zakat_recommendation.py for the ranking algorithm.
       summary: Get campaigns recommended for Zakat
       tags:
@@ -5453,7 +5453,7 @@ components:
         stripe_enabled:
           type: boolean
           description: Whether donors can pay by card via Stripe. Requires Stripe
-            API keys to already be configured in the environment — this switch only
+            API keys to already be configured in the environment - this switch only
             controls whether the (already-configured) gateway is offered.
         stripe_settlement_currency:
           type: string
@@ -5465,7 +5465,7 @@ components:
           format: decimal
           pattern: ^-?\d{0,6}(?:\.\d{0,4})?$
           description: How many GMD equal 1 unit of the Stripe settlement currency
-            above — e.g. 70 means D70 = 1 unit. Update this to match the real exchange
+            above - e.g. 70 means D70 = 1 unit. Update this to match the real exchange
             rate; a stale rate over/undercharges every card donation.
         stripe_min_donation_amount:
           type: string
@@ -5732,7 +5732,7 @@ components:
         stripe_enabled:
           type: boolean
           description: Whether donors can pay by card via Stripe. Requires Stripe
-            API keys to already be configured in the environment — this switch only
+            API keys to already be configured in the environment - this switch only
             controls whether the (already-configured) gateway is offered.
         stripe_settlement_currency:
           type: string
@@ -5744,7 +5744,7 @@ components:
           format: decimal
           pattern: ^-?\d{0,6}(?:\.\d{0,4})?$
           description: How many GMD equal 1 unit of the Stripe settlement currency
-            above — e.g. 70 means D70 = 1 unit. Update this to match the real exchange
+            above - e.g. 70 means D70 = 1 unit. Update this to match the real exchange
             rate; a stale rate over/undercharges every card donation.
         stripe_min_donation_amount:
           type: string
@@ -5783,7 +5783,7 @@ components:
     PublicFundraiser:
       type: object
       description: |-
-        A campaign owner's public profile — deliberately minimal. Never add
+        A campaign owner's public profile - deliberately minimal. Never add
         email, phone, role, payment fields, or anything from IdentityVerification/
         OrganizationVerification here; is_verified is the only verification-
         related field ever exposed publicly (just the badge, never the
@@ -5872,7 +5872,7 @@ components:
     Register:
       type: object
       description: |-
-        Deliberately minimal — just enough to create the account. Name
+        Deliberately minimal - just enough to create the account. Name
         (individual) and organization profile details (organization) are no
         longer collected here; they're filled in during onboarding after
         signup, via the existing profile/organization update endpoints.
@@ -6269,7 +6269,7 @@ components:
     ZakatCalculationInput:
       type: object
       description: |-
-        Assets/liabilities a donor enters — mirrors the classical zakatable
+        Assets/liabilities a donor enters - mirrors the classical zakatable
         wealth categories: cash and savings, gold/silver holdings, business
         trade goods, investments, money owed to them (receivables), minus
         debts they owe (liabilities are deducted before comparing to nisab).

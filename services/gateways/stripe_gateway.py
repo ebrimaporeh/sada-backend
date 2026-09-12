@@ -1,14 +1,14 @@
-"""Stripe adapter — a thin wrapper around services/stripe_service.py.
+"""Stripe adapter - a thin wrapper around services/stripe_service.py.
 
 Named stripe_gateway.py (not stripe.py) so this module never shadows the
 real `stripe` SDK package that services/stripe_service.py imports.
 
 Donation-only: supports_payouts stays False (the base class default) since
-a card charge has no path to disburse to a Gambian mobile-money wallet —
+a card charge has no path to disburse to a Gambian mobile-money wallet -
 payouts remain modempay-only, full stop.
 
 Uses Stripe's hosted Checkout page (a redirect, same shape as ModemPay's
-payment_link) rather than an inline card field — see create_payment_intent().
+payment_link) rather than an inline card field - see create_payment_intent().
 """
 from decimal import Decimal
 from services import stripe_service
@@ -27,7 +27,7 @@ class StripeGateway(PaymentGateway):
 
     @property
     def default_currency(self):
-        # Admin-editable, not env-config — see PlatformSettings docstring.
+        # Admin-editable, not env-config - see PlatformSettings docstring.
         return self._platform_settings().stripe_settlement_currency
 
     @property
@@ -36,7 +36,7 @@ class StripeGateway(PaymentGateway):
 
     def convert_gmd_to_minor_units(self, gmd_amount):
         """GMD -> settlement currency -> that currency's smallest unit
-        (cents for usd) — using the admin-configured exchange rate, not a
+        (cents for usd) - using the admin-configured exchange rate, not a
         hardcoded/implicit 1:1 assumption. This is the fix for donations
         being charged as if GMD figures were already the settlement
         currency (D100 silently becoming $100 instead of ~$1.43)."""
@@ -66,7 +66,7 @@ class StripeGateway(PaymentGateway):
 
     def intent_status(self, intent):
         # Checkout Session has two fields: `status` (open/complete/expired)
-        # and `payment_status` (paid/unpaid/no_payment_required) — a session
+        # and `payment_status` (paid/unpaid/no_payment_required) - a session
         # can be 'complete' via a $0 line item without ever being paid, so
         # both matter for "successful".
         if not intent:
@@ -81,7 +81,7 @@ class StripeGateway(PaymentGateway):
         return stripe_service.refund_checkout_session(donation.provider_reference)
 
     def verify_webhook(self, payload, signature):
-        # Stripe signs the exact raw bytes it sent — never pass a
+        # Stripe signs the exact raw bytes it sent - never pass a
         # re-parsed/re-serialized version of the body here.
         event = stripe_service.verify_and_parse_webhook(payload, signature)
         if event is None:
@@ -115,7 +115,7 @@ def _normalize_event(event) -> GatewayEvent:
             event_id=event_id,
             raw=event,
         )
-    # Unhandled event types (payment_intent.*, charge.*, customer.*, ...) —
+    # Unhandled event types (payment_intent.*, charge.*, customer.*, ...) -
     # acknowledge receipt, nothing for us to do. Stripe never sends a
     # payout-side event here since this gateway never initiates a transfer.
     return GatewayEvent(type=GatewayEventType.UNHANDLED, event_id=event_id, raw=event)

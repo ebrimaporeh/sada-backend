@@ -8,7 +8,7 @@ def get_settings():
 
 def calculate_zakat(inputs: dict) -> dict:
     """`inputs` is validated ZakatCalculationInputSerializer data. Sums
-    zakatable assets, deducts debts, and compares the result to nisab —
+    zakatable assets, deducts debts, and compares the result to nisab -
     the classical "if your wealth has sat above this threshold for a
     lunar year, 2.5% of it is due" rule. Debts are deducted before the
     nisab comparison since only wealth actually available to you counts."""

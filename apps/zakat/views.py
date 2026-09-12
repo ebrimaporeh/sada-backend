@@ -36,7 +36,7 @@ class ZakatSettingsView(APIView):
 
 
 class ZakatCalculateView(APIView):
-    """Anyone — including guests — can calculate Zakat; it's not tied to
+    """Anyone - including guests - can calculate Zakat; it's not tied to
     an account or a donation."""
     permission_classes = [AllowAny]
 
@@ -52,7 +52,7 @@ class ZakatCalculateView(APIView):
 
 
 class ZakatRecommendedCampaignsView(APIView):
-    """Public shortlist of campaigns screened for Zakat eligibility —
+    """Public shortlist of campaigns screened for Zakat eligibility -
     see services/zakat_recommendation.py for the ranking algorithm."""
     permission_classes = [AllowAny]
 

@@ -41,6 +41,6 @@ urlpatterns = [
     path('<slug:slug>/report/', views.CampaignReportView.as_view(), name='campaign-report'),
     path('<slug:slug>/view/', views.CampaignRecordViewView.as_view(), name='campaign-record-view'),
 
-    # Generic slug LAST — catches /campaigns/{slug}/
+    # Generic slug LAST - catches /campaigns/{slug}/
     path('<slug:slug>/', views.CampaignDetailView.as_view(), name='campaign-detail'),
 ]

@@ -58,7 +58,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         BASSE = 'basse', 'Basse'
 
     class PaymentProvider(models.TextChoices):
-        # ModemPay is the payment gateway, not itself a provider — these are
+        # ModemPay is the payment gateway, not itself a provider - these are
         # the underlying networks it processes payments through.
         WAVE = 'wave', 'Wave'
         APS = 'aps', 'APS Wallet'
@@ -89,7 +89,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     # instead of relying on matching the deleted-{id}@deleted.sada.gm email
     # pattern those accounts get renamed to.
     is_deleted = models.BooleanField(default=False)
-    # Google's unique, stable subject identifier for this account — set on
+    # Google's unique, stable subject identifier for this account - set on
     # Google sign-in/link, null for accounts that have never used Google.
     # Distinct from email match: lets an account keep working with Google
     # even if the user later changes their email on either side.
@@ -159,7 +159,7 @@ class User(AbstractBaseUser, PermissionsMixin):
 class IdentityVerification(BaseModel):
     """A user's submission of a government ID for manual admin review.
 
-    Distinct from email_verified (proves email ownership, automatic) —
+    Distinct from email_verified (proves email ownership, automatic) -
     is_verified on User only flips to True once an admin approves one of
     these requests.
     """
@@ -191,7 +191,7 @@ class IdentityVerification(BaseModel):
         verbose_name_plural = 'Identity Verifications'
 
     def __str__(self):
-        return f'{self.user.email} — {self.status}'
+        return f'{self.user.email} - {self.status}'
 
 
 class TermsAcceptance(BaseModel):
@@ -223,12 +223,12 @@ class TermsAcceptance(BaseModel):
 
 
 class Organization(BaseModel):
-    """A real multi-member entity — no longer 1:1 with a single User (see
+    """A real multi-member entity - no longer 1:1 with a single User (see
     apps.organizations for OrganizationMembership/OrganizationRole, which
     is what actually grants members access). `created_by` is who registered
     it, kept for audit/display only; it carries no special access on its
     own beyond whatever OrganizationMembership role that user currently
-    holds (see OrganizationMembership's docstring — ownership is
+    holds (see OrganizationMembership's docstring - ownership is
     transferable, so created_by intentionally never gates anything)."""
     organization_name = models.CharField(max_length=200)
     # Stable public identifier for the organization's own donation page
@@ -261,7 +261,7 @@ class Organization(BaseModel):
     # member happens to hold it.
     phone = models.CharField(max_length=20, blank=True)
     phone_2 = models.CharField(max_length=20)
-    # Optional — used for full account recovery (password reset) and CC'd
+    # Optional - used for full account recovery (password reset) and CC'd
     # on withdrawal/payout notifications, in addition to the member who
     # requested the payout.
     recovery_email_1 = models.EmailField(blank=True)
@@ -298,9 +298,9 @@ class Organization(BaseModel):
 
 class OrganizationVerification(BaseModel):
     """An organization's submission of registration proof for manual admin
-    review — the organization analog of IdentityVerification, but scoped to
+    review - the organization analog of IdentityVerification, but scoped to
     the organization's own legal existence (a registration certificate),
-    not any individual member's personal ID — an org isn't verified by
+    not any individual member's personal ID - an org isn't verified by
     checking who happens to be submitting the paperwork today. Approval
     flips Organization.is_verified, same is_verified-flips-on-approve
     invariant as IdentityVerification, just on a different model (see
@@ -315,7 +315,7 @@ class OrganizationVerification(BaseModel):
     # The registration/certificate number printed on the document itself --
     # lets admin reviewers cross-check it without opening the image.
     registration_number = models.CharField(max_length=100)
-    # Proof the organization is real — a registration certificate, government
+    # Proof the organization is real - a registration certificate, government
     # letter, etc. Private bucket (utils.storage.VerificationDocumentStorage)
     # -- unlike every other ImageField in this codebase, never publicly
     # readable; .url on this field returns a short-lived signed URL, not a
@@ -325,7 +325,7 @@ class OrganizationVerification(BaseModel):
         upload_to=organization_registration_document_path, validators=[validate_image_size],
         storage=get_verification_storage(),
     )
-    # A photo of the organization (premises, event, logo) — copied onto
+    # A photo of the organization (premises, event, logo) - copied onto
     # Organization.logo on approval (see verification_service, which reads
     # the actual bytes out of this private bucket and re-saves them into
     # Organization.logo's own, public storage rather than copying the
@@ -347,7 +347,7 @@ class OrganizationVerification(BaseModel):
         verbose_name_plural = 'Organization Verifications'
 
     def __str__(self):
-        return f'{self.organization.organization_name} — {self.status}'
+        return f'{self.organization.organization_name} - {self.status}'
 
 
 class OrganizationChangeRequest(BaseModel):
@@ -357,7 +357,7 @@ class OrganizationChangeRequest(BaseModel):
     meant the org's one User.phone; that stopped making sense once an org
     could have multiple members, so Organization gained its own `phone`).
 
-    These fields are never editable directly — a single compromised or
+    These fields are never editable directly - a single compromised or
     careless member could otherwise quietly redirect account recovery and
     withdrawal notifications to themselves. Each request targets exactly one
     field; phone changes need admin approval, recovery-email changes are
@@ -379,7 +379,7 @@ class OrganizationChangeRequest(BaseModel):
     submitted_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='organization_change_requests')
     field_name = models.CharField(max_length=20, choices=Field.choices)
     # Snapshot of the value at request time, for the admin to compare
-    # against — not re-read live, since it could change before review.
+    # against - not re-read live, since it could change before review.
     current_value = models.CharField(max_length=255, blank=True)
     proposed_value = models.CharField(max_length=255)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
@@ -395,4 +395,4 @@ class OrganizationChangeRequest(BaseModel):
         verbose_name_plural = 'Organization Change Requests'
 
     def __str__(self):
-        return f'{self.organization.organization_name} — {self.field_name} — {self.status}'
+        return f'{self.organization.organization_name} - {self.field_name} - {self.status}'

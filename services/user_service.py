@@ -51,9 +51,9 @@ def create_user(email: str, password: str, **kwargs) -> User:
 def admin_create_user(email: str, role: str, requesting_user: User, first_name: str = '', last_name: str = '', phone: str = '') -> User:
     """Admin-initiated onboarding for a new staff member, in any
     runtime-defined role (see permissions/roles.py::Role). Regular users
-    self-register — this is exclusively for staff.
+    self-register - this is exclusively for staff.
 
-    No password is set by the admin — a random unusable-to-guess one is
+    No password is set by the admin - a random unusable-to-guess one is
     generated and the new account is sent a password-reset link (reusing the
     existing django-rest-passwordreset flow) so they set their own password
     on first login, same as any self-service reset.
@@ -113,7 +113,7 @@ def _anonymize_account(user: User, *, reset_role: bool = False) -> None:
 
     Doesn't hard-delete: Campaign.owner is CASCADE, so an actual
     `user.delete()` would destroy every campaign this user owns and, via
-    Donation.campaign's own CASCADE, every donation ever made to them —
+    Donation.campaign's own CASCADE, every donation ever made to them -
     the Privacy Policy explicitly promises "legally required financial
     records will be retained even after deletion," so that's not
     optional. is_active=False plus an unusable password is enough on its
@@ -192,7 +192,7 @@ def _anonymize_account(user: User, *, reset_role: bool = False) -> None:
 def delete_own_account(user: User, password: str = '') -> None:
     """Self-service account deletion.
 
-    Raises ValidationError if `password` doesn't match — skipped entirely
+    Raises ValidationError if `password` doesn't match - skipped entirely
     for an account with no usable password (Google-only sign-in), where
     the caller already being authenticated is the only credential that
     exists to check.
@@ -213,7 +213,7 @@ def delete_own_account(user: User, password: str = '') -> None:
 
 
 def admin_delete_user(user: User, requesting_user: User) -> None:
-    """Admin-initiated deletion of a user, organization, or staff account —
+    """Admin-initiated deletion of a user, organization, or staff account -
     same anonymize-not-hard-delete guarantee as delete_own_account (see
     _anonymize_account), just without a password check since the admin
     isn't the account owner.
@@ -252,7 +252,7 @@ def upload_avatar(user: User, image_file) -> User:
 
 
 def upload_organization_logo(organization, image_file):
-    """Admin-only direct logo set — bypasses the normal path (copied from
+    """Admin-only direct logo set - bypasses the normal path (copied from
     OrganizationVerification.organization_photo on approval) for cases like
     fixing/seeding an org's branding without a full re-verification cycle."""
     if not image_file:
@@ -268,7 +268,7 @@ def admin_update_user(user: User, requesting_user: User, **data) -> User:
         raise ValidationError('You cannot deactivate your own account.')
 
     # Revoking a verified user's badge must reject their underlying approved ID
-    # submission too — otherwise is_verified and the verification record's own
+    # submission too - otherwise is_verified and the verification record's own
     # status silently disagree (this was a recurring real bug), and the user is
     # left with no way to see why or to resubmit.
     if 'is_verified' in data and not data['is_verified'] and user.is_verified:
@@ -279,7 +279,7 @@ def admin_update_user(user: User, requesting_user: User, **data) -> User:
 
 
 def staff_roles() -> set:
-    """Admin plus every runtime-defined role (apps.rbac.models.Role) —
+    """Admin plus every runtime-defined role (apps.rbac.models.Role) -
     dynamic now that roles aren't a hardcoded pair, so a newly created
     custom role's members are correctly treated as staff everywhere this
     is used (which page they show up on, group-sync, etc.) with no extra
@@ -293,7 +293,7 @@ def is_staff_role(role: str) -> bool:
 
 
 def get_regular_users(filters: dict = None) -> 'QuerySet[User]':
-    """Everyone who isn't staff — the audience for the admin Users page.
+    """Everyone who isn't staff - the audience for the admin Users page.
     Excludes deleted accounts permanently (see User.is_deleted) -- they're
     kept in the DB for financial record-keeping, not to clutter this list."""
     qs = User.objects.exclude(role__in=staff_roles()).filter(is_deleted=False)
@@ -311,7 +311,7 @@ def get_regular_users(filters: dict = None) -> 'QuerySet[User]':
 
 
 def get_staff_users(filters: dict = None) -> 'QuerySet[User]':
-    """Admins plus every runtime-defined staff role — the audience for the
+    """Admins plus every runtime-defined staff role - the audience for the
     Staff page. Excludes deleted accounts (see get_regular_users) --
     admin_delete_user always resets a staff target's role away from staff_
     roles() on delete, so this exclusion is defense-in-depth, not the
@@ -327,7 +327,7 @@ def change_staff_role(user: User, role: str, requesting_user: User) -> User:
 
     if not (requesting_user.is_staff or requesting_user.role == User.Role.ADMIN):
         raise PermissionDenied('Only admins can change staff roles.')
-    # Deliberately excludes ADMIN — promoting someone to full admin is
+    # Deliberately excludes ADMIN - promoting someone to full admin is
     # sensitive enough that it stays a manual, deliberate action outside
     # this UI, not a dropdown swap. Demoting an existing admin down to a
     # managed role is allowed (that's a safe direction).
@@ -339,7 +339,7 @@ def change_staff_role(user: User, role: str, requesting_user: User) -> User:
 
 
 def _public_fundraiser_base_queryset():
-    """A "fundraiser" is derived, not a formal role — any user with at least
+    """A "fundraiser" is derived, not a formal role - any user with at least
     one campaign that's actually publicly visible and not anonymous. Mirrors
     the statuses campaign_service.get_campaign_by_slug() treats as public,
     minus PENDING (not yet approved, so not a real public track record)."""

@@ -15,7 +15,7 @@ from apps.audit.models import AuditLog
 
 
 class GatewayListView(APIView):
-    """Which payment gateways/methods are currently enabled — the donation
+    """Which payment gateways/methods are currently enabled - the donation
     and withdrawal forms build their provider picker from this instead of a
     hardcoded frontend constant, so enabling Stripe (or disabling it) is a
     backend settings change, not a frontend deploy."""
@@ -44,7 +44,7 @@ class PayoutRequestView(APIView):
 
 class PayoutFeePreviewView(APIView):
     """Live fee breakdown for the withdrawal form, before the owner
-    submits — uses the exact same calculation request_payout does, so the
+    submits - uses the exact same calculation request_payout does, so the
     preview never drifts from what's actually charged."""
     permission_classes = [IsAuthenticated]
 
@@ -97,7 +97,7 @@ class AdminOwnerPayoutListView(APIView):
 
 
 class PlatformSettingsView(APIView):
-    """Public read — the platform fee is already shown to anonymous
+    """Public read - the platform fee is already shown to anonymous
     visitors on the public Terms/Help pages (via the {{platform_fee_percent}}
     legal-content variable) and to campaign owners previewing a payout, so
     there's nothing sensitive here worth gating behind login. Only admins
@@ -125,19 +125,19 @@ class PlatformSettingsView(APIView):
 
 
 class GatewayWebhookView(APIView):
-    """Generic payment-gateway webhook receiver — /payments/webhook/<gateway_code>/.
+    """Generic payment-gateway webhook receiver - /payments/webhook/<gateway_code>/.
     One view for every gateway; which one is resolved from the URL and
     handed to payment_service.handle_webhook(), which looks up that
     gateway's own signature header and event vocabulary via the registry."""
     permission_classes = [AllowAny]
     # Server-to-server traffic authenticated by signature, not by IP-based
-    # anon throttling meant for public users — a busy day of donations
+    # anon throttling meant for public users - a busy day of donations
     # shouldn't risk a gateway's callbacks getting 429'd.
     throttle_classes = []
 
     @extend_schema(summary='Payment gateway webhook', exclude=True)
     def post(self, request, gateway_code):
-        # The raw body, not the DRF-parsed request.data — signature
+        # The raw body, not the DRF-parsed request.data - signature
         # verification (Stripe's especially) is computed over the exact
         # bytes sent, which a re-serialized dict isn't guaranteed to match.
         result = payment_service.handle_webhook(gateway_code, request.body, request.headers)

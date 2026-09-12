@@ -8,17 +8,17 @@ class ZakatSettings(BaseModel):
 
     Nisab (the minimum wealth threshold that makes Zakat obligatory) is
     classically defined as the value of a fixed weight of gold or silver,
-    not a flat currency figure — metal prices move, so the GMD-equivalent
+    not a flat currency figure - metal prices move, so the GMD-equivalent
     threshold has to be computed from a weight + a price the admin keeps
     up to date, rather than hardcoded. There's no admin toggle for which
-    metal governs — `nisab_amount` always uses whichever of the two is
+    metal governs - `nisab_amount` always uses whichever of the two is
     lower (falling back to the other if one price isn't set yet), since
     the majority of contemporary scholars favor the lower threshold
     precisely because it brings more people into the obligation, and
     therefore more relief to recipients.
     """
 
-    # Classical weights (87.48g gold / 612.36g silver) — editable per
+    # Classical weights (87.48g gold / 612.36g silver) - editable per
     # settings-driven convention, but admins should only touch these if
     # acting on specific fiqh guidance, not to move the threshold casually.
     nisab_gold_grams = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal('87.48'))
@@ -33,7 +33,7 @@ class ZakatSettings(BaseModel):
     )
 
     # Optional flat override, in GMD, for an admin who'd rather set the
-    # threshold directly than maintain metal prices — takes precedence
+    # threshold directly than maintain metal prices - takes precedence
     # over the computed gold/silver nisab when set.
     minimum_amount_override = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
 

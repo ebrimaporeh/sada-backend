@@ -26,7 +26,7 @@ def generate_email_verification_url(user: User) -> str:
 
 
 def register_user(email: str, password: str, **kwargs) -> User:
-    # No tokens are issued here — the account can't be used to log in until
+    # No tokens are issued here - the account can't be used to log in until
     # the verification email below is confirmed (see login_user's
     # email_verified check), so there's nothing valid to authenticate yet.
     from emails.tasks import send_welcome_email_task, send_verification_email_task
@@ -60,7 +60,7 @@ def change_password(user: User, old_password: str, new_password: str) -> None:
 
 
 def set_password(user: User, new_password: str) -> None:
-    """For accounts with no usable password yet (Google-only signups) —
+    """For accounts with no usable password yet (Google-only signups) -
     unlike change_password, doesn't require an old password to check."""
     from emails.tasks import send_password_changed_email_task
 
@@ -105,7 +105,7 @@ def resend_verification_email(email: str) -> None:
 def request_password_reset(email: str) -> None:
     """Drop-in replacement for django-rest-passwordreset's own
     ResetPasswordRequestToken view (see apps/authentication/urls.py for how
-    this shadows it at the same URL) — resolves `email` against the
+    this shadows it at the same URL) - resolves `email` against the
     account's own login email OR, for an organization, either recovery
     email, and sends the reset link to whichever address was actually
     submitted. That's the whole point of a recovery email: it has to work
