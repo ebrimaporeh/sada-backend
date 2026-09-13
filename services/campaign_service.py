@@ -280,8 +280,11 @@ def launch_campaign(user, slug):
         errors['story'] = 'Your story needs at least 100 characters before launching.'
     if not campaign.goal or campaign.goal <= 0:
         errors['goal'] = 'Set a fundraising goal before launching.'
-    if not campaign.cover_image:
-        errors['cover_image'] = 'Add a cover photo before launching.'
+    # Cover photo is deliberately NOT required -- CampaignCard.jsx/
+    # CampaignDetailView.jsx already render a gradient placeholder
+    # (campaign.gradient) when cover_image_url is null, so a campaign
+    # without one still displays fine; there's no reason to block launch
+    # over it.
     if errors:
         raise ValidationError(errors)
 
