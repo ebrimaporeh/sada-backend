@@ -421,6 +421,22 @@ class EmbedPublicViewTest(APITestCase):
         response = self.client.get(reverse('embed-public', args=[self.embed_id]))
         self.assertEqual(response.data['data']['embed']['destinations'], [])
 
+    def test_layout_query_param_overrides_the_stored_default(self):
+        # The embed's own stored layout defaults to CARD (see Embed.layout) --
+        # a ?layout= override lets the same embed be installed elsewhere on
+        # the org's site with a different layout, without changing that
+        # stored default or needing a second Embed.
+        response = self.client.get(reverse('embed-public', args=[self.embed_id]), {'layout': Embed.Layout.WIDE})
+        self.assertEqual(response.data['data']['embed']['layout'], Embed.Layout.WIDE)
+
+        unchanged = self.client.get(reverse('embed-public', args=[self.embed_id]))
+        self.assertEqual(unchanged.data['data']['embed']['layout'], Embed.Layout.CARD)
+        self.assertEqual(Embed.objects.get(pk=self.embed_id).layout, Embed.Layout.CARD)
+
+    def test_unrecognized_layout_query_param_falls_back_to_the_stored_default(self):
+        response = self.client.get(reverse('embed-public', args=[self.embed_id]), {'layout': 'not-a-real-layout'})
+        self.assertEqual(response.data['data']['embed']['layout'], Embed.Layout.CARD)
+
     def test_inactive_embed_still_renders_publicly_with_is_active_false(self):
         self.client.post(reverse('embed-deactivate', args=[self.embed_id]))
 

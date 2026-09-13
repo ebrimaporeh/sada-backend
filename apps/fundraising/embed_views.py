@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 import services.embed_service as embed_service
+from .models import Embed
 from .embed_serializers import EmbedDetailSerializer, EmbedPublicSerializer, EmbedUpdateSerializer
 
 
@@ -69,10 +70,22 @@ class EmbedPublicView(APIView):
     """Backs the public /embed/<id> widget -- deliberately AllowAny and
     lean, see EmbedPublicSerializer's docstring. Renders even when
     is_active is False so the widget can show an explicit inactive state
-    instead of a broken/blank iframe on a site that already installed it."""
+    instead of a broken/blank iframe on a site that already installed it.
+
+    An optional `?layout=` query param overrides the embed's own stored
+    layout for this one response -- one embed supports every layout, so an
+    org can install it several times across their site (a wide banner up
+    top, a compact widget in a sidebar, ...) by pointing each iframe at the
+    same embed id with a different `layout` value, instead of needing a
+    separate Embed per placement. An unrecognized value is ignored (falls
+    back to the embed's own stored layout) rather than erroring -- a typo'd
+    query param shouldn't break an already-installed widget."""
     permission_classes = [AllowAny]
 
     def get(self, request, pk):
         embed = embed_service.get_public_embed(pk)
-        out = EmbedPublicSerializer(embed, context={'request': request})
+        layout_override = request.query_params.get('layout')
+        if layout_override not in Embed.Layout.values:
+            layout_override = None
+        out = EmbedPublicSerializer(embed, context={'request': request, 'layout_override': layout_override})
         return Response({'success': True, 'data': {'embed': out.data}})

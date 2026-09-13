@@ -59,9 +59,18 @@ class EmbedPublicSerializer(serializers.ModelSerializer):
     Never exposes anything beyond the embed's own public uuid, the
     organization's public projection, and each destination's own public
     fields (progress/goal/raised etc., same as their standalone public
-    pages already show) -- never anything authenticated-only."""
+    pages already show) -- never anything authenticated-only.
+
+    `layout` is a SerializerMethodField (not a plain passthrough) so a
+    `?layout=` query param on this endpoint can override the embed's own
+    stored default for this one render -- see EmbedPublicView. This is what
+    lets one embed be installed multiple times across a site with a
+    different layout at each spot, all sharing the same underlying
+    destinations/appearance/donation-flow config, rather than needing a
+    separate Embed per placement."""
     organization = serializers.SerializerMethodField()
     destinations = serializers.SerializerMethodField()
+    layout = serializers.SerializerMethodField()
 
     class Meta:
         model = Embed
@@ -75,6 +84,9 @@ class EmbedPublicSerializer(serializers.ModelSerializer):
         return [
             asdict(d) for d in fundraising_destination.resolve_embed_gallery_destinations(obj.organization, request=request)
         ]
+
+    def get_layout(self, obj):
+        return self.context.get('layout_override') or obj.layout
 
 
 class EmbedUpdateSerializer(serializers.Serializer):
