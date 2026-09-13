@@ -120,15 +120,23 @@ def get_organization_by_slug(slug: str) -> Organization:
     return get_object_or_404(Organization, slug=slug)
 
 
-def update_organization(user: User, organization: Organization, description: str = None) -> Organization:
-    """Direct edit for organization_description -- unlike phone/recovery
-    email, description isn't account-recovery-critical (see
-    OrganizationChangeRequest's docstring for that distinction), so it's a
-    plain permission-gated PATCH, not a change-request workflow."""
+def update_organization(
+    user: User, organization: Organization, description: str = None, show_in_embed: bool = None,
+) -> Organization:
+    """Direct edit for organization_description/show_in_embed -- unlike
+    phone/recovery email, neither is account-recovery-critical (see
+    OrganizationChangeRequest's docstring for that distinction), so both are
+    a plain permission-gated PATCH, not a change-request workflow."""
     require_permission(user, organization, OrganizationPermission.MANAGE_ORGANIZATION)
+    update_fields = []
     if description is not None:
         organization.description = description
-        organization.save(update_fields=['description'])
+        update_fields.append('description')
+    if show_in_embed is not None:
+        organization.show_in_embed = show_in_embed
+        update_fields.append('show_in_embed')
+    if update_fields:
+        organization.save(update_fields=update_fields)
     return organization
 
 

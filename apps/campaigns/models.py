@@ -96,6 +96,12 @@ class Campaign(BaseModel):
     is_urgent = models.BooleanField(default=False)
     is_featured = models.BooleanField(default=False)
     is_anonymous = models.BooleanField(default=False)
+    # Owner opt-in: surface this campaign as a donation option in its
+    # organization's single embed widget (see apps.fundraising.Embed). Only
+    # actually shown once the campaign is ACTIVE too -- see
+    # fundraising_destination.resolve_embed_gallery_destinations -- so it's
+    # safe to flip on while still in draft.
+    show_in_embed = models.BooleanField(default=False)
     cover_image = models.ImageField(upload_to=campaign_cover_image_path, null=True, blank=True, validators=[validate_image_size])
     rejection_reason = models.TextField(blank=True)
     # Internal moderation notes -- distinct from rejection_reason, which is
@@ -117,7 +123,15 @@ class Campaign(BaseModel):
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            base = slugify(self.title)
+            # Capped at 50 -- cover_image/gallery/update image uploads embed
+            # this slug directly in their storage path (upload_paths.py),
+            # and ImageField's max_length defaults to 100. An uncapped slug
+            # (SlugField itself allows up to 220) from a long title leaves
+            # no room for the rest of that path, and storage's
+            # get_available_name() raises SuspiciousFileOperation trying to
+            # fit a collision suffix in what's left -- confirmed against a
+            # real 116-char title. 50 leaves comfortable headroom.
+            base = slugify(self.title)[:50].rstrip('-')
             slug = base
             n = 1
             while Campaign.objects.filter(slug=slug).exclude(pk=self.pk).exists():

@@ -467,6 +467,29 @@ class MyOrganizationsAndDetailViewTest(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['data']['organization']['organization_name'], self.org.organization_name)
 
+    def test_show_in_embed_defaults_to_true(self):
+        # An org's embed would otherwise be empty the moment it's created --
+        # see Organization.show_in_embed's own comment.
+        self.assertTrue(self.org.show_in_embed)
+
+    def test_owner_can_toggle_show_in_embed_off(self):
+        self.client.force_authenticate(user=self.owner)
+        response = self.client.patch(
+            reverse('organization-detail', args=[self.org.id]), {'show_in_embed': False}, format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertFalse(response.data['data']['organization']['show_in_embed'])
+        self.org.refresh_from_db()
+        self.assertFalse(self.org.show_in_embed)
+
+    def test_member_without_manage_organization_cannot_toggle_show_in_embed(self):
+        member, _ = make_member(self.org, permissions=[])
+        self.client.force_authenticate(user=member)
+        response = self.client.patch(
+            reverse('organization-detail', args=[self.org.id]), {'show_in_embed': False}, format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
 
 def make_fake_image_upload(name='logo.png'):
     import io

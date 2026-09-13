@@ -291,157 +291,155 @@ class ShareLinkRedirectTest(APITestCase):
         self.assertEqual(response.status_code, 404)
 
 
-class EmbedCreateAndLifecycleTest(APITestCase):
-    def test_authorized_creation_for_campaign_destination(self):
-        owner = User.objects.create_user(email='eowner@example.com', password='pass')
-        campaign = make_campaign(owner=owner)
-        self.client.force_authenticate(owner)
-        response = self.client.post(reverse('embed-list-create'), {
-            'destination_type': DestinationType.CAMPAIGN, 'campaign_id': str(campaign.id),
-            'name': 'Homepage Widget', 'layout': Embed.Layout.CARD, 'return_url': 'https://example.com',
-        })
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
-        self.assertTrue(response.data['data']['embed']['is_active'])
-
-    def test_authorized_creation_for_organization_destination(self):
+class OrganizationEmbedGetOrCreateTest(APITestCase):
+    def test_org_admin_gets_or_creates_the_embed(self):
         owner, org = make_org_and_owner()
         self.client.force_authenticate(owner)
-        response = self.client.post(reverse('embed-list-create'), {
-            'destination_type': DestinationType.ORGANIZATION, 'organization_id': str(org.id),
-            'name': 'Homepage Widget', 'return_url': 'https://example.com',
-        })
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        response = self.client.get(reverse('organization-embed', args=[org.id]))
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(response.data['data']['embed']['organization']['id'], str(org.id))
+        self.assertTrue(response.data['data']['embed']['is_active'])
 
-    def test_unauthorized_creation_is_rejected(self):
-        campaign = make_campaign()
+    def test_calling_it_twice_returns_the_same_embed(self):
+        owner, org = make_org_and_owner()
+        self.client.force_authenticate(owner)
+        first = self.client.get(reverse('organization-embed', args=[org.id]))
+        second = self.client.get(reverse('organization-embed', args=[org.id]))
+        self.assertEqual(first.data['data']['embed']['id'], second.data['data']['embed']['id'])
+        self.assertEqual(Embed.objects.filter(organization=org).count(), 1)
+
+    def test_member_with_manage_organization_can_access(self):
+        _, org = make_org_and_owner()
+        member, _ = make_member(org, permissions=[OrganizationPermission.MANAGE_ORGANIZATION])
+        self.client.force_authenticate(member)
+        response = self.client.get(reverse('organization-embed', args=[org.id]))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_member_without_manage_organization_gets_403(self):
+        _, org = make_org_and_owner()
+        member, _ = make_member(org, permissions=[OrganizationPermission.CREATE_CAMPAIGN])
+        self.client.force_authenticate(member)
+        response = self.client.get(reverse('organization-embed', args=[org.id]))
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_non_member_gets_404(self):
+        _, org = make_org_and_owner()
         stranger = User.objects.create_user(email='estranger@example.com', password='pass')
         self.client.force_authenticate(stranger)
-        response = self.client.post(reverse('embed-list-create'), {
-            'destination_type': DestinationType.CAMPAIGN, 'campaign_id': str(campaign.id), 'name': 'Untitled', 'return_url': 'https://example.com',
-        })
+        response = self.client.get(reverse('organization-embed', args=[org.id]))
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_return_url_persists_and_is_returned(self):
-        owner = User.objects.create_user(email='eowner6@example.com', password='pass')
-        campaign = make_campaign(owner=owner)
-        self.client.force_authenticate(owner)
-        create = self.client.post(reverse('embed-list-create'), {
-            'destination_type': DestinationType.CAMPAIGN, 'campaign_id': str(campaign.id),
-            'name': 'Widget', 'return_url': 'https://example.com/home',
-        })
-        self.assertEqual(create.data['data']['embed']['return_url'], 'https://example.com/home')
+    def test_unauthenticated_request_is_rejected(self):
+        _, org = make_org_and_owner()
+        response = self.client.get(reverse('organization-embed', args=[org.id]))
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-        embed_id = create.data['data']['embed']['id']
-        update = self.client.patch(reverse('embed-detail', args=[embed_id]), {
-            'return_url': 'https://example.com/other-page',
+
+class EmbedUpdateAndLifecycleTest(APITestCase):
+    def setUp(self):
+        self.owner, self.org = make_org_and_owner()
+        self.client.force_authenticate(self.owner)
+        get = self.client.get(reverse('organization-embed', args=[self.org.id]))
+        self.embed_id = get.data['data']['embed']['id']
+
+    def test_owner_can_update_layout_configuration_and_return_url(self):
+        response = self.client.patch(reverse('embed-detail', args=[self.embed_id]), {
+            'layout': Embed.Layout.WIDE,
+            'configuration': {'appearance': {'buttonColor': '#123456'}},
+            'return_url': 'https://example.com/home',
         }, format='json')
-        self.assertEqual(update.status_code, status.HTTP_200_OK, update.data)
-        self.assertEqual(update.data['data']['embed']['return_url'], 'https://example.com/other-page')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(response.data['data']['embed']['layout'], Embed.Layout.WIDE)
+        self.assertEqual(response.data['data']['embed']['return_url'], 'https://example.com/home')
 
     def test_invalid_return_url_is_a_validation_error(self):
-        owner = User.objects.create_user(email='eowner7@example.com', password='pass')
-        campaign = make_campaign(owner=owner)
-        self.client.force_authenticate(owner)
-        response = self.client.post(reverse('embed-list-create'), {
-            'destination_type': DestinationType.CAMPAIGN, 'campaign_id': str(campaign.id),
-            'name': 'Widget', 'return_url': 'javascript:alert(1)',
-        })
+        response = self.client.patch(reverse('embed-detail', args=[self.embed_id]), {
+            'return_url': 'javascript:alert(1)',
+        }, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_invalid_layout_choice_is_a_validation_error(self):
-        owner = User.objects.create_user(email='eowner2@example.com', password='pass')
-        campaign = make_campaign(owner=owner)
-        self.client.force_authenticate(owner)
-        response = self.client.post(reverse('embed-list-create'), {
-            'destination_type': DestinationType.CAMPAIGN, 'campaign_id': str(campaign.id),
-            'name': 'Untitled', 'layout': 'not-a-real-layout', 'return_url': 'https://example.com',
-        })
+        response = self.client.patch(reverse('embed-detail', args=[self.embed_id]), {
+            'layout': 'not-a-real-layout',
+        }, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_deactivate_and_activate_toggle_is_active(self):
-        owner = User.objects.create_user(email='eowner3@example.com', password='pass')
-        campaign = make_campaign(owner=owner)
-        self.client.force_authenticate(owner)
-        create = self.client.post(reverse('embed-list-create'), {
-            'destination_type': DestinationType.CAMPAIGN, 'campaign_id': str(campaign.id), 'name': 'Widget', 'return_url': 'https://example.com',
-        })
-        embed_id = create.data['data']['embed']['id']
+    def test_stranger_cannot_update(self):
+        # Not a member at all -- check_destination_manage_access's
+        # anti-enumeration split treats "no membership" as 404, not 403
+        # (see its own docstring: the caller is probing an opaque embed id
+        # that could belong to any organization).
+        stranger = User.objects.create_user(email='estranger2@example.com', password='pass')
+        self.client.force_authenticate(stranger)
+        response = self.client.patch(reverse('embed-detail', args=[self.embed_id]), {'name': 'Hijacked'})
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-        deactivate = self.client.post(reverse('embed-deactivate', args=[embed_id]))
+    def test_deactivate_and_activate_toggle_is_active(self):
+        deactivate = self.client.post(reverse('embed-deactivate', args=[self.embed_id]))
         self.assertFalse(deactivate.data['data']['embed']['is_active'])
 
-        activate = self.client.post(reverse('embed-activate', args=[embed_id]))
+        activate = self.client.post(reverse('embed-activate', args=[self.embed_id]))
         self.assertTrue(activate.data['data']['embed']['is_active'])
-
-    def test_duplicate_creates_an_inactive_copy(self):
-        owner = User.objects.create_user(email='eowner4@example.com', password='pass')
-        campaign = make_campaign(owner=owner)
-        self.client.force_authenticate(owner)
-        create = self.client.post(reverse('embed-list-create'), {
-            'destination_type': DestinationType.CAMPAIGN, 'campaign_id': str(campaign.id), 'name': 'Widget', 'return_url': 'https://example.com',
-        })
-        embed_id = create.data['data']['embed']['id']
-        response = self.client.post(reverse('embed-duplicate', args=[embed_id]))
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
-        self.assertFalse(response.data['data']['embed']['is_active'])
-
-    def test_delete_removes_the_embed(self):
-        owner = User.objects.create_user(email='eowner5@example.com', password='pass')
-        campaign = make_campaign(owner=owner)
-        self.client.force_authenticate(owner)
-        create = self.client.post(reverse('embed-list-create'), {
-            'destination_type': DestinationType.CAMPAIGN, 'campaign_id': str(campaign.id), 'name': 'Widget', 'return_url': 'https://example.com',
-        })
-        embed_id = create.data['data']['embed']['id']
-        response = self.client.delete(reverse('embed-detail', args=[embed_id]))
-        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        self.assertFalse(Embed.objects.filter(pk=embed_id).exists())
 
 
 class EmbedPublicViewTest(APITestCase):
-    def test_public_endpoint_requires_no_auth_and_returns_destination_info(self):
-        owner = User.objects.create_user(email='epub@example.com', password='pass')
-        campaign = make_campaign(owner=owner, goal=Decimal('5000.00'), raised=Decimal('1000.00'))
-        self.client.force_authenticate(owner)
-        create = self.client.post(reverse('embed-list-create'), {
-            'destination_type': DestinationType.CAMPAIGN, 'campaign_id': str(campaign.id), 'name': 'Widget', 'return_url': 'https://example.com',
-        })
-        embed_id = create.data['data']['embed']['id']
+    def setUp(self):
+        self.owner, self.org = make_org_and_owner()
+        self.client.force_authenticate(self.owner)
+        get = self.client.get(reverse('organization-embed', args=[self.org.id]))
+        self.embed_id = get.data['data']['embed']['id']
+
+    def test_public_endpoint_requires_no_auth_and_returns_gallery(self):
+        campaign = make_campaign(
+            organization=self.org, show_in_embed=True, goal=Decimal('5000.00'), raised=Decimal('1000.00'),
+        )
+        self.org.show_in_embed = True
+        self.org.save(update_fields=['show_in_embed'])
 
         self.client.force_authenticate(None)
-        response = self.client.get(reverse('embed-public', args=[embed_id]))
+        response = self.client.get(reverse('embed-public', args=[self.embed_id]))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        destination = response.data['data']['embed']['destination']
-        self.assertEqual(destination['title'], campaign.title)
-        self.assertEqual(Decimal(destination['goal']), Decimal('5000.00'))
-        self.assertIn('donation_url', destination)
+        embed = response.data['data']['embed']
+        self.assertEqual(embed['organization']['id'], str(self.org.id))
+        destinations = embed['destinations']
+        self.assertEqual(len(destinations), 2)
+        types = {d['type'] for d in destinations}
+        self.assertEqual(types, {DestinationType.ORGANIZATION, DestinationType.CAMPAIGN})
+        campaign_destination = next(d for d in destinations if d['type'] == DestinationType.CAMPAIGN)
+        self.assertEqual(campaign_destination['title'], campaign.title)
+        self.assertEqual(Decimal(campaign_destination['goal']), Decimal('5000.00'))
+        self.assertIn('donation_url', campaign_destination)
+
+    def test_gallery_excludes_non_active_or_opted_out_campaigns(self):
+        # Organization.show_in_embed defaults True -- opt it out here so
+        # this test isolates the campaign-side filtering it's named for.
+        self.org.show_in_embed = False
+        self.org.save(update_fields=['show_in_embed'])
+        make_campaign(organization=self.org, show_in_embed=False, status=Campaign.Status.ACTIVE)
+        make_campaign(organization=self.org, show_in_embed=True, status=Campaign.Status.DRAFT)
+
+        response = self.client.get(reverse('embed-public', args=[self.embed_id]))
+        self.assertEqual(response.data['data']['embed']['destinations'], [])
 
     def test_inactive_embed_still_renders_publicly_with_is_active_false(self):
-        owner = User.objects.create_user(email='epub2@example.com', password='pass')
-        campaign = make_campaign(owner=owner)
-        self.client.force_authenticate(owner)
-        create = self.client.post(reverse('embed-list-create'), {
-            'destination_type': DestinationType.CAMPAIGN, 'campaign_id': str(campaign.id), 'name': 'Widget', 'return_url': 'https://example.com',
-        })
-        embed_id = create.data['data']['embed']['id']
-        self.client.post(reverse('embed-deactivate', args=[embed_id]))
+        self.client.post(reverse('embed-deactivate', args=[self.embed_id]))
 
         self.client.force_authenticate(None)
-        response = self.client.get(reverse('embed-public', args=[embed_id]))
+        response = self.client.get(reverse('embed-public', args=[self.embed_id]))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertFalse(response.data['data']['embed']['is_active'])
 
     def test_open_ended_campaign_shows_no_deadline_and_is_ongoing(self):
-        owner = User.objects.create_user(email='epub3@example.com', password='pass')
-        campaign = make_campaign(owner=owner, deadline=None)
-        self.client.force_authenticate(owner)
-        create = self.client.post(reverse('embed-list-create'), {
-            'destination_type': DestinationType.CAMPAIGN, 'campaign_id': str(campaign.id), 'name': 'Widget', 'return_url': 'https://example.com',
-        })
-        embed_id = create.data['data']['embed']['id']
+        # Opt the organization itself out so destinations[0] is unambiguously
+        # the campaign this test is about, not the org's own (also
+        # deadline-less) card.
+        self.org.show_in_embed = False
+        self.org.save(update_fields=['show_in_embed'])
+        make_campaign(organization=self.org, show_in_embed=True, deadline=None)
 
         self.client.force_authenticate(None)
-        response = self.client.get(reverse('embed-public', args=[embed_id]))
-        destination = response.data['data']['embed']['destination']
+        response = self.client.get(reverse('embed-public', args=[self.embed_id]))
+        destination = response.data['data']['embed']['destinations'][0]
+        self.assertEqual(destination['type'], DestinationType.CAMPAIGN)
         self.assertIsNone(destination['deadline'])
         self.assertTrue(destination['is_ongoing'])

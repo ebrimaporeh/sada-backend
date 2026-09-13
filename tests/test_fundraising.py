@@ -91,17 +91,51 @@ class PosterModelConstraintTest(APITestCase):
 
 
 class EmbedModelConstraintTest(APITestCase):
-    def test_cannot_save_embed_with_neither_destination(self):
+    def test_cannot_save_embed_without_organization(self):
         with self.assertRaises(Exception):
-            Embed.objects.create(destination_type=DestinationType.CAMPAIGN, name='Untitled')
+            Embed.objects.create(name='Untitled')
 
-    def test_cannot_save_embed_with_both_destinations(self):
+    def test_cannot_save_second_embed_for_same_organization(self):
         _, org = make_org_and_owner()
-        campaign = make_campaign()
+        Embed.objects.create(organization=org, name='First')
         with self.assertRaises(Exception):
-            Embed.objects.create(
-                destination_type=DestinationType.CAMPAIGN, campaign=campaign, organization=org, name='Untitled',
-            )
+            Embed.objects.create(organization=org, name='Second')
+
+    def test_can_save_one_embed_for_an_organization(self):
+        _, org = make_org_and_owner()
+        embed = Embed.objects.create(organization=org, name='Homepage Embed')
+        self.assertEqual(embed.organization, org)
+
+
+class EmbedGalleryResolverTest(APITestCase):
+    def test_gallery_excludes_organization_when_not_opted_in(self):
+        # Organization.show_in_embed defaults to True (an org's embed is
+        # useless empty), so explicitly opt out here to exercise the off state.
+        _, org = make_org_and_owner()
+        org.show_in_embed = False
+        org.save(update_fields=['show_in_embed'])
+        destinations = fundraising_destination.resolve_embed_gallery_destinations(org)
+        self.assertEqual(destinations, [])
+
+    def test_gallery_includes_organization_when_opted_in(self):
+        _, org = make_org_and_owner()
+        self.assertTrue(org.show_in_embed)  # true by default
+        destinations = fundraising_destination.resolve_embed_gallery_destinations(org)
+        self.assertEqual(len(destinations), 1)
+        self.assertEqual(destinations[0].type, DestinationType.ORGANIZATION)
+
+    def test_gallery_includes_only_active_opted_in_campaigns(self):
+        _, org = make_org_and_owner()
+        org.show_in_embed = False  # isolate this test to the campaign side of the gallery
+        org.save(update_fields=['show_in_embed'])
+        active_opted_in = make_campaign(organization=org, status=Campaign.Status.ACTIVE, show_in_embed=True)
+        make_campaign(organization=org, status=Campaign.Status.ACTIVE, show_in_embed=False)
+        make_campaign(organization=org, status=Campaign.Status.DRAFT, show_in_embed=True)
+        make_campaign(status=Campaign.Status.ACTIVE, show_in_embed=True)  # no organization at all
+
+        destinations = fundraising_destination.resolve_embed_gallery_destinations(org)
+        self.assertEqual(len(destinations), 1)
+        self.assertEqual(destinations[0].id, str(active_opted_in.id))
 
 
 class FundraisingDestinationResolverTest(APITestCase):

@@ -47,7 +47,7 @@ class OrganizationSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'organization_name', 'slug', 'description', 'organization_type', 'organization_type_name',
             'phone', 'phone_2', 'recovery_email_1', 'recovery_email_2', 'logo', 'cover_image',
-            'is_verified', 'member_count', 'created_by_name', 'contact_persons', 'created_at',
+            'is_verified', 'show_in_embed', 'member_count', 'created_by_name', 'contact_persons', 'created_at',
         ]
 
     def get_logo(self, obj):
@@ -110,10 +110,12 @@ class OrganizationPublicSerializer(serializers.ModelSerializer):
 
 
 class OrganizationUpdateSerializer(serializers.Serializer):
-    """description is the only field editable through a plain PATCH --
-    everything else either never changes post-creation (name/type) or goes
-    through OrganizationChangeRequest (phone/recovery emails)."""
+    """description and show_in_embed are the only fields editable through a
+    plain PATCH -- everything else either never changes post-creation
+    (name/type) or goes through OrganizationChangeRequest (phone/recovery
+    emails)."""
     description = serializers.CharField(required=False, allow_blank=True, max_length=2000)
+    show_in_embed = serializers.BooleanField(required=False)
 
 
 class AdminOrganizationListSerializer(serializers.ModelSerializer):

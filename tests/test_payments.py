@@ -7,10 +7,11 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 from rest_framework.exceptions import ValidationError
 
-from apps.users.models import User
+from apps.users.models import User, Organization
+from apps.organizations.models import OrganizationType
 from apps.campaigns.models import Campaign
 from apps.donations.models import Donation
-from apps.fundraising.models import DestinationType, Embed
+from apps.fundraising.models import Embed
 from apps.payments.models import Payout, PlatformSettings, WebhookEvent
 from apps.ledger.models import LedgerEntry
 from services import donation_service, payment_service
@@ -231,9 +232,14 @@ class DonationCreateGatewayTest(APITestCase):
             'status': True,
             'data': {'payment_link': 'https://pay.modempay.com/abc', 'intent_secret': 'sec_123'},
         }
+        # create_donation only looks the embed up by id and reads its
+        # return_url (see donation_service.create_donation) -- it never
+        # checks that the embed's own organization matches this donation's
+        # campaign, so an unrelated organization's embed is fine here.
+        org_type = OrganizationType.objects.create(slug='embed-test-org-type', name='Community Organization')
+        organization = Organization.objects.create(organization_name='Test Org', organization_type=org_type)
         embed = Embed.objects.create(
-            destination_type=DestinationType.CAMPAIGN, campaign=self.campaign,
-            name='Widget', return_url='https://example.com/home',
+            organization=organization, name='Widget', return_url='https://example.com/home',
         )
         donation, _, _ = donation_service.create_donation(None, {
             'campaign_id': self.campaign.id,

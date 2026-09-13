@@ -4,6 +4,8 @@ from .models import Embed, Poster, PosterImage, ShareLink
 
 
 def _destination_display(obj):
+    """Poster-only now -- Embed is always organization-scoped, see
+    EmbedAdmin below."""
     if obj.destination_type == obj.DestinationType.CAMPAIGN:
         return f'Campaign: {obj.campaign.title}' if obj.campaign_id else 'Campaign: (missing)'
     return f'Organization: {obj.organization.organization_name}' if obj.organization_id else 'Organization: (missing)'
@@ -30,14 +32,10 @@ class PosterAdmin(admin.ModelAdmin):
 
 @admin.register(Embed)
 class EmbedAdmin(admin.ModelAdmin):
-    list_display = ('name', 'destination', 'layout', 'is_active', 'created_at', 'updated_at')
-    list_filter = ('destination_type', 'layout', 'is_active')
-    search_fields = ('name', 'campaign__title', 'organization__organization_name')
+    list_display = ('name', 'organization', 'layout', 'is_active', 'created_at', 'updated_at')
+    list_filter = ('layout', 'is_active')
+    search_fields = ('name', 'organization__organization_name')
     readonly_fields = ('created_at', 'updated_at')
-
-    @admin.display(description='Destination')
-    def destination(self, obj):
-        return _destination_display(obj)
 
 
 @admin.register(ShareLink)

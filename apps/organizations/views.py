@@ -75,7 +75,7 @@ class OrganizationDetailView(APIView):
         out = OrganizationSerializer(organization, context={'request': request})
         return Response({'success': True, 'data': {'organization': out.data}})
 
-    @extend_schema(summary="Update an organization's public description", request=OrganizationUpdateSerializer)
+    @extend_schema(summary="Update an organization's public description / embed visibility", request=OrganizationUpdateSerializer)
     def patch(self, request, pk):
         organization = organization_service.get_organization(pk, request.user)
         serializer = OrganizationUpdateSerializer(data=request.data, partial=True)

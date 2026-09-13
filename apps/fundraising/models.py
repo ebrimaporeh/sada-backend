@@ -1,18 +1,20 @@
 """Fundraising Studio -- Poster Studio and Embed Studio.
 
-Two independently-managed distribution/presentation tools that both point
-at the platform's two existing donation destinations (Organization or
-Campaign, see FundraisingDestination in services/fundraising_destination.py)
+Two independently-managed distribution/presentation tools, both resolved
+through FundraisingDestination (see services/fundraising_destination.py)
 rather than introducing a new fundraising/destination concept of their own.
 Poster and Embed are deliberately separate model classes (not a shared
 generic "Studio item" base) -- see .claude/backend/fundraising.md for the
-full architecture writeup. The destination_type/campaign/organization field
-trio and its CheckConstraint are duplicated across the two models rather
-than factored into a shared base or mixin -- small, explicit duplication
-over cleverness, same call this codebase already makes for per-model enums
-(see .claude/backend/models.md). Both mirror
-apps.donations.models.Donation's existing "exactly one destination"
-pattern, so this doesn't invent a second way to express the same idea.
+full architecture writeup.
+
+They no longer share the same destination shape. Poster still points at
+exactly one of the platform's two donation destinations (Organization or
+Campaign) via the destination_type/campaign/organization field trio and its
+CheckConstraint, mirroring apps.donations.models.Donation's own "exactly
+one destination" pattern. Embed is organization-scoped only (one per org,
+via a OneToOneField) and instead renders a *gallery* of destinations
+resolved at read time -- see Embed's own docstring and
+fundraising_destination.resolve_embed_gallery_destinations().
 """
 from django.conf import settings
 from django.db import models
@@ -22,10 +24,16 @@ from utils.upload_paths import poster_image_path
 
 
 class DestinationType(models.TextChoices):
-    """Shared by Poster and Embed -- both live in this one app and both feed
-    the same services/fundraising_destination.py::resolve_destination(),
-    so keeping one enum here (instead of duplicating it per-model) avoids
-    the two ever disagreeing on what values that function accepts."""
+    """Poster's destination trio -- a Poster points at exactly one of the
+    platform's two donation destinations (Organization or Campaign) via
+    this value + the campaign/organization FK pair below, both resolved
+    through services/fundraising_destination.py::resolve_destination().
+
+    Embed no longer uses this: an Embed is always organization-scoped (see
+    Embed below) -- its gallery of destinations is resolved via
+    fundraising_destination.resolve_embed_gallery_destinations() instead,
+    which still calls resolve_destination() per item under the hood, so
+    this enum's values stay the vocabulary both paths share."""
     ORGANIZATION = 'organization', 'Organization'
     CAMPAIGN = 'campaign', 'Campaign'
 
@@ -122,6 +130,15 @@ class PosterImage(BaseModel):
 
 
 class Embed(BaseModel):
+    """Exactly one Embed per Organization (enforced by the OneToOneField
+    below) -- unlike Poster, an Embed is never per-campaign. Instead it
+    renders a gallery of everything the organization has currently opted
+    into showing: the organization itself (Organization.show_in_embed) plus
+    every ACTIVE campaign with Campaign.show_in_embed set. See
+    services/fundraising_destination.py::resolve_embed_gallery_destinations
+    for how that list is built, and .claude/backend/fundraising.md for the
+    full rationale -- this replaced an earlier per-campaign/per-org model
+    that required a separate embed (and manual upkeep) per destination."""
     class Layout(models.TextChoices):
         CARD = 'card', 'Card'
         COMPACT = 'compact', 'Compact'
@@ -129,24 +146,24 @@ class Embed(BaseModel):
         HORIZONTAL = 'horizontal', 'Horizontal'
         PROGRESS_FOCUSED = 'progress_focused', 'Progress-focused'
 
-    destination_type = models.CharField(max_length=20, choices=DestinationType.choices)
-    # Same CASCADE/PROTECT reasoning as Poster above.
-    campaign = models.ForeignKey(
-        'campaigns.Campaign', on_delete=models.CASCADE, null=True, blank=True, related_name='embeds',
-    )
-    organization = models.ForeignKey(
-        'users.Organization', on_delete=models.PROTECT, null=True, blank=True, related_name='embeds',
+    # One embed per org, at the DB level. No hard-delete path exists for
+    # Organization anywhere in this codebase (see Poster's own comment
+    # above) -- PROTECT is defensive for the same reason.
+    organization = models.OneToOneField(
+        'users.Organization', on_delete=models.PROTECT, related_name='embed',
     )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
     )
     name = models.CharField(max_length=200, help_text='Internal, organization-facing name (e.g. "Homepage Donation").')
+    # Applies uniformly to every destination card in the gallery -- there's
+    # only one Embed per org, so there's no per-destination layout choice.
     layout = models.CharField(max_length=20, choices=Layout.choices, default=Layout.CARD)
-    # Content/appearance settings -- title/description overrides, donate
-    # button text, primary/background/text/button colors, border radius,
-    # font sizing/spacing. See fundraising.md for the full shape. Kept as
-    # one JSON blob (not individual columns) since this is genuinely
-    # free-form presentation config, same reasoning as Poster.design.
+    # Content/appearance settings -- donate button text, background/text/
+    # button colors, card corner radius, button corner radius, curated
+    # font-family key. See fundraising.md for the full shape. Kept as one
+    # JSON blob (not individual columns) since this is genuinely free-form
+    # presentation config, same reasoning as Poster.design.
     configuration = models.JSONField(default=dict, blank=True)
     # Where to send a donor back to once they finish donating through this
     # embed (e.g. the embedder's homepage) -- set by the embed's own owner,
@@ -163,15 +180,6 @@ class Embed(BaseModel):
         ordering = ['-created_at']
         verbose_name = 'Embed'
         verbose_name_plural = 'Embeds'
-        constraints = [
-            models.CheckConstraint(
-                check=(
-                    models.Q(destination_type=DestinationType.CAMPAIGN, campaign__isnull=False, organization__isnull=True)
-                    | models.Q(destination_type=DestinationType.ORGANIZATION, campaign__isnull=True, organization__isnull=False)
-                ),
-                name='embed_exactly_one_destination',
-            ),
-        ]
 
     def __str__(self):
         return self.name

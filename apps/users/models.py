@@ -276,6 +276,14 @@ class Organization(BaseModel):
     # identity verification (OrganizationVerification) is about the org
     # entity, not whichever member happened to submit it.
     is_verified = models.BooleanField(default=False)
+    # Surfaces a general "Donate to us" card (not tied to any one campaign)
+    # in this organization's single embed widget (see apps.fundraising.Embed
+    # / fundraising_destination.resolve_embed_gallery_destinations).
+    # Defaults on -- unlike Campaign.show_in_embed, which is a real per-
+    # campaign opt-in, an org's embed is useless with nothing in it the
+    # moment it's created, so this starts True and an org explicitly turns
+    # it off if they'd rather show campaigns only.
+    show_in_embed = models.BooleanField(default=True)
 
     class Meta:
         verbose_name = 'Organization'

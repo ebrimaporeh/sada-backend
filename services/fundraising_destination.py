@@ -114,6 +114,32 @@ def resolve_destination(destination_type: str, *, campaign=None, organization=No
     raise ValueError(f'Unknown destination_type: {destination_type!r}')
 
 
+def resolve_embed_gallery_destinations(organization, request=None) -> list:
+    """Backs the one Embed per organization -- the list of destinations its
+    public/preview gallery actually renders: the organization itself (only
+    when it opted in via Organization.show_in_embed) followed by every
+    currently-ACTIVE campaign that opted in via Campaign.show_in_embed,
+    newest first. A campaign that opts in while still DRAFT/PENDING simply
+    doesn't appear here yet -- no separate "is it eligible" flag to keep in
+    sync, this is the single source of truth for what the embed shows.
+    """
+    from apps.campaigns.models import Campaign
+    from apps.fundraising.models import DestinationType
+
+    destinations = []
+    if organization.show_in_embed:
+        destinations.append(resolve_destination(DestinationType.ORGANIZATION, organization=organization, request=request))
+
+    campaigns = organization.campaigns.filter(
+        status=Campaign.Status.ACTIVE, show_in_embed=True,
+    ).order_by('-created_at')
+    destinations.extend(
+        resolve_destination(DestinationType.CAMPAIGN, campaign=campaign, request=request)
+        for campaign in campaigns
+    )
+    return destinations
+
+
 def serialize_destination(poster_or_embed, request=None) -> dict:
     """Plain-dict shape of a Poster/Embed's resolved destination -- shared by
     poster_serializers.py and embed_serializers.py so neither has to import

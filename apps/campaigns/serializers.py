@@ -146,7 +146,7 @@ class CampaignDetailSerializer(serializers.ModelSerializer):
             'goal', 'raised', 'currency', 'donors_count', 'views_count',
             'progress_percent', 'deadline', 'status', 'region',
             'beneficiary', 'beneficiary_relationship',
-            'is_urgent', 'is_featured', 'is_anonymous',
+            'is_urgent', 'is_featured', 'is_anonymous', 'show_in_embed',
             'category', 'images', 'updates', 'owner_id', 'owner_name', 'owner_is_verified',
             'organization_id', 'organization_name',
             'total_withdrawn', 'available_balance',
@@ -220,7 +220,7 @@ class CampaignCreateSerializer(serializers.ModelSerializer):
         fields = [
             'title', 'short_description', 'story', 'goal', 'deadline',
             'region', 'beneficiary', 'beneficiary_relationship',
-            'is_urgent', 'is_anonymous', 'category_id', 'category', 'organization_id',
+            'is_urgent', 'is_anonymous', 'show_in_embed', 'category_id', 'category', 'organization_id',
         ]
 
     def validate(self, data):

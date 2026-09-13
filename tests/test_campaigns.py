@@ -4,6 +4,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.http import Http404
 from django.test.utils import CaptureQueriesContext
 from django.db import connection
+from django.urls import reverse
 from rest_framework import status
 from rest_framework.exceptions import ValidationError
 from rest_framework.test import APITestCase
@@ -136,6 +137,23 @@ class CreateUpdateCampaignTest(APITestCase):
         })
         self.assertIsNone(campaign.category)
 
+    def test_slug_is_truncated_for_a_long_title(self):
+        # A slug this long leaves no room in cover_image's storage path
+        # (upload_paths.campaign_cover_image_path embeds it directly) once
+        # ImageField's 100-char max_length is accounted for -- confirmed
+        # live as a SuspiciousFileOperation from storage's
+        # get_available_name(). See Campaign.save().
+        long_title = (
+            'Sint Culpa Et Architecto Voluptate Voluptas Sit Quidem Assumenda '
+            'Iusto Aut Cupiditate Quod Sunt At Exercitation Sequ'
+        )
+        campaign = campaign_service.create_campaign(self.owner, {
+            'category_id': self.category.id,
+            'title': long_title,
+        })
+        self.assertLessEqual(len(campaign.slug), 50)
+        self.assertTrue(campaign.slug)
+
     def test_update_campaign_changes_category(self):
         campaign = make_campaign(owner=self.owner, category=self.category)
         new_category = make_category()
@@ -144,6 +162,26 @@ class CreateUpdateCampaignTest(APITestCase):
         })
         self.assertEqual(updated.category, new_category)
         self.assertEqual(updated.title, 'Renamed')
+
+    def test_owner_can_toggle_show_in_embed_via_patch(self):
+        campaign = make_campaign(owner=self.owner, category=self.category, show_in_embed=False)
+        self.client.force_authenticate(self.owner)
+        response = self.client.patch(
+            reverse('my-campaign-detail', args=[campaign.slug]), {'show_in_embed': True}, format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertTrue(response.data['data']['campaign']['show_in_embed'])
+        campaign.refresh_from_db()
+        self.assertTrue(campaign.show_in_embed)
+
+    def test_stranger_cannot_toggle_show_in_embed(self):
+        campaign = make_campaign(owner=self.owner, category=self.category)
+        stranger = User.objects.create_user(email='stranger-embed@example.com', password='pass')
+        self.client.force_authenticate(stranger)
+        response = self.client.patch(
+            reverse('my-campaign-detail', args=[campaign.slug]), {'show_in_embed': True}, format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 
 class TogglePauseCampaignTest(APITestCase):
@@ -221,12 +259,18 @@ class LaunchCampaignTest(APITestCase):
             campaign_service.launch_campaign(owner, campaign.slug)
         self.assertIn('goal', ctx.exception.detail)
 
-    def test_launch_rejects_a_missing_cover_image(self):
+    def test_launch_succeeds_without_a_cover_image(self):
+        # Cover photo is optional -- CampaignCard.jsx/CampaignDetailView.jsx
+        # already render a gradient placeholder when there isn't one, so
+        # there's nothing launch needs to block on here.
         owner = User.objects.create_user(email='launcher5@example.com', password='pass')
-        campaign = make_campaign(owner=owner, status=Campaign.Status.DRAFT)
-        with self.assertRaises(ValidationError) as ctx:
-            campaign_service.launch_campaign(owner, campaign.slug)
-        self.assertIn('cover_image', ctx.exception.detail)
+        campaign = make_campaign(
+            owner=owner, status=Campaign.Status.DRAFT,
+            short_description='A complete, thirty-character-plus description.',
+            story='A' * 100,
+        )
+        launched = campaign_service.launch_campaign(owner, campaign.slug)
+        self.assertEqual(launched.status, Campaign.Status.ACTIVE)
 
     def test_launch_rejects_a_stranger(self):
         owner = User.objects.create_user(email='launcher6@example.com', password='pass')
