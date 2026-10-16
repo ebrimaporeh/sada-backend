@@ -250,7 +250,9 @@ def request_payout(user, validated_data):
         )
 
     from emails.tasks import send_payout_update_email_task
+    from sms.tasks import send_payout_update_sms_task
     transaction.on_commit(lambda: send_payout_update_email_task.delay(str(payout.id)))
+    transaction.on_commit(lambda: send_payout_update_sms_task.delay(str(payout.id)))
 
     return payout
 
@@ -294,6 +296,7 @@ def _mark_payout_completed(payout, provider_reference=''):
     already COMPLETED."""
     from apps.payments.models import Payout
     from emails.tasks import send_payout_update_email_task
+    from sms.tasks import send_payout_update_sms_task
     import services.ledger_service as ledger_service
 
     with transaction.atomic():
@@ -316,12 +319,14 @@ def _mark_payout_completed(payout, provider_reference=''):
                 metadata={'status': 'completed'},
             )
             transaction.on_commit(lambda: send_payout_update_email_task.delay(str(payout.id)))
+            transaction.on_commit(lambda: send_payout_update_sms_task.delay(str(payout.id)))
     return payout
 
 
 def _mark_payout_failed(payout):
     from apps.payments.models import Payout
     from emails.tasks import send_payout_update_email_task
+    from sms.tasks import send_payout_update_sms_task
 
     with transaction.atomic():
         payout = Payout.objects.select_for_update().get(pk=payout.pk)
@@ -337,6 +342,7 @@ def _mark_payout_failed(payout):
                 metadata={'status': 'failed'},
             )
             transaction.on_commit(lambda: send_payout_update_email_task.delay(str(payout.id)))
+            transaction.on_commit(lambda: send_payout_update_sms_task.delay(str(payout.id)))
     return payout
 
 

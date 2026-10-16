@@ -51,24 +51,28 @@ def login_user(email: str, password: str) -> tuple[User, dict]:
 
 def change_password(user: User, old_password: str, new_password: str) -> None:
     from emails.tasks import send_password_changed_email_task
+    from sms.tasks import send_password_changed_sms_task
 
     if not user.check_password(old_password):
         raise ValidationError('Old password is incorrect.')
     user.set_password(new_password)
     user.save(update_fields=['password'])
     send_password_changed_email_task.delay(str(user.id))
+    send_password_changed_sms_task.delay(str(user.id))
 
 
 def set_password(user: User, new_password: str) -> None:
     """For accounts with no usable password yet (Google-only signups) -
     unlike change_password, doesn't require an old password to check."""
     from emails.tasks import send_password_changed_email_task
+    from sms.tasks import send_password_changed_sms_task
 
     if user.has_usable_password():
         raise ValidationError('Your account already has a password. Use change password instead.')
     user.set_password(new_password)
     user.save(update_fields=['password'])
     send_password_changed_email_task.delay(str(user.id))
+    send_password_changed_sms_task.delay(str(user.id))
 
 
 def verify_email(token: str) -> User:

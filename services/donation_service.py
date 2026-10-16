@@ -168,6 +168,7 @@ def _confirm_donation(donation):
     from apps.campaigns.models import Campaign
     from apps.notifications.models import Notification
     from emails.tasks import send_donation_received_email_task
+    from sms.tasks import send_donation_received_sms_task, send_goal_reached_sms_task
     import services.audit_service as audit_service
     import services.events_service as events_service
     import services.ledger_service as ledger_service
@@ -219,6 +220,7 @@ def _confirm_donation(donation):
     # let a worker pick this up and query a donation row that isn't there yet
     # (or worse, email out a confirmation for a donation that later rolled back).
     transaction.on_commit(lambda: send_donation_received_email_task.delay(str(donation.id)))
+    transaction.on_commit(lambda: send_donation_received_sms_task.delay(str(donation.id)))
 
     if donation.campaign_id and donation.campaign.is_funded:
         Notification.objects.create(
@@ -228,6 +230,7 @@ def _confirm_donation(donation):
             message=f'Your campaign "{donation.campaign.title}" has reached its goal!',
             link=f'/my-campaigns/{donation.campaign.slug}',
         )
+        transaction.on_commit(lambda: send_goal_reached_sms_task.delay(str(donation.campaign_id)))
 
     return donation
 
@@ -322,6 +325,7 @@ def refund_donation(donation, reason=''):
     from apps.notifications.models import Notification
     from services.gateways.registry import get_gateway
     from emails.tasks import send_donation_refunded_email_task
+    from sms.tasks import send_donation_refunded_sms_task
     import services.ledger_service as ledger_service
 
     donation = donation.__class__.objects.select_for_update().get(pk=donation.pk)
@@ -373,6 +377,7 @@ def refund_donation(donation, reason=''):
             link=(f'/campaigns/{donation.campaign.slug}' if donation.campaign_id else f'/give/{donation.organization.slug}'),
         )
         transaction.on_commit(lambda: send_donation_refunded_email_task.delay(str(donation.id)))
+        transaction.on_commit(lambda: send_donation_refunded_sms_task.delay(str(donation.id)))
 
     return donation
 

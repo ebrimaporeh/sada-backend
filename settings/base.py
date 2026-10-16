@@ -261,6 +261,32 @@ ANYMAIL = {
 # (e.g. which Resend account/project a deploy is wired to).
 RESEND_API_NAME = config('RESEND_API_NAME', default='')
 
+# ─── SMS (Jokoor, swappable) ─────────────────────────────────────────────────
+# Mirrors the payment-gateway pattern in services/gateways/registry.py:
+# SMS_PROVIDER picks a provider class (sms/registry.py's PROVIDERS dict),
+# SMS_PROVIDERS[<code>] holds that provider's own credentials. Swapping
+# providers later is "add a class + a settings block", not a call-site
+# change - sms/service.py never imports a provider directly.
+#
+# Whether SMS actually sends at all is a separate, runtime-editable switch -
+# apps.common.models.NotificationSettings.sms_enabled (DB-backed, starts
+# False) - not an env var, so an admin can flip it from Settings ->
+# Notifications without a deploy. This block is only credentials + which
+# provider class to use.
+SMS_PROVIDER = config('SMS_PROVIDER', default='jokoor')
+JOKOOR_API_KEY = config('JOKOOR_API_KEY', default='')
+JOKOOR_SENDER_ID = config('JOKOOR_SENDER_ID', default='')
+# Not read by the SDK - kept as a plain setting for logging/reference, same
+# as RESEND_API_NAME above.
+JOKOOR_API_KEY_NAME = config('JOKOOR_API_KEY_NAME', default='')
+
+SMS_PROVIDERS = {
+    'jokoor': {
+        'api_key': JOKOOR_API_KEY,
+        'sender_id': JOKOOR_SENDER_ID,
+    },
+}
+
 # ─── Celery ──────────────────────────────────────────────────────────────────
 # Emails (and any other background work) run through Celery so a slow SMTP
 # server never blocks the request that triggered the send.

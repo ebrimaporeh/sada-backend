@@ -4,7 +4,7 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from drf_spectacular.utils import extend_schema
 from permissions.base import HasResourceAccess
 from permissions.roles import Resource
-from .serializers import SiteSettingsSerializer, LegalContentSerializer
+from .serializers import SiteSettingsSerializer, LegalContentSerializer, NotificationSettingsSerializer
 import services.common_service as common_service
 
 
@@ -57,3 +57,25 @@ class LegalContentView(APIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return common_service.success_response(serializer.data, message='Content updated.')
+
+
+class NotificationSettingsView(APIView):
+    """Admin-only, both directions - unlike SiteSettings/LegalContent above,
+    nothing here (just an SMS on/off switch) needs to render on a public,
+    pre-login page, so there's no reason to expose it to AllowAny."""
+
+    required_resource = Resource.SETTINGS_EDIT
+    permission_classes = [HasResourceAccess]
+
+    @extend_schema(summary='[Admin] Get notification channel settings', responses={200: NotificationSettingsSerializer})
+    def get(self, request):
+        settings_obj = common_service.get_notification_settings()
+        return common_service.success_response(NotificationSettingsSerializer(settings_obj).data)
+
+    @extend_schema(summary='[Admin] Update notification channel settings', request=NotificationSettingsSerializer)
+    def patch(self, request):
+        settings_obj = common_service.get_notification_settings()
+        serializer = NotificationSettingsSerializer(settings_obj, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return common_service.success_response(serializer.data, message='Notification settings updated.')

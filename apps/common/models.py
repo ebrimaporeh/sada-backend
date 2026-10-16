@@ -69,3 +69,40 @@ class LegalContent(BaseModel):
         if obj is None:
             obj = cls.objects.create()
         return obj
+
+
+class NotificationSettings(BaseModel):
+    """Singleton row of admin-editable notification-channel switches.
+
+    Same runtime-toggle idea as apps.payments.PlatformSettings.<code>_enabled
+    for gateways: credentials (JOKOOR_API_KEY etc.) stay in env vars since
+    they're secrets, but *whether SMS sends at all* lives here so an admin
+    can flip it from Settings -> Notifications without a deploy. Starts
+    False deliberately - unlike email, every SMS costs money per message, so
+    this shouldn't turn on by default just because credentials exist.
+
+    sms.service.SmsService reads this via get_solo() at send time - the same
+    choke point every sms.service.send_*() call goes through, so no call
+    site has to remember to check it itself (see sms/service.py).
+    """
+    sms_enabled = models.BooleanField(
+        default=False,
+        help_text='Whether SMS notifications send at all. Off by default - '
+                   'turning this on without a working SMS provider configured '
+                   '(see JOKOOR_API_KEY) means sends will just fail silently '
+                   'into the logs, same as a misconfigured email backend.',
+    )
+
+    class Meta:
+        verbose_name = 'Notification Settings'
+        verbose_name_plural = 'Notification Settings'
+
+    def __str__(self):
+        return 'Notification Settings'
+
+    @classmethod
+    def get_solo(cls):
+        obj = cls.objects.first()
+        if obj is None:
+            obj = cls.objects.create()
+        return obj

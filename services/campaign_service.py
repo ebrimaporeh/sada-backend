@@ -580,6 +580,7 @@ def admin_action(campaign_id, action, reason, admin_user, notes=''):
     campaign = get_object_or_404(Campaign, pk=campaign_id)
 
     if action == 'approve':
+        from sms.tasks import send_campaign_approved_sms_task
         campaign.status = Campaign.Status.ACTIVE
         campaign.approved_at = timezone.now()
         campaign.rejection_reason = ''
@@ -591,7 +592,9 @@ def admin_action(campaign_id, action, reason, admin_user, notes=''):
             message=f'Your campaign "{campaign.title}" has been approved and is now live.',
             link=f'/campaigns/{campaign.slug}',
         )
+        send_campaign_approved_sms_task.delay(str(campaign.id))
     elif action == 'reject':
+        from sms.tasks import send_campaign_rejected_sms_task
         campaign.status = Campaign.Status.REJECTED
         campaign.rejection_reason = reason
         campaign.save()
@@ -602,8 +605,10 @@ def admin_action(campaign_id, action, reason, admin_user, notes=''):
             message=f'Your campaign "{campaign.title}" was not approved. Reason: {reason}',
             link=f'/my-campaigns/{campaign.slug}',
         )
+        send_campaign_rejected_sms_task.delay(str(campaign.id), reason)
     elif action == 'suspend':
         from emails.tasks import send_campaign_suspended_email_task
+        from sms.tasks import send_campaign_suspended_sms_task
         campaign.status = Campaign.Status.SUSPENDED
         campaign.rejection_reason = reason
         campaign.admin_notes = notes
@@ -616,6 +621,7 @@ def admin_action(campaign_id, action, reason, admin_user, notes=''):
             link=f'/my-campaigns/{campaign.slug}',
         )
         send_campaign_suspended_email_task.delay(str(campaign.owner_id), str(campaign.id), reason, notes)
+        send_campaign_suspended_sms_task.delay(str(campaign.id), reason)
     elif action == 'submit':
         campaign.status = Campaign.Status.PENDING
         campaign.save()

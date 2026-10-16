@@ -52,6 +52,7 @@ def _get_pending(verification_id: str) -> IdentityVerification:
 
 def approve_verification(verification_id: str, admin_user: User) -> IdentityVerification:
     from emails.tasks import send_verification_reviewed_email_task
+    from sms.tasks import send_verification_reviewed_sms_task
 
     with transaction.atomic():
         verification = _get_pending(verification_id)
@@ -64,11 +65,13 @@ def approve_verification(verification_id: str, admin_user: User) -> IdentityVeri
         verification.user.save(update_fields=['is_verified'])
 
     send_verification_reviewed_email_task.delay(str(verification.id))
+    send_verification_reviewed_sms_task.delay(str(verification.id))
     return verification
 
 
 def reject_verification(verification_id: str, admin_user: User, reason: str = '') -> IdentityVerification:
     from emails.tasks import send_verification_reviewed_email_task
+    from sms.tasks import send_verification_reviewed_sms_task
 
     verification = _get_pending(verification_id)
     verification.status = IdentityVerification.Status.REJECTED
@@ -78,6 +81,7 @@ def reject_verification(verification_id: str, admin_user: User, reason: str = ''
     verification.save(update_fields=['status', 'rejection_reason', 'reviewed_by', 'reviewed_at'])
 
     send_verification_reviewed_email_task.delay(str(verification.id))
+    send_verification_reviewed_sms_task.delay(str(verification.id))
     return verification
 
 
@@ -93,6 +97,7 @@ def revoke_verification(user: User, admin_user: User) -> None:
     from an org-scoped admin action (not built yet), not this one.
     """
     from emails.tasks import send_verification_reviewed_email_task
+    from sms.tasks import send_verification_reviewed_sms_task
 
     verifications = user.verification_requests.filter(status=IdentityVerification.Status.APPROVED)
     for verification in verifications:
@@ -102,6 +107,7 @@ def revoke_verification(user: User, admin_user: User) -> None:
         verification.reviewed_at = timezone.now()
         verification.save(update_fields=['status', 'rejection_reason', 'reviewed_by', 'reviewed_at'])
         send_verification_reviewed_email_task.delay(str(verification.id))
+        send_verification_reviewed_sms_task.delay(str(verification.id))
 
 
 # ─── Organization verification ──────────────────────────────────────────────

@@ -1,7 +1,7 @@
 from django.conf import settings as django_settings
 from rest_framework import serializers
 from services.logo_processing import process_logo_image
-from .models import SiteSettings, LegalContent
+from .models import SiteSettings, LegalContent, NotificationSettings
 
 
 class SiteSettingsSerializer(serializers.ModelSerializer):
@@ -37,3 +37,9 @@ class LegalContentSerializer(serializers.ModelSerializer):
     class Meta:
         model = LegalContent
         fields = ['help_content', 'trust_safety_content', 'privacy_content', 'terms_content']
+
+
+class NotificationSettingsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = NotificationSettings
+        fields = ['sms_enabled']

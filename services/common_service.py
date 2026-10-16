@@ -18,3 +18,8 @@ def get_site_settings():
 def get_legal_content():
     from apps.common.models import LegalContent
     return LegalContent.get_solo()
+
+
+def get_notification_settings():
+    from apps.common.models import NotificationSettings
+    return NotificationSettings.get_solo()
