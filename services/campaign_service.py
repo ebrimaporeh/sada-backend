@@ -642,9 +642,23 @@ def change_campaign_status(campaign_id, new_status, reason=''):
 
     send_campaign_status_update_email_task.delay(str(campaign.owner_id), str(campaign.id), new_status, reason)
 
+    # Match the in-app notification type to what actually happened -- this
+    # used to hardcode CAMPAIGN_APPROVED regardless of new_status, so a
+    # rejection or suspension made through this (generic, admin-only) status
+    # endpoint showed up in the bell with the wrong icon/category even though
+    # the title/message text below were already status-specific.
+    notification_type_by_status = {
+        Campaign.Status.APPROVED: Notification.Type.CAMPAIGN_APPROVED,
+        Campaign.Status.ACTIVE: Notification.Type.CAMPAIGN_APPROVED,
+        Campaign.Status.REJECTED: Notification.Type.CAMPAIGN_REJECTED,
+        Campaign.Status.SUSPENDED: Notification.Type.CAMPAIGN_SUSPENDED,
+        Campaign.Status.EXPIRED: Notification.Type.CAMPAIGN_EXPIRED,
+    }
+    notification_type = notification_type_by_status.get(new_status, Notification.Type.CAMPAIGN_UPDATE)
+
     Notification.objects.create(
         user=campaign.owner,
-        notification_type=Notification.Type.CAMPAIGN_APPROVED,
+        notification_type=notification_type,
         title=f'Campaign Status Updated to {new_status.title()}',
         message=f'Your campaign "{campaign.title}" status has been changed to {new_status}.',
         link=f'/campaigns/{campaign.slug}',
