@@ -5,8 +5,8 @@ from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 
-from apps.fundraising.models import Poster, PosterImage, ShareLink
-import services.fundraising_destination as fundraising_destination
+from apps.design_studio.models import Poster, PosterImage, ShareLink
+import services.design_studio_destination as design_studio_destination
 
 _CODE_ALPHABET = string.ascii_lowercase + string.digits
 _CODE_LENGTH = 8
@@ -37,7 +37,7 @@ def get_owner_posters(user):
 
 def get_owner_poster(user, poster_id) -> Poster:
     poster = get_object_or_404(Poster, pk=poster_id)
-    fundraising_destination.check_destination_manage_access(
+    design_studio_destination.check_destination_manage_access(
         user, destination_type=poster.destination_type, campaign=poster.campaign, organization=poster.organization,
     )
     return poster
@@ -45,7 +45,7 @@ def get_owner_poster(user, poster_id) -> Poster:
 
 @transaction.atomic
 def create_poster(user, *, destination_type, campaign=None, organization=None, name, template, design=None) -> Poster:
-    fundraising_destination.check_destination_manage_access(
+    design_studio_destination.check_destination_manage_access(
         user, destination_type=destination_type, campaign=campaign, organization=organization,
     )
     # One poster per destination (see Poster's own docstring) -- checked
@@ -72,7 +72,7 @@ def update_poster(user, poster: Poster, **fields) -> Poster:
     one" operation, not an edit, so its dynamic-binding elements never
     silently start rendering a different destination's data underneath an
     unchanged design."""
-    fundraising_destination.check_destination_manage_access(
+    design_studio_destination.check_destination_manage_access(
         user, destination_type=poster.destination_type, campaign=poster.campaign, organization=poster.organization,
     )
     for field, value in fields.items():
@@ -82,7 +82,7 @@ def update_poster(user, poster: Poster, **fields) -> Poster:
 
 
 def delete_poster(user, poster: Poster) -> None:
-    fundraising_destination.check_destination_manage_access(
+    design_studio_destination.check_destination_manage_access(
         user, destination_type=poster.destination_type, campaign=poster.campaign, organization=poster.organization,
     )
     poster.delete()
@@ -93,7 +93,7 @@ def upload_poster_image(user, poster: Poster, image_file) -> PosterImage:
     from the destination's own cover image, which is referenced by URL and
     never re-uploaded here. Same permission gate and compression pattern as
     campaign_service.upload_cover."""
-    fundraising_destination.check_destination_manage_access(
+    design_studio_destination.check_destination_manage_access(
         user, destination_type=poster.destination_type, campaign=poster.campaign, organization=poster.organization,
     )
     if not image_file:
@@ -114,7 +114,7 @@ def resolve_share_link(code: str) -> str:
     share_link = get_object_or_404(ShareLink.objects.select_related('poster__campaign', 'poster__organization'), code=code)
     ShareLink.objects.filter(pk=share_link.pk).update(click_count=F('click_count') + 1)
     poster = share_link.poster
-    destination = fundraising_destination.resolve_destination(
+    destination = design_studio_destination.resolve_destination(
         poster.destination_type, campaign=poster.campaign, organization=poster.organization,
     )
     return destination.public_url

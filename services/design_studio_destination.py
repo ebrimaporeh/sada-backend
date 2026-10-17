@@ -1,11 +1,11 @@
-"""Fundraising Studio's shared destination resolver.
+"""Design Studio's shared destination resolver.
 
 Poster Studio and Embed Studio both point at exactly one of the platform's
 two existing donation destinations -- Organization or Campaign. This module
 is the *only* place that branches on which one a given Poster/Embed points
 at; poster_service.py and embed_service.py both call resolve_destination()
 rather than re-implementing "if campaign else organization" themselves. No
-new database model is introduced here -- FundraisingDestination is a plain,
+new database model is introduced here -- DesignStudioDestination is a plain,
 non-persisted view over the existing Campaign/Organization rows, built from
 data those models (and their own services) already expose.
 
@@ -36,7 +36,7 @@ def _absolute_media_url(request, field) -> Optional[str]:
 
 
 @dataclass
-class FundraisingDestination:
+class DesignStudioDestination:
     type: str  # DestinationType.ORGANIZATION or DestinationType.CAMPAIGN
     id: str
     title: str
@@ -56,14 +56,14 @@ class FundraisingDestination:
     donation_url: str
 
 
-def resolve_destination(destination_type: str, *, campaign=None, organization=None, request=None) -> FundraisingDestination:
-    from apps.fundraising.models import DestinationType
+def resolve_destination(destination_type: str, *, campaign=None, organization=None, request=None) -> DesignStudioDestination:
+    from apps.design_studio.models import DestinationType
 
     if destination_type == DestinationType.CAMPAIGN:
         if campaign is None:
             raise ValueError('campaign is required when destination_type is CAMPAIGN')
         org = campaign.organization
-        return FundraisingDestination(
+        return DesignStudioDestination(
             type=DestinationType.CAMPAIGN,
             id=str(campaign.id),
             title=campaign.title,
@@ -91,7 +91,7 @@ def resolve_destination(destination_type: str, *, campaign=None, organization=No
         # OrganizationPublicDonateView/OrganizationPublicSerializer); don't
         # fabricate zeros here, leave these genuinely None so callers (the
         # poster/embed renderers) know not to show a progress bar at all.
-        return FundraisingDestination(
+        return DesignStudioDestination(
             type=DestinationType.ORGANIZATION,
             id=str(organization.id),
             title=organization.organization_name,
@@ -124,7 +124,7 @@ def resolve_embed_gallery_destinations(organization, request=None) -> list:
     sync, this is the single source of truth for what the embed shows.
     """
     from apps.campaigns.models import Campaign
-    from apps.fundraising.models import DestinationType
+    from apps.design_studio.models import DestinationType
 
     destinations = []
     if organization.show_in_embed:
@@ -181,7 +181,7 @@ def check_destination_manage_access(user, *, destination_type, campaign=None, or
     from django.http import Http404
     from rest_framework.exceptions import PermissionDenied
 
-    from apps.fundraising.models import DestinationType
+    from apps.design_studio.models import DestinationType
     from apps.organizations.permissions import OrganizationPermission
     import services.organization_service as organization_service
 

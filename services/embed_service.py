@@ -1,8 +1,8 @@
 from django.shortcuts import get_object_or_404
 
-from apps.fundraising.models import DestinationType, Embed
+from apps.design_studio.models import DestinationType, Embed
 from apps.users.models import Organization
-import services.fundraising_destination as fundraising_destination
+import services.design_studio_destination as design_studio_destination
 
 
 def get_or_create_org_embed(user, organization: Organization) -> Embed:
@@ -12,7 +12,7 @@ def get_or_create_org_embed(user, organization: Organization) -> Embed:
     an organization that doesn't have one yet just makes one, blank, on the
     spot. Idempotent -- calling this twice for the same organization always
     returns the same row, enforced by Embed.organization's OneToOneField."""
-    fundraising_destination.check_destination_manage_access(
+    design_studio_destination.check_destination_manage_access(
         user, destination_type=DestinationType.ORGANIZATION, organization=organization,
     )
     embed, _ = Embed.objects.get_or_create(
@@ -29,7 +29,7 @@ def get_owner_org_embed(user, organization_id) -> Embed:
 
 def get_owner_embed(user, embed_id) -> Embed:
     embed = get_object_or_404(Embed.objects.select_related('organization'), pk=embed_id)
-    fundraising_destination.check_destination_manage_access(
+    design_studio_destination.check_destination_manage_access(
         user, destination_type=DestinationType.ORGANIZATION, organization=embed.organization,
     )
     return embed
@@ -49,7 +49,7 @@ def update_embed(user, embed: Embed, **fields) -> Embed:
     """Fields typically: name, layout, configuration, return_url.
     Organization is deliberately not updatable here -- same reasoning as
     poster_service.update_poster not allowing a destination swap."""
-    fundraising_destination.check_destination_manage_access(
+    design_studio_destination.check_destination_manage_access(
         user, destination_type=DestinationType.ORGANIZATION, organization=embed.organization,
     )
     for field, value in fields.items():
@@ -59,7 +59,7 @@ def update_embed(user, embed: Embed, **fields) -> Embed:
 
 
 def set_embed_active(user, embed: Embed, is_active: bool) -> Embed:
-    fundraising_destination.check_destination_manage_access(
+    design_studio_destination.check_destination_manage_access(
         user, destination_type=DestinationType.ORGANIZATION, organization=embed.organization,
     )
     embed.is_active = is_active

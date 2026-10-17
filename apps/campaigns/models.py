@@ -97,9 +97,9 @@ class Campaign(BaseModel):
     is_featured = models.BooleanField(default=False)
     is_anonymous = models.BooleanField(default=False)
     # Owner opt-in: surface this campaign as a donation option in its
-    # organization's single embed widget (see apps.fundraising.Embed). Only
+    # organization's single embed widget (see apps.design_studio.Embed). Only
     # actually shown once the campaign is ACTIVE too -- see
-    # fundraising_destination.resolve_embed_gallery_destinations -- so it's
+    # design_studio_destination.resolve_embed_gallery_destinations -- so it's
     # safe to flip on while still in draft.
     show_in_embed = models.BooleanField(default=False)
     cover_image = models.ImageField(upload_to=campaign_cover_image_path, null=True, blank=True, validators=[validate_image_size])

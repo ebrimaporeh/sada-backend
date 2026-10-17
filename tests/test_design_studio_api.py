@@ -8,7 +8,7 @@ from rest_framework.test import APITestCase
 
 from apps.users.models import User, Organization
 from apps.campaigns.models import Campaign, Category
-from apps.fundraising.models import DestinationType, Embed, Poster, ShareLink
+from apps.design_studio.models import DestinationType, Embed, Poster, ShareLink
 from apps.organizations.models import OrganizationType, OrganizationRole, OrganizationMembership
 from apps.organizations.permissions import OrganizationPermission
 import services.organization_service as organization_service
@@ -205,7 +205,7 @@ class PosterUpdateDuplicateDeleteTest(APITestCase):
     def test_deleting_the_underlying_draft_campaign_cascades_the_poster(self):
         # delete_campaign() only allows DRAFT/REJECTED campaigns -- exactly
         # the ones that were never public, so cascading their posters away
-        # is safe (see fundraising_destination.py's on_delete reasoning).
+        # is safe (see design_studio_destination.py's on_delete reasoning).
         import services.campaign_service as campaign_service
         self.campaign.status = Campaign.Status.DRAFT
         self.campaign.save(update_fields=['status'])
@@ -283,14 +283,14 @@ class ShareLinkRedirectTest(APITestCase):
         })
         code = create.data['data']['poster']['share_code']
         self.client.force_authenticate(None)
-        response = self.client.get(reverse('fundraising-share-link', args=[code]), follow=False)
+        response = self.client.get(reverse('design-studio-share-link', args=[code]), follow=False)
         self.assertEqual(response.status_code, 302)
         self.assertIn(f'/campaigns/{campaign.slug}', response.url)
         share_link = ShareLink.objects.get(code=code)
         self.assertEqual(share_link.click_count, 1)
 
     def test_unknown_code_404s(self):
-        response = self.client.get(reverse('fundraising-share-link', args=['doesnotexist']))
+        response = self.client.get(reverse('design-studio-share-link', args=['doesnotexist']))
         self.assertEqual(response.status_code, 404)
 
 

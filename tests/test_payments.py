@@ -11,7 +11,7 @@ from apps.users.models import User, Organization
 from apps.organizations.models import OrganizationType
 from apps.campaigns.models import Campaign
 from apps.donations.models import Donation
-from apps.fundraising.models import Embed
+from apps.design_studio.models import Embed
 from apps.payments.models import Payout, PlatformSettings, WebhookEvent
 from apps.ledger.models import LedgerEntry
 from services import donation_service, payment_service

@@ -8,7 +8,7 @@ from .models import Embed
 from .embed_serializers import EmbedDetailSerializer, EmbedPublicSerializer, EmbedUpdateSerializer
 
 
-@extend_schema(tags=['Fundraising'], summary="Get (or create) my organization's embed")
+@extend_schema(tags=['Design Studio'], summary="Get (or create) my organization's embed")
 class OrganizationEmbedView(APIView):
     """The only way to reach an Embed as its owner -- there's no separate
     create endpoint. GET always succeeds for any organization the caller
@@ -22,7 +22,7 @@ class OrganizationEmbedView(APIView):
         return Response({'success': True, 'data': {'embed': out.data}})
 
 
-@extend_schema(tags=['Fundraising'], summary='Update an embed')
+@extend_schema(tags=['Design Studio'], summary='Update an embed')
 class EmbedDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -40,7 +40,7 @@ class EmbedDetailView(APIView):
         return Response({'success': True, 'message': 'Embed saved.', 'data': {'embed': out.data}})
 
 
-@extend_schema(tags=['Fundraising'], summary='Activate an embed')
+@extend_schema(tags=['Design Studio'], summary='Activate an embed')
 class EmbedActivateView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -51,7 +51,7 @@ class EmbedActivateView(APIView):
         return Response({'success': True, 'message': 'Embed activated.', 'data': {'embed': out.data}})
 
 
-@extend_schema(tags=['Fundraising'], summary='Deactivate an embed')
+@extend_schema(tags=['Design Studio'], summary='Deactivate an embed')
 class EmbedDeactivateView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -63,7 +63,7 @@ class EmbedDeactivateView(APIView):
 
 
 @extend_schema(
-    tags=['Fundraising'], summary='Get an embed for public rendering (no auth required)',
+    tags=['Design Studio'], summary='Get an embed for public rendering (no auth required)',
     responses={200: EmbedPublicSerializer},
 )
 class EmbedPublicView(APIView):

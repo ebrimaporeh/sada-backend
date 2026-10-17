@@ -5,9 +5,9 @@ from rest_framework.test import APITestCase
 
 from apps.users.models import User, Organization
 from apps.campaigns.models import Campaign, Category
-from apps.fundraising.models import DestinationType, Embed, Poster
+from apps.design_studio.models import DestinationType, Embed, Poster
 import services.organization_service as organization_service
-import services.fundraising_destination as fundraising_destination
+import services.design_studio_destination as design_studio_destination
 from apps.organizations.models import OrganizationType
 
 
@@ -126,13 +126,13 @@ class EmbedGalleryResolverTest(APITestCase):
         _, org = make_org_and_owner()
         org.show_in_embed = False
         org.save(update_fields=['show_in_embed'])
-        destinations = fundraising_destination.resolve_embed_gallery_destinations(org)
+        destinations = design_studio_destination.resolve_embed_gallery_destinations(org)
         self.assertEqual(destinations, [])
 
     def test_gallery_includes_organization_when_opted_in(self):
         _, org = make_org_and_owner()
         self.assertTrue(org.show_in_embed)  # true by default
-        destinations = fundraising_destination.resolve_embed_gallery_destinations(org)
+        destinations = design_studio_destination.resolve_embed_gallery_destinations(org)
         self.assertEqual(len(destinations), 1)
         self.assertEqual(destinations[0].type, DestinationType.ORGANIZATION)
 
@@ -145,18 +145,18 @@ class EmbedGalleryResolverTest(APITestCase):
         make_campaign(organization=org, status=Campaign.Status.DRAFT, show_in_embed=True)
         make_campaign(status=Campaign.Status.ACTIVE, show_in_embed=True)  # no organization at all
 
-        destinations = fundraising_destination.resolve_embed_gallery_destinations(org)
+        destinations = design_studio_destination.resolve_embed_gallery_destinations(org)
         self.assertEqual(len(destinations), 1)
         self.assertEqual(destinations[0].id, str(active_opted_in.id))
 
 
-class FundraisingDestinationResolverTest(APITestCase):
+class DesignStudioDestinationResolverTest(APITestCase):
     def test_resolve_campaign_destination(self):
         campaign = make_campaign(
             goal=Decimal('10000.00'), raised=Decimal('2500.00'), donors_count=3,
             deadline=timezone.now().date() + timezone.timedelta(days=30),
         )
-        destination = fundraising_destination.resolve_destination(DestinationType.CAMPAIGN, campaign=campaign)
+        destination = design_studio_destination.resolve_destination(DestinationType.CAMPAIGN, campaign=campaign)
         self.assertEqual(destination.type, DestinationType.CAMPAIGN)
         self.assertEqual(destination.title, campaign.title)
         self.assertEqual(destination.goal, Decimal('10000.00'))
@@ -168,13 +168,13 @@ class FundraisingDestinationResolverTest(APITestCase):
 
     def test_open_ended_campaign_has_no_deadline_and_is_ongoing(self):
         campaign = make_campaign(deadline=None)
-        destination = fundraising_destination.resolve_destination(DestinationType.CAMPAIGN, campaign=campaign)
+        destination = design_studio_destination.resolve_destination(DestinationType.CAMPAIGN, campaign=campaign)
         self.assertIsNone(destination.deadline)
         self.assertTrue(destination.is_ongoing)
 
     def test_resolve_organization_destination_has_no_progress_fields(self):
         _, org = make_org_and_owner()
-        destination = fundraising_destination.resolve_destination(DestinationType.ORGANIZATION, organization=org)
+        destination = design_studio_destination.resolve_destination(DestinationType.ORGANIZATION, organization=org)
         self.assertEqual(destination.type, DestinationType.ORGANIZATION)
         self.assertEqual(destination.title, org.organization_name)
         self.assertIsNone(destination.goal)
@@ -186,18 +186,18 @@ class FundraisingDestinationResolverTest(APITestCase):
 
     def test_resolve_campaign_destination_requires_campaign(self):
         with self.assertRaises(ValueError):
-            fundraising_destination.resolve_destination(DestinationType.CAMPAIGN)
+            design_studio_destination.resolve_destination(DestinationType.CAMPAIGN)
 
     def test_resolve_organization_destination_requires_organization(self):
         with self.assertRaises(ValueError):
-            fundraising_destination.resolve_destination(DestinationType.ORGANIZATION)
+            design_studio_destination.resolve_destination(DestinationType.ORGANIZATION)
 
     def test_resolve_unknown_destination_type_raises(self):
         with self.assertRaises(ValueError):
-            fundraising_destination.resolve_destination('something-else')
+            design_studio_destination.resolve_destination('something-else')
 
     def test_campaign_belonging_to_organization_surfaces_organization_display_fields(self):
         _, org = make_org_and_owner()
         campaign = make_campaign(organization=org)
-        destination = fundraising_destination.resolve_destination(DestinationType.CAMPAIGN, campaign=campaign)
+        destination = design_studio_destination.resolve_destination(DestinationType.CAMPAIGN, campaign=campaign)
         self.assertEqual(destination.organization_name, org.organization_name)

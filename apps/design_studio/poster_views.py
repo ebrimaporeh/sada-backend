@@ -29,7 +29,7 @@ def _resolve_destination_objects(validated_data):
     return campaign, organization
 
 
-@extend_schema(tags=['Fundraising'], summary='List my posters / create a poster')
+@extend_schema(tags=['Design Studio'], summary='List my posters / create a poster')
 class PosterListCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -53,7 +53,7 @@ class PosterListCreateView(APIView):
         return Response({'success': True, 'message': 'Poster created.', 'data': {'poster': out.data}}, status=201)
 
 
-@extend_schema(tags=['Fundraising'], summary='Retrieve / update / delete a poster')
+@extend_schema(tags=['Design Studio'], summary='Retrieve / update / delete a poster')
 class PosterDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -76,7 +76,7 @@ class PosterDetailView(APIView):
         return Response({'success': True, 'message': 'Poster deleted.'}, status=204)
 
 
-@extend_schema(tags=['Fundraising'], summary='Upload an image for use in a poster design')
+@extend_schema(tags=['Design Studio'], summary='Upload an image for use in a poster design')
 class PosterImageUploadView(APIView):
     permission_classes = [IsAuthenticated]
 

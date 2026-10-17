@@ -1,10 +1,10 @@
-"""Fundraising Studio -- Poster Studio and Embed Studio.
+"""Design Studio -- Poster Studio and Embed Studio.
 
 Two independently-managed distribution/presentation tools, both resolved
-through FundraisingDestination (see services/fundraising_destination.py)
+through DesignStudioDestination (see services/design_studio_destination.py)
 rather than introducing a new fundraising/destination concept of their own.
 Poster and Embed are deliberately separate model classes (not a shared
-generic "Studio item" base) -- see .claude/backend/fundraising.md for the
+generic "Studio item" base) -- see .claude/backend/design-studio.md for the
 full architecture writeup.
 
 They no longer share the same destination shape. Poster still points at
@@ -14,7 +14,7 @@ CheckConstraint, mirroring apps.donations.models.Donation's own "exactly
 one destination" pattern. Embed is organization-scoped only (one per org,
 via a OneToOneField) and instead renders a *gallery* of destinations
 resolved at read time -- see Embed's own docstring and
-fundraising_destination.resolve_embed_gallery_destinations().
+design_studio_destination.resolve_embed_gallery_destinations().
 """
 from django.conf import settings
 from django.db import models
@@ -27,11 +27,11 @@ class DestinationType(models.TextChoices):
     """Poster's destination trio -- a Poster points at exactly one of the
     platform's two donation destinations (Organization or Campaign) via
     this value + the campaign/organization FK pair below, both resolved
-    through services/fundraising_destination.py::resolve_destination().
+    through services/design_studio_destination.py::resolve_destination().
 
     Embed no longer uses this: an Embed is always organization-scoped (see
     Embed below) -- its gallery of destinations is resolved via
-    fundraising_destination.resolve_embed_gallery_destinations() instead,
+    design_studio_destination.resolve_embed_gallery_destinations() instead,
     which still calls resolve_destination() per item under the hood, so
     this enum's values stay the vocabulary both paths share."""
     ORGANIZATION = 'organization', 'Organization'
@@ -54,7 +54,7 @@ class Poster(BaseModel):
     something in that layout; everything else is computed from the shared
     canonical geometry. See the frontend's poster/layoutProjection.js for
     the one place both read and write sides agree on this shape, and
-    .claude/backend/fundraising.md for the full writeup."""
+    .claude/backend/design-studio.md for the full writeup."""
     class Template(models.TextChoices):
         """Square/story/wide -- a size/aspect-ratio choice, not a design
         style (every layout renders the same shared composition, just at a
@@ -112,7 +112,7 @@ class Poster(BaseModel):
     # `height` are always the canonical Square reference (1080x1080), not
     # "this poster's size" -- see Poster's own docstring. Never just a
     # generated PNG: this is what makes the poster re-editable. See
-    # fundraising.md for the element schema (static vs. binding-tagged
+    # design-studio.md for the element schema (static vs. binding-tagged
     # dynamic elements, and the layoutOverrides shape).
     design = models.JSONField(default=dict, blank=True)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)
@@ -169,8 +169,8 @@ class Embed(BaseModel):
     renders a gallery of everything the organization has currently opted
     into showing: the organization itself (Organization.show_in_embed) plus
     every ACTIVE campaign with Campaign.show_in_embed set. See
-    services/fundraising_destination.py::resolve_embed_gallery_destinations
-    for how that list is built, and .claude/backend/fundraising.md for the
+    services/design_studio_destination.py::resolve_embed_gallery_destinations
+    for how that list is built, and .claude/backend/design-studio.md for the
     full rationale -- this replaced an earlier per-campaign/per-org model
     that required a separate embed (and manual upkeep) per destination."""
     class Layout(models.TextChoices):
@@ -195,7 +195,7 @@ class Embed(BaseModel):
     layout = models.CharField(max_length=20, choices=Layout.choices, default=Layout.CARD)
     # Content/appearance settings -- donate button text, background/text/
     # button colors, card corner radius, button corner radius, curated
-    # font-family key. See fundraising.md for the full shape. Kept as one
+    # font-family key. See design-studio.md for the full shape. Kept as one
     # JSON blob (not individual columns) since this is genuinely free-form
     # presentation config, same reasoning as Poster.design.
     configuration = models.JSONField(default=dict, blank=True)

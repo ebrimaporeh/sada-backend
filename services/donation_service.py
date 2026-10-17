@@ -52,7 +52,7 @@ def create_donation(donor, validated_data):
     from apps.donations.models import Donation
     from apps.campaigns.models import Campaign
     from apps.users.models import Organization
-    from apps.fundraising.models import Embed
+    from apps.design_studio.models import Embed
     from services.gateways.registry import get_gateway
 
     campaign_id = validated_data.pop('campaign_id', None)

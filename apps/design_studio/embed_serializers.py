@@ -2,7 +2,7 @@ from dataclasses import asdict
 
 from rest_framework import serializers
 
-import services.fundraising_destination as fundraising_destination
+import services.design_studio_destination as design_studio_destination
 from .models import Embed
 
 
@@ -10,7 +10,7 @@ def _serialize_organization(organization, request=None) -> dict:
     """Lean organization projection shared by both serializers below --
     deliberately not the full OrganizationSerializer (this is public-facing
     on EmbedPublicSerializer, same "never expose more than the destination's
-    own public pages already show" rule as fundraising_destination's own
+    own public pages already show" rule as design_studio_destination's own
     docstring)."""
     logo_url = None
     if organization.logo:
@@ -45,7 +45,7 @@ class EmbedDetailSerializer(serializers.ModelSerializer):
     def get_destinations(self, obj):
         request = self.context.get('request')
         return [
-            asdict(d) for d in fundraising_destination.resolve_embed_gallery_destinations(obj.organization, request=request)
+            asdict(d) for d in design_studio_destination.resolve_embed_gallery_destinations(obj.organization, request=request)
         ]
 
     def get_embed_url(self, obj):
@@ -55,7 +55,7 @@ class EmbedDetailSerializer(serializers.ModelSerializer):
 
 
 class EmbedPublicSerializer(serializers.ModelSerializer):
-    """Backs GET /fundraising/embeds/<id>/public/ -- deliberately lean.
+    """Backs GET /design-studio/embeds/<id>/public/ -- deliberately lean.
     Never exposes anything beyond the embed's own public uuid, the
     organization's public projection, and each destination's own public
     fields (progress/goal/raised etc., same as their standalone public
@@ -82,7 +82,7 @@ class EmbedPublicSerializer(serializers.ModelSerializer):
     def get_destinations(self, obj):
         request = self.context.get('request')
         return [
-            asdict(d) for d in fundraising_destination.resolve_embed_gallery_destinations(obj.organization, request=request)
+            asdict(d) for d in design_studio_destination.resolve_embed_gallery_destinations(obj.organization, request=request)
         ]
 
     def get_layout(self, obj):

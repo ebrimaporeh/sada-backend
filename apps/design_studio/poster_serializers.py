@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-import services.fundraising_destination as fundraising_destination
+import services.design_studio_destination as design_studio_destination
 from .models import DestinationType, Poster, PosterImage
 
 
@@ -32,7 +32,7 @@ class PosterListSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'template', 'design', 'status', 'destination', 'share_code', 'created_at', 'updated_at']
 
     def get_destination(self, obj):
-        return fundraising_destination.serialize_destination(obj, self.context.get('request'))
+        return design_studio_destination.serialize_destination(obj, self.context.get('request'))
 
     def get_share_code(self, obj):
         return getattr(obj.share_link, 'code', None) if hasattr(obj, 'share_link') else None
@@ -51,7 +51,7 @@ class PosterDetailSerializer(serializers.ModelSerializer):
         ]
 
     def get_destination(self, obj):
-        return fundraising_destination.serialize_destination(obj, self.context.get('request'))
+        return design_studio_destination.serialize_destination(obj, self.context.get('request'))
 
     def get_share_code(self, obj):
         return obj.share_link.code if hasattr(obj, 'share_link') else None
