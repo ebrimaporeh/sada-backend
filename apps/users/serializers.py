@@ -1,6 +1,7 @@
-import re
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 from apps.organizations.permissions import OrganizationPermission
+from utils.validators import validate_gambia_phone
 from .models import User, IdentityVerification, Organization, OrganizationVerification, OrganizationChangeRequest
 
 
@@ -96,24 +97,19 @@ class UserUpdateSerializer(serializers.ModelSerializer):
             'notify_goal_reached', 'notify_new_comment', 'notify_new_update', 'notify_marketing',
         ]
 
+    # DRF's own Serializer.to_internal_value catches a plain Django
+    # ValidationError raised from a validate_<field> method (not just the
+    # rest_framework one) and folds it into the same per-field error dict
+    # -- no need to catch/re-raise it as serializers.ValidationError here.
+    def validate_phone(self, value):
+        return validate_gambia_phone(value)
+
     def validate_default_payment_phone(self, value):
-        # PURA's numbering reform (effective 4 Sept 2026) moves every
-        # Gambian number from 7 to 9 digits, with both formats valid
-        # through a transition period ending 30 Nov 2026 -- accept either
-        # length here rather than only the old (or only the new) format.
-        # Scoped to this one field (payment settings) for now, not every
-        # phone field in the app -- see the frontend's matching check in
-        # SettingsPage.jsx's handlePaymentSubmit.
-        if not value:
-            return value
-        digits = re.sub(r'\D', '', value)
-        if digits.startswith('220'):
-            digits = digits[3:]
-        if len(digits) not in (7, 9):
-            raise serializers.ValidationError(
-                'Enter a valid Gambian phone number -- 7 digits (old format) or 9 digits (new format), after +220.'
-            )
-        return value
+        # PURA's numbering reform is complete -- see utils/validators.py's
+        # own docstring. validate_gambia_phone is now the one shared rule
+        # behind every phone field in the app, including the frontend's
+        # matching check in SettingsPage.jsx's handlePaymentSubmit.
+        return validate_gambia_phone(value)
 
 
 class DeleteAccountSerializer(serializers.Serializer):
@@ -195,6 +191,9 @@ class AdminUserCreateSerializer(serializers.ModelSerializer):
         if User.objects.filter(email__iexact=value).exists():
             raise serializers.ValidationError('A user with this email already exists.')
         return value
+
+    def validate_phone(self, value):
+        return validate_gambia_phone(value)
 
     def validate_role(self, value):
         from permissions.roles import get_managed_role_slugs
@@ -372,9 +371,10 @@ class OrganizationChangeRequestCreateSerializer(serializers.ModelSerializer):
 
         field_name = data.get('field_name')
         if field_name in (OrganizationChangeRequest.Field.PHONE, OrganizationChangeRequest.Field.PHONE_2):
-            digits = value.replace('+', '').replace(' ', '')
-            if not digits.isdigit():
-                raise serializers.ValidationError({'proposed_value': 'Invalid phone number.'})
+            try:
+                value = validate_gambia_phone(value)
+            except DjangoValidationError as exc:
+                raise serializers.ValidationError({'proposed_value': exc.message}) from exc
         else:
             try:
                 serializers.EmailField().run_validation(value)

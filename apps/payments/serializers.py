@@ -1,5 +1,6 @@
 from decimal import Decimal
 from rest_framework import serializers
+from utils.validators import validate_gambia_phone
 from .models import Payment, Payout, PlatformSettings
 
 
@@ -20,6 +21,9 @@ class PayoutCreateSerializer(serializers.ModelSerializer):
         if value <= 0:
             raise serializers.ValidationError('Amount must be positive.')
         return value
+
+    def validate_phone(self, value):
+        return validate_gambia_phone(value)
 
     def validate_provider(self, value):
         # Payouts are modempay-only (Stripe/card donations have no payout

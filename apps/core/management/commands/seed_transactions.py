@@ -50,8 +50,13 @@ def make_payout_ref():
 
 
 def random_local_phone():
+    # Every DONOR_PHONE_PREFIXES entry starts with 7, which the numbering
+    # reform maps to an 87 prefix (see utils.validators.
+    # migrate_legacy_gambia_phone) -- generating straight in the new
+    # 9-digit canonical format rather than an old 7-digit one that would
+    # then need converting.
     prefix = random.choice(DONOR_PHONE_PREFIXES)
-    return f'+220 {prefix}{random.randint(10000, 99999)}'
+    return f'+22087{prefix}{random.randint(10000, 99999)}'
 
 
 def weighted_days_ago():

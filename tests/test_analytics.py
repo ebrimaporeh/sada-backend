@@ -27,7 +27,7 @@ def make_campaign(**kwargs):
 
 def make_donation_on(campaign, amount, days_ago, reference):
     donation = Donation.objects.create(
-        campaign=campaign, amount=Decimal(str(amount)), provider='wave', phone='+2207000000',
+        campaign=campaign, amount=Decimal(str(amount)), provider='wave', phone='+220877000000',
         payment_reference=reference, gateway='modempay', status=Donation.Status.PAID,
     )
     Donation.objects.filter(pk=donation.pk).update(

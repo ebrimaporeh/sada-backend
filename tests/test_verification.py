@@ -27,7 +27,7 @@ def make_org_and_owner(**kwargs):
     org_type, _ = OrganizationType.objects.get_or_create(slug='community', defaults={'name': 'Community-Based Organization'})
     org_defaults = {
         'organization_name': 'Test Org', 'organization_type': org_type,
-        'phone_2': '+2207000001', 'created_by': user,
+        'phone_2': '+220877000001', 'created_by': user,
     }
     org_defaults.update(org_kwargs)
     org = Organization.objects.create(**org_defaults)

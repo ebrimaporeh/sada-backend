@@ -7,55 +7,55 @@ ORGANIZATIONS_DATA = [
     dict(
         user=dict(
             email='bakau.mosque@example.gm', password='User@1234',
-            role=User.Role.USER, email_verified=True, phone='+220 7300001', region='kanifing',
+            role=User.Role.USER, email_verified=True, phone='+220877300001', region='kanifing',
             bio='Serving the Muslim community of Bakau since 1972.',
         ),
         org=dict(
             organization_name='Bakau Central Mosque Committee',
             organization_type='religious',
-            phone='+220 7300001',
-            phone_2='+220 7300002',
+            phone='+220877300001',
+            phone_2='+220877300002',
             recovery_email_1='momodou.jallow@example.gm',
         ),
     ),
     dict(
         user=dict(
             email='utgsu@example.gm', password='User@1234',
-            role=User.Role.USER, email_verified=True, phone='+220 7300003', region='brikama',
+            role=User.Role.USER, email_verified=True, phone='+220877300003', region='brikama',
             bio="The official students' union of the University of The Gambia.",
         ),
         org=dict(
             organization_name="University of The Gambia Students' Union (UTG SU)",
             organization_type='student_union',
-            phone='+220 7300003',
-            phone_2='+220 7300004',
+            phone='+220877300003',
+            phone_2='+220877300004',
             recovery_email_1='fatoumatta.bah@example.gm',
         ),
     ),
     dict(
         user=dict(
             email='serrekunda.cda@example.gm', password='User@1234',
-            role=User.Role.USER, email_verified=True, phone='+220 7300005', region='kanifing',
+            role=User.Role.USER, email_verified=True, phone='+220877300005', region='kanifing',
             bio='A grassroots community development association serving Greater Serrekunda.',
         ),
         org=dict(
             organization_name='Serrekunda Community Development Association',
             organization_type='community',
-            phone='+220 7300005',
-            phone_2='+220 7300006',
+            phone='+220877300005',
+            phone_2='+220877300006',
         ),
     ),
     dict(
         user=dict(
             email='naatip@example.gm', password='User@1234',
-            role=User.Role.USER, email_verified=True, phone='+220 7300007', region='banjul',
+            role=User.Role.USER, email_verified=True, phone='+220877300007', region='banjul',
             bio='National Agency Against Trafficking in Persons - Government of The Gambia.',
         ),
         org=dict(
             organization_name='National Agency Against Trafficking in Persons (NAATIP)',
             organization_type='national_agency',
-            phone='+220 7300007',
-            phone_2='+220 7300008',
+            phone='+220877300007',
+            phone_2='+220877300008',
             recovery_email_1='info.naatip@example.gm',
             recovery_email_2='director.naatip@example.gm',
         ),
@@ -63,14 +63,14 @@ ORGANIZATIONS_DATA = [
     dict(
         user=dict(
             email='whatsongambia@example.gm', password='User@1234',
-            role=User.Role.USER, email_verified=True, phone='+220 7300009', region='banjul',
+            role=User.Role.USER, email_verified=True, phone='+220877300009', region='banjul',
             bio="The Gambia's independent entertainment, culture and events media outlet.",
         ),
         org=dict(
             organization_name="What's On Gambia",
             organization_type='media',
-            phone='+220 7300009',
-            phone_2='+220 7300010',
+            phone='+220877300009',
+            phone_2='+220877300010',
         ),
     ),
 ]

@@ -156,7 +156,7 @@ class DonationLedgerTest(APITestCase):
     def test_donation_received_posts_balanced_two_line_transaction(self):
         donation = Donation.objects.create(
             campaign=self.campaign, amount=Decimal('300.00'), provider='wave',
-            phone='+2207000000', payment_reference='SD-LEDGER1', gateway='modempay',
+            phone='+220877000000', payment_reference='SD-LEDGER1', gateway='modempay',
             status=Donation.Status.PENDING,
         )
         donation_service._confirm_donation(donation)
@@ -177,7 +177,7 @@ class DonationLedgerTest(APITestCase):
     def test_confirming_twice_does_not_double_post(self):
         donation = Donation.objects.create(
             campaign=self.campaign, amount=Decimal('100.00'), provider='wave',
-            phone='+2207000000', payment_reference='SD-LEDGER2', gateway='modempay',
+            phone='+220877000000', payment_reference='SD-LEDGER2', gateway='modempay',
             status=Donation.Status.PENDING,
         )
         donation_service.confirm_donation_by_reference('SD-LEDGER2')
@@ -196,7 +196,7 @@ class DonationLedgerTest(APITestCase):
 
         donation = Donation.objects.create(
             campaign=self.campaign, amount=Decimal('150.00'), provider='wave',
-            phone='+2207000000', payment_reference='SD-LEDGER3', gateway='modempay',
+            phone='+220877000000', payment_reference='SD-LEDGER3', gateway='modempay',
             provider_reference='ch_refundme', status=Donation.Status.PENDING,
         )
         donation_service._confirm_donation(donation)
@@ -235,7 +235,7 @@ class PayoutLedgerTest(APITestCase):
         payout = Payout.objects.create(
             campaign=campaign, requested_by=campaign.owner,
             amount=Decimal('500.00'), fee=Decimal('5.00'), provider_fee=Decimal('12.00'),
-            net_amount=Decimal('483.00'), provider='wave', phone='+2207000000',
+            net_amount=Decimal('483.00'), provider='wave', phone='+220877000000',
             reference='PO-LEDGER1', status=Payout.Status.PROCESSING,
         )
         payment_service._mark_payout_completed(payout, provider_reference='tr_ledger1')
@@ -261,7 +261,7 @@ class PayoutLedgerTest(APITestCase):
         payout = Payout.objects.create(
             campaign=campaign, requested_by=campaign.owner,
             amount=Decimal('200.00'), fee=Decimal('2.00'), provider_fee=Decimal('3.00'),
-            net_amount=Decimal('195.00'), provider='wave', phone='+2207000000',
+            net_amount=Decimal('195.00'), provider='wave', phone='+220877000000',
             reference='PO-LEDGER2', status=Payout.Status.PROCESSING,
         )
         payment_service._mark_payout_completed(payout)
@@ -279,7 +279,7 @@ class AdminAdjustmentLedgerTest(APITestCase):
         campaign = make_campaign()
         donation = Donation.objects.create(
             campaign=campaign, amount=Decimal('100.00'), provider='wave',
-            phone='+2207000000', payment_reference='SD-ADMIN1', gateway='modempay',
+            phone='+220877000000', payment_reference='SD-ADMIN1', gateway='modempay',
             status=Donation.Status.PAID,
         )
         Campaign.objects.filter(pk=campaign.pk).update(raised=Decimal('100.00'), donors_count=1)
@@ -300,7 +300,7 @@ class AdminAdjustmentLedgerTest(APITestCase):
         campaign = make_campaign()
         donation = Donation.objects.create(
             campaign=campaign, amount=Decimal('100.00'), provider='wave',
-            phone='+2207000000', payment_reference='SD-ADMIN2', gateway='modempay',
+            phone='+220877000000', payment_reference='SD-ADMIN2', gateway='modempay',
             status=Donation.Status.PAID,
         )
         Campaign.objects.filter(pk=campaign.pk).update(raised=Decimal('100.00'), donors_count=1)

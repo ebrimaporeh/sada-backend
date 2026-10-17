@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from utils.validators import validate_gambia_phone
 from .models import Campaign, Category, CampaignImage, CampaignUpdate, CampaignUpdateImage, CampaignReport
 
 
@@ -331,6 +332,9 @@ class CampaignReportCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = CampaignReport
         fields = ['reason', 'description', 'reporter_name', 'reporter_phone']
+
+    def validate_reporter_phone(self, value):
+        return validate_gambia_phone(value)
 
 
 class CampaignReportSerializer(serializers.ModelSerializer):

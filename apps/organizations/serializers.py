@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from apps.users.models import Organization
+from utils.validators import validate_gambia_phone
 from .models import OrganizationType, OrganizationRole, OrganizationMembership, OrganizationInvitation
 import services.organization_service as organization_service
 
@@ -144,6 +145,12 @@ class OrganizationCreateSerializer(serializers.Serializer):
     phone_2 = serializers.CharField(max_length=20, required=False, allow_blank=True)
     recovery_email_1 = serializers.EmailField(required=False, allow_blank=True)
     recovery_email_2 = serializers.EmailField(required=False, allow_blank=True)
+
+    def validate_phone(self, value):
+        return validate_gambia_phone(value)
+
+    def validate_phone_2(self, value):
+        return validate_gambia_phone(value)
 
 
 class OrganizationMembershipSerializer(serializers.ModelSerializer):

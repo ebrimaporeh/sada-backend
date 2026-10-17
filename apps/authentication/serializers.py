@@ -1,20 +1,29 @@
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 from apps.users.models import User
+from utils.validators import validate_gambia_phone
 
 
 class RegisterSerializer(serializers.Serializer):
     """Deliberately minimal - just enough to create the account. Name
     (individual) and organization profile details (organization) are no
     longer collected here; they're filled in during onboarding after
-    signup, via the existing profile/organization update endpoints."""
+    signup, via the existing profile/organization update endpoints.
+    `phone` is the one exception -- optional at signup (same
+    validate_gambia_phone rule as every other phone field in the app),
+    since it costs nothing to collect it up front and it's useful even
+    before someone sets a payment phone or joins an organization."""
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True, validators=[validate_password])
     password_confirm = serializers.CharField(write_only=True)
+    phone = serializers.CharField(required=False, allow_blank=True, default='')
     # write_only + popped in validate() -- register_user()/create_user()
     # don't take this as a User field, RegisterView records it separately
     # via consent_service once the account actually exists.
     terms_accepted = serializers.BooleanField(write_only=True)
+
+    def validate_phone(self, value):
+        return validate_gambia_phone(value)
 
     def validate_terms_accepted(self, value):
         if not value:

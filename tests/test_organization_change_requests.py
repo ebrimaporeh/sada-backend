@@ -23,7 +23,7 @@ def make_org_and_owner(**kwargs):
     org_type, _ = OrganizationType.objects.get_or_create(slug='community', defaults={'name': 'Community-Based Organization'})
     org_defaults = {
         'organization_name': 'Test Org', 'organization_type': org_type,
-        'phone_2': '7000001', 'created_by': user,
+        'phone_2': '877000001', 'created_by': user,
     }
     org_defaults.update(org_kwargs)
     org = Organization.objects.create(**org_defaults)
@@ -59,7 +59,7 @@ class SubmitChangeRequestNotificationTest(APITestCase):
     ):
         user, org = make_org_and_owner()
 
-        request = organization_change_service.submit_change_request(org, user, 'phone_2', '7009999')
+        request = organization_change_service.submit_change_request(org, user, 'phone_2', '877009999')
 
         mock_admin_notify.assert_called_once_with(str(request.id))
         mock_confirm_email.assert_not_called()
@@ -69,7 +69,7 @@ class SubmitChangeRequestNotificationTest(APITestCase):
         outsider = User.objects.create_user(email='outsider@example.com', password='pass')
 
         with self.assertRaises(ValidationError):
-            organization_change_service.submit_change_request(org, outsider, 'phone_2', '7009999')
+            organization_change_service.submit_change_request(org, outsider, 'phone_2', '877009999')
 
 
 class ConfirmRecoveryEmailChangeTest(APITestCase):
@@ -120,7 +120,7 @@ class ConfirmRecoveryEmailChangeTest(APITestCase):
         # Defense-in-depth: even if somehow a phone request's id were signed
         # with this salt, the field-type guard must still stop it.
         phone_request = OrganizationChangeRequest.objects.create(
-            organization=self.org, submitted_by=self.user, field_name='phone_2', current_value='', proposed_value='7001234',
+            organization=self.org, submitted_by=self.user, field_name='phone_2', current_value='', proposed_value='877001234',
         )
         token = self._token(phone_request.id)
         with self.assertRaises(ValidationError):
@@ -172,12 +172,12 @@ class AdminCannotApproveRecoveryEmailChangesTest(APITestCase):
 
     def test_admin_can_still_approve_a_phone_request(self):
         request = OrganizationChangeRequest.objects.create(
-            organization=self.org, submitted_by=self.user, field_name='phone_2', current_value='', proposed_value='7005555',
+            organization=self.org, submitted_by=self.user, field_name='phone_2', current_value='', proposed_value='877005555',
         )
         result = organization_change_service.approve_change_request(request.id, self.admin)
         self.assertEqual(result.status, OrganizationChangeRequest.Status.APPROVED)
         self.org.refresh_from_db()
-        self.assertEqual(self.org.phone_2, '7005555')
+        self.assertEqual(self.org.phone_2, '877005555')
 
     def test_api_endpoint_surfaces_the_same_rejection(self):
         request = OrganizationChangeRequest.objects.create(
@@ -209,7 +209,7 @@ class ChangeRequestRequiresManageOrganizationPermissionTest(APITestCase):
     def test_plain_member_cannot_submit_a_change_request(self):
         self.client.force_authenticate(user=self.member)
         response = self.client.post(reverse('organization-change-request-submit'), {
-            'organization_id': str(self.org.id), 'field_name': 'phone_2', 'proposed_value': '7001234',
+            'organization_id': str(self.org.id), 'field_name': 'phone_2', 'proposed_value': '877001234',
         })
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertFalse(self.org.change_requests.exists())
@@ -227,7 +227,7 @@ class ChangeRequestRequiresManageOrganizationPermissionTest(APITestCase):
     def test_owner_can_still_submit_a_change_request(self):
         self.client.force_authenticate(user=self.owner)
         response = self.client.post(reverse('organization-change-request-submit'), {
-            'organization_id': str(self.org.id), 'field_name': 'phone_2', 'proposed_value': '7001234',
+            'organization_id': str(self.org.id), 'field_name': 'phone_2', 'proposed_value': '877001234',
         })
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
@@ -237,7 +237,7 @@ class ChangeRequestRequiresManageOrganizationPermissionTest(APITestCase):
         member_role.save()
         self.client.force_authenticate(user=self.member)
         response = self.client.post(reverse('organization-change-request-submit'), {
-            'organization_id': str(self.org.id), 'field_name': 'phone_2', 'proposed_value': '7001234',
+            'organization_id': str(self.org.id), 'field_name': 'phone_2', 'proposed_value': '877001234',
         })
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 

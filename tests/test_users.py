@@ -36,37 +36,44 @@ class MeViewTest(APITestCase):
 
 
 class DefaultPaymentPhoneValidationTest(APITestCase):
-    """PURA's numbering reform (9-digit format, effective 4 Sept 2026) --
-    both the old 7-digit and new 9-digit formats must validate through the
-    transition period. Scoped to default_payment_phone only for now."""
+    """PURA's numbering reform is complete -- every Gambian number is now
+    exactly 9 digits, always starting with 8. The old 7-digit format is no
+    longer accepted as input anywhere (see utils/validators.py's
+    validate_gambia_phone); this field is just one of its callers."""
 
     def setUp(self):
         self.user = User.objects.create_user(email='payphone@example.com', password='StrongPass@1')
         self.client.force_authenticate(user=self.user)
         self.url = reverse('user-me')
 
-    def test_accepts_old_seven_digit_format(self):
-        response = self.client.patch(self.url, {'default_payment_phone': '+2207000000'})
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.user.refresh_from_db()
-        self.assertEqual(self.user.default_payment_phone, '+2207000000')
-
-    def test_accepts_new_nine_digit_format(self):
-        response = self.client.patch(self.url, {'default_payment_phone': '+220877000000'})
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+    def test_accepts_the_new_nine_digit_format_and_normalizes_to_e164(self):
+        response = self.client.patch(self.url, {'default_payment_phone': '877000000'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.user.refresh_from_db()
         self.assertEqual(self.user.default_payment_phone, '+220877000000')
 
-    def test_rejects_eight_digit_number(self):
-        response = self.client.patch(self.url, {'default_payment_phone': '+22070000000'})
+    def test_rejects_the_old_seven_digit_format(self):
+        response = self.client.patch(self.url, {'default_payment_phone': '+2207000000'})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_rejects_a_nine_digit_number_not_starting_with_8(self):
+        response = self.client.patch(self.url, {'default_payment_phone': '+220977000000'})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_rejects_an_eight_digit_number(self):
+        response = self.client.patch(self.url, {'default_payment_phone': '+22087700000'})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_blank_is_allowed_since_the_field_itself_is_optional(self):
+        response = self.client.patch(self.url, {'default_payment_phone': ''})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
     def test_rejects_six_digit_number(self):
         response = self.client.patch(self.url, {'default_payment_phone': '+220700000'})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_blank_clears_the_field(self):
-        self.user.default_payment_phone = '+2207000000'
+        self.user.default_payment_phone = '+220877000000'
         self.user.save(update_fields=['default_payment_phone'])
         response = self.client.patch(self.url, {'default_payment_phone': ''})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -351,7 +358,7 @@ class DeleteOwnAccountTest(APITestCase):
     def setUp(self):
         self.user = User.objects.create_user(
             email='deleteme@example.com', password='StrongPass@1',
-            first_name='John', last_name='Doe', phone='+2207000000',
+            first_name='John', last_name='Doe', phone='+220877000000',
         )
 
     def test_wrong_password_is_rejected(self):
@@ -381,7 +388,7 @@ class DeleteOwnAccountTest(APITestCase):
         campaign = make_campaign(owner=self.user)
         donation = Donation.objects.create(
             campaign=campaign, donor=self.user, amount=Decimal('100.00'), provider='wave',
-            phone='+2207000000', gateway='modempay', status=Donation.Status.PAID,
+            phone='+220877000000', gateway='modempay', status=Donation.Status.PAID,
         )
 
         user_service.delete_own_account(self.user, password='StrongPass@1')

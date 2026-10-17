@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from utils.validators import validate_gambia_phone
 from .models import Donation
 
 
@@ -70,12 +71,7 @@ class DonationCreateSerializer(serializers.ModelSerializer):
         return value
 
     def validate_phone(self, value):
-        if not value:
-            return value
-        digits = value.replace('+', '').replace(' ', '')
-        if not digits.isdigit():
-            raise serializers.ValidationError('Invalid phone number.')
-        return value
+        return validate_gambia_phone(value)
 
     def validate(self, data):
         from services.gateways.registry import get_gateway, donation_amount_limits
@@ -158,12 +154,7 @@ class AdminDonationUpdateSerializer(serializers.ModelSerializer):
         return value
 
     def validate_phone(self, value):
-        if not value:
-            return value
-        digits = value.replace('+', '').replace(' ', '')
-        if not digits.isdigit():
-            raise serializers.ValidationError('Invalid phone number.')
-        return value
+        return validate_gambia_phone(value)
 
 
 class AdminDonationRefundSerializer(serializers.Serializer):

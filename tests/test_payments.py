@@ -217,7 +217,7 @@ class DonationCreateGatewayTest(APITestCase):
             'campaign_id': self.campaign.id,
             'amount': Decimal('100.00'),
             'provider': 'wave',
-            'phone': '+2207000000',
+            'phone': '+220877000000',
         })
         self.assertIsNone(error_message)
         self.assertEqual(donation.gateway, 'modempay')
@@ -245,7 +245,7 @@ class DonationCreateGatewayTest(APITestCase):
             'campaign_id': self.campaign.id,
             'amount': Decimal('100.00'),
             'provider': 'wave',
-            'phone': '+2207000000',
+            'phone': '+220877000000',
             'embed_id': embed.id,
         })
         self.assertEqual(donation.source_url, 'https://example.com/home')
@@ -260,7 +260,7 @@ class DonationCreateGatewayTest(APITestCase):
             'campaign_id': self.campaign.id,
             'amount': Decimal('100.00'),
             'provider': 'wave',
-            'phone': '+2207000000',
+            'phone': '+220877000000',
             'embed_id': '00000000-0000-0000-0000-000000000000',
         })
         self.assertIsNone(error_message)
@@ -274,7 +274,7 @@ class DonationCreateGatewayTest(APITestCase):
             'campaign_id': self.campaign.id,
             'amount': Decimal('50.00'),
             'provider': 'wave',
-            'phone': '+2207000000',
+            'phone': '+220877000000',
         })
         self.assertIsNone(payment_link)
         # A generic/transient gateway failure (mocked as a bare None here)
@@ -302,7 +302,7 @@ class DonationCreateGatewayTest(APITestCase):
             'campaign_id': self.campaign.id,
             'amount': Decimal('13500.00'),
             'provider': 'wave',
-            'phone': '+2207000000',
+            'phone': '+220877000000',
         })
         self.assertIsNone(payment_link)
         self.assertEqual(error_message, 'Amount for payment intent cannot exceed GMD 10,000.00')
@@ -318,7 +318,7 @@ class DonationCreateGatewayTest(APITestCase):
             'campaign_id': str(self.campaign.id),
             'amount': '13500.00',
             'provider': 'wave',
-            'phone': '+2207000000',
+            'phone': '+220877000000',
         })
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -336,7 +336,7 @@ class DonationCreateGatewayTest(APITestCase):
             'campaign_id': str(self.campaign.id),
             'amount': '5000.00',
             'provider': 'wave',
-            'phone': '+2207000000',
+            'phone': '+220877000000',
         })
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data['message'], 'Network \'wave\' is temporarily unavailable for this account.')
@@ -355,7 +355,7 @@ class DonationCreateGatewayTest(APITestCase):
             'campaign_id': self.campaign.id,
             'amount': Decimal('50.00'),
             'provider': 'wave',
-            'phone': '+2207000000',
+            'phone': '+220877000000',
         })
         self.assertIsNone(payment_link)
         self.assertIsNotNone(error_message)
@@ -373,7 +373,7 @@ class DonationCreateGatewayTest(APITestCase):
             'campaign_id': self.campaign.id,
             'amount': Decimal('50.00'),
             'provider': 'wave',
-            'phone': '+2207000000',
+            'phone': '+220877000000',
         })
         self.assertIsNone(payment_link)
         self.assertIsNone(error_message)
@@ -393,7 +393,7 @@ class DonationCreateGatewayTest(APITestCase):
         }
         donation = Donation.objects.create(
             campaign=self.campaign, amount=Decimal('100.00'), currency='GMD',
-            provider='aps', phone='+2207000000', payment_reference='SD-APS1', gateway='modempay',
+            provider='aps', phone='+220877000000', payment_reference='SD-APS1', gateway='modempay',
         )
         import services.modempay_service as modempay_service
         modempay_service.create_payment_intent(donation)
@@ -408,7 +408,7 @@ class DonationCreateGatewayTest(APITestCase):
         }
         donation = Donation.objects.create(
             campaign=self.campaign, amount=Decimal('100.00'), currency='GMD',
-            provider='wave', phone='+2207000000', payment_reference='SD-WAVE1', gateway='modempay',
+            provider='wave', phone='+220877000000', payment_reference='SD-WAVE1', gateway='modempay',
         )
         import services.modempay_service as modempay_service
         modempay_service.create_payment_intent(donation)
@@ -423,7 +423,7 @@ class DonationCreateGatewayTest(APITestCase):
         }
         donation = Donation.objects.create(
             campaign=self.campaign, amount=Decimal('100.00'), currency='GMD',
-            provider='afrimoney', phone='+2207000000', payment_reference='SD-AFRI1', gateway='modempay',
+            provider='afrimoney', phone='+220877000000', payment_reference='SD-AFRI1', gateway='modempay',
         )
         import services.modempay_service as modempay_service
         modempay_service.create_payment_intent(donation)
@@ -498,7 +498,7 @@ class DonationCreateGatewayTest(APITestCase):
             'campaign_id': str(self.campaign.id),
             'amount': '25.00',
             'provider': 'aps',
-            'phone': '+2207000000',
+            'phone': '+220877000000',
         })
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('provider', response.data.get('errors', response.data))
@@ -514,7 +514,7 @@ class DonationCreateGatewayTest(APITestCase):
             'campaign_id': str(self.campaign.id),
             'amount': '25.00',
             'provider': 'wave',
-            'phone': '+2207000000',
+            'phone': '+220877000000',
         })
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
@@ -528,7 +528,7 @@ class DonationCreateGatewayTest(APITestCase):
             'campaign_id': str(self.campaign.id),
             'amount': '25.00',
             'provider': 'afrimoney',
-            'phone': '+2207000000',
+            'phone': '+220877000000',
         })
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
@@ -538,7 +538,7 @@ class DonationCreateGatewayTest(APITestCase):
             'campaign_id': str(self.campaign.id),
             'amount': '25.00',
             'provider': 'afrimoney',
-            'phone': '+2207000000',
+            'phone': '+220877000000',
         })
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -555,7 +555,7 @@ class DonationWebhookGatewayTest(APITestCase):
             campaign=self.campaign,
             amount=Decimal('200.00'),
             provider='wave',
-            phone='+2207000000',
+            phone='+220877000000',
             payment_reference='SD-TEST123',
             gateway='modempay',
             status=Donation.Status.PENDING,
@@ -787,7 +787,7 @@ class ReconcileDonationGatewayTest(APITestCase):
     def test_reconciles_successful_modempay_intent(self, mock_retrieve, mock_find_txn):
         donation = Donation.objects.create(
             campaign=self.campaign, amount=Decimal('100.00'), provider='wave',
-            phone='+2207000000', payment_reference='SD-RECON1', gateway='modempay',
+            phone='+220877000000', payment_reference='SD-RECON1', gateway='modempay',
             provider_reference='sec_abc', status=Donation.Status.PENDING,
         )
         mock_retrieve.return_value = {'status': 'successful', 'id': 'ch_final'}
@@ -803,7 +803,7 @@ class ReconcileDonationGatewayTest(APITestCase):
     def test_reconciles_failed_modempay_intent(self, mock_retrieve):
         Donation.objects.create(
             campaign=self.campaign, amount=Decimal('100.00'), provider='wave',
-            phone='+2207000000', payment_reference='SD-RECON2', gateway='modempay',
+            phone='+220877000000', payment_reference='SD-RECON2', gateway='modempay',
             provider_reference='sec_abc', status=Donation.Status.PENDING,
         )
         mock_retrieve.return_value = {'status': 'cancelled', 'id': 'ch_final'}
@@ -856,7 +856,7 @@ class RefundDonationGatewayTest(APITestCase):
     def make_paid_donation(self, reference, **kwargs):
         defaults = {
             'campaign': self.campaign, 'donor': self.donor, 'amount': Decimal('100.00'),
-            'provider': 'wave', 'phone': '+2207000000', 'payment_reference': reference,
+            'provider': 'wave', 'phone': '+220877000000', 'payment_reference': reference,
             'gateway': 'modempay', 'provider_reference': 'ch_paid123',
             'status': Donation.Status.PAID,
         }
@@ -927,7 +927,7 @@ class ReconcilePayoutGatewayTest(APITestCase):
             'amount': Decimal('100.00'),
             'net_amount': Decimal('95.00'),
             'provider': 'wave',
-            'phone': '+2207000000',
+            'phone': '+220877000000',
             'reference': reference,
             'status': Payout.Status.PROCESSING,
             'provider_reference': 'tr_pending123',
@@ -973,7 +973,7 @@ class AdminDonationRefundViewTest(APITestCase):
         campaign = make_campaign()
         donation = Donation.objects.create(
             campaign=campaign, amount=Decimal('100.00'), provider='wave',
-            phone='+2207000000', payment_reference='SD-VIEWREFUND', gateway='modempay',
+            phone='+220877000000', payment_reference='SD-VIEWREFUND', gateway='modempay',
             provider_reference='ch_paid123', status=Donation.Status.PAID,
         )
         response = self.client.post(f'/api/v1/donations/admin/{donation.id}/refund/', {})
@@ -1005,7 +1005,7 @@ class PayoutWebhookGatewayTest(APITestCase):
             amount=Decimal('100.00'),
             net_amount=Decimal('95.00'),
             provider='wave',
-            phone='+2207000000',
+            phone='+220877000000',
             reference='PO-TEST123',
             status=Payout.Status.PROCESSING,
         )
@@ -1049,7 +1049,7 @@ class WebhookIdempotencyTest(APITestCase):
             campaign=self.campaign,
             amount=Decimal('200.00'),
             provider='wave',
-            phone='+2207000000',
+            phone='+220877000000',
             payment_reference='SD-DEDUPE1',
             gateway='modempay',
             status=Donation.Status.PENDING,
@@ -1154,7 +1154,7 @@ class SweepReconciliationTest(APITestCase):
     def make_stale_donation(self, reference, minutes_old=30):
         donation = Donation.objects.create(
             campaign=self.campaign, amount=Decimal('100.00'), provider='wave',
-            phone='+2207000000', payment_reference=reference, gateway='modempay',
+            phone='+220877000000', payment_reference=reference, gateway='modempay',
             provider_reference='sec_abc', status=Donation.Status.PENDING,
         )
         Donation.objects.filter(pk=donation.pk).update(
@@ -1166,7 +1166,7 @@ class SweepReconciliationTest(APITestCase):
         payout = Payout.objects.create(
             campaign=self.campaign, requested_by=self.campaign.owner,
             amount=Decimal('100.00'), net_amount=Decimal('95.00'), provider='wave',
-            phone='+2207000000', reference=reference, status=Payout.Status.PROCESSING,
+            phone='+220877000000', reference=reference, status=Payout.Status.PROCESSING,
             provider_reference='tr_abc',
         )
         Payout.objects.filter(pk=payout.pk).update(
@@ -1245,7 +1245,7 @@ class RequestPayoutGatewayTest(APITestCase):
             'campaign_id': self.campaign.id,
             'amount': Decimal('100.00'),
             'provider': 'wave',
-            'phone': '+2207000000',
+            'phone': '+220877000000',
         })
         self.assertEqual(payout.status, Payout.Status.COMPLETED)
         self.assertEqual(payout.provider_reference, 'tr_live_123')
@@ -1262,7 +1262,7 @@ class RequestPayoutGatewayTest(APITestCase):
                 'campaign_id': self.campaign.id,
                 'amount': Decimal('100.00'),
                 'provider': 'wave',
-                'phone': '+2207000000',
+                'phone': '+220877000000',
             })
 
     @patch('services.modempay_service.get_client')
@@ -1296,7 +1296,7 @@ class RequestPayoutGatewayTest(APITestCase):
                 'campaign_id': self.campaign.id,
                 'amount': Decimal('100.00'),
                 'provider': 'wave',
-                'phone': '+2207000000',
+                'phone': '+220877000000',
             })
         self.assertEqual(payout.status, Payout.Status.FAILED)
         self.assertEqual(payout.notes, 'Amount for transfer cannot exceed GMD 5,000.00')
@@ -1322,7 +1322,7 @@ class RequestPayoutGatewayTest(APITestCase):
             'campaign_id': self.campaign.id,
             'amount': Decimal('100.00'),
             'provider': 'wave',
-            'phone': '+2207000000',
+            'phone': '+220877000000',
         })
         self.assertEqual(payout.status, Payout.Status.FAILED)
         self.assertEqual(payout.notes, 'The payment provider could not process this withdrawal.')
@@ -1349,7 +1349,7 @@ class RequestPayoutGatewayTest(APITestCase):
                 'campaign_id': str(self.campaign.id),
                 'amount': '100.00',
                 'provider': 'wave',
-                'phone': '+2207000000',
+                'phone': '+220877000000',
             })
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         payout_data = response.data['data']['payout']
@@ -1365,11 +1365,11 @@ class AdminDonationCampaignFilterTest(APITestCase):
         c1 = make_campaign()
         c2 = make_campaign()
         Donation.objects.create(
-            campaign=c1, amount=Decimal('50.00'), provider='wave', phone='+2207000000',
+            campaign=c1, amount=Decimal('50.00'), provider='wave', phone='+220877000000',
             payment_reference='SD-CAMPFILTER1', gateway='modempay', status=Donation.Status.PAID,
         )
         Donation.objects.create(
-            campaign=c2, amount=Decimal('75.00'), provider='wave', phone='+2207000000',
+            campaign=c2, amount=Decimal('75.00'), provider='wave', phone='+220877000000',
             payment_reference='SD-CAMPFILTER2', gateway='modempay', status=Donation.Status.PAID,
         )
 
@@ -1388,7 +1388,7 @@ class AdminCampaignPayoutListViewTest(APITestCase):
         self.campaign = make_campaign(owner=self.owner)
         self.payout = Payout.objects.create(
             campaign=self.campaign, requested_by=self.owner, amount=Decimal('200.00'),
-            net_amount=Decimal('190.00'), provider='wave', phone='+2207000000',
+            net_amount=Decimal('190.00'), provider='wave', phone='+220877000000',
             reference='PO-ADMINVIEW1', status=Payout.Status.COMPLETED,
         )
 
@@ -1411,11 +1411,11 @@ class AdminDonationDonorFilterTest(APITestCase):
         donor2 = User.objects.create_user(email='donor-filter-2@example.com', password='pass')
         campaign = make_campaign()
         Donation.objects.create(
-            campaign=campaign, donor=donor1, amount=Decimal('50.00'), provider='wave', phone='+2207000000',
+            campaign=campaign, donor=donor1, amount=Decimal('50.00'), provider='wave', phone='+220877000000',
             payment_reference='SD-DONORFILTER1', gateway='modempay', status=Donation.Status.PAID,
         )
         Donation.objects.create(
-            campaign=campaign, donor=donor2, amount=Decimal('75.00'), provider='wave', phone='+2207000000',
+            campaign=campaign, donor=donor2, amount=Decimal('75.00'), provider='wave', phone='+220877000000',
             payment_reference='SD-DONORFILTER2', gateway='modempay', status=Donation.Status.PAID,
         )
 
@@ -1451,17 +1451,17 @@ class AdminOwnerPayoutListViewTest(APITestCase):
         other_campaign = make_campaign(owner=self.other_owner, title='Other owner campaign')
         self.payout_a = Payout.objects.create(
             campaign=self.campaign_a, requested_by=self.owner, amount=Decimal('100.00'),
-            net_amount=Decimal('95.00'), provider='wave', phone='+2207000000',
+            net_amount=Decimal('95.00'), provider='wave', phone='+220877000000',
             reference='PO-OWNERVIEW1', status=Payout.Status.COMPLETED,
         )
         self.payout_b = Payout.objects.create(
             campaign=self.campaign_b, requested_by=self.owner, amount=Decimal('200.00'),
-            net_amount=Decimal('190.00'), provider='wave', phone='+2207000000',
+            net_amount=Decimal('190.00'), provider='wave', phone='+220877000000',
             reference='PO-OWNERVIEW2', status=Payout.Status.PENDING,
         )
         Payout.objects.create(
             campaign=other_campaign, requested_by=self.other_owner, amount=Decimal('50.00'),
-            net_amount=Decimal('48.00'), provider='wave', phone='+2207000000',
+            net_amount=Decimal('48.00'), provider='wave', phone='+220877000000',
             reference='PO-OWNERVIEW3', status=Payout.Status.COMPLETED,
         )
 
@@ -1648,7 +1648,7 @@ class DonationLimitsAreAdminConfigurableTest(APITestCase):
                 'campaign_id': str(self.campaign.id),
                 'amount': '13500.00',
                 'provider': 'wave',
-                'phone': '+2207000000',
+                'phone': '+220877000000',
             })
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
@@ -1658,7 +1658,7 @@ class DonationLimitsAreAdminConfigurableTest(APITestCase):
             'campaign_id': str(self.campaign.id),
             'amount': '1500.00',
             'provider': 'wave',
-            'phone': '+2207000000',
+            'phone': '+220877000000',
         })
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -1668,7 +1668,7 @@ class DonationLimitsAreAdminConfigurableTest(APITestCase):
             'campaign_id': str(self.campaign.id),
             'amount': '20.00',
             'provider': 'wave',
-            'phone': '+2207000000',
+            'phone': '+220877000000',
         })
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -1736,17 +1736,17 @@ class MyDonationsListTest(APITestCase):
     def test_only_paid_donations_are_listed(self):
         paid = Donation.objects.create(
             campaign=self.campaign, donor=self.donor, amount=Decimal('100.00'), currency='GMD',
-            provider='wave', phone='+2207000000', payment_reference='SD-MYD-PAID', gateway='modempay',
+            provider='wave', phone='+220877000000', payment_reference='SD-MYD-PAID', gateway='modempay',
             status=Donation.Status.PAID, paid_at=timezone.now(),
         )
         Donation.objects.create(
             campaign=self.campaign, donor=self.donor, amount=Decimal('13500.00'), currency='GMD',
-            provider='wave', phone='+2207000000', payment_reference='SD-MYD-FAILED', gateway='modempay',
+            provider='wave', phone='+220877000000', payment_reference='SD-MYD-FAILED', gateway='modempay',
             status=Donation.Status.FAILED,
         )
         Donation.objects.create(
             campaign=self.campaign, donor=self.donor, amount=Decimal('50.00'), currency='GMD',
-            provider='wave', phone='+2207000000', payment_reference='SD-MYD-PENDING', gateway='modempay',
+            provider='wave', phone='+220877000000', payment_reference='SD-MYD-PENDING', gateway='modempay',
             status=Donation.Status.PENDING,
         )
 

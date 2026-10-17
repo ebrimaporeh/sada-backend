@@ -597,7 +597,7 @@ class CampaignOrganizationPermissionTest(APITestCase):
         campaign = make_campaign(owner=self.owner, organization=self.org)
         donor = User.objects.create_user(email='campaign-donor@example.com', password='pass')
         Donation.objects.create(
-            campaign=campaign, donor=donor, amount=Decimal('50.00'), provider='wave', phone='+2207000000',
+            campaign=campaign, donor=donor, amount=Decimal('50.00'), provider='wave', phone='+220877000000',
             payment_reference='SD-ORGDONORTEST', gateway='modempay', status=Donation.Status.PAID,
         )
         member, _ = make_member(self.org, permissions=[])
@@ -685,7 +685,7 @@ class PayoutOrganizationPermissionTest(APITestCase):
 
         with self.assertRaises(PermissionDenied):
             payment_service.request_payout(powerless_member, {
-                'campaign_id': campaign.id, 'amount': Decimal('100.00'), 'provider': 'wave', 'phone': '+2207000000',
+                'campaign_id': campaign.id, 'amount': Decimal('100.00'), 'provider': 'wave', 'phone': '+220877000000',
             })
         mock_disburse.assert_not_called()
 
@@ -700,7 +700,7 @@ class PayoutOrganizationPermissionTest(APITestCase):
         treasurer, _ = make_member(self.org, permissions=[OrganizationPermission.WITHDRAW_FUNDS])
 
         payout = payment_service.request_payout(treasurer, {
-            'campaign_id': campaign.id, 'amount': Decimal('100.00'), 'provider': 'wave', 'phone': '+2207000000',
+            'campaign_id': campaign.id, 'amount': Decimal('100.00'), 'provider': 'wave', 'phone': '+220877000000',
         })
         self.assertEqual(payout.campaign, campaign)
 
@@ -711,7 +711,7 @@ class PayoutOrganizationPermissionTest(APITestCase):
 
         with self.assertRaises(Http404):
             payment_service.request_payout(outsider, {
-                'campaign_id': campaign.id, 'amount': Decimal('100.00'), 'provider': 'wave', 'phone': '+2207000000',
+                'campaign_id': campaign.id, 'amount': Decimal('100.00'), 'provider': 'wave', 'phone': '+220877000000',
             })
 
     def test_individual_campaign_payout_unaffected_by_org_permissions(self):
@@ -722,7 +722,7 @@ class PayoutOrganizationPermissionTest(APITestCase):
         from django.http import Http404
         with self.assertRaises(Http404):
             payment_service.request_payout(stranger, {
-                'campaign_id': campaign.id, 'amount': Decimal('100.00'), 'provider': 'wave', 'phone': '+2207000000',
+                'campaign_id': campaign.id, 'amount': Decimal('100.00'), 'provider': 'wave', 'phone': '+220877000000',
             })
 
     def test_any_member_can_view_org_campaign_payout_history(self):

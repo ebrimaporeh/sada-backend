@@ -122,7 +122,7 @@ class CreateOrganizationDonationTest(APITestCase):
             'organization_id': self.org.id,
             'amount': Decimal('250.00'),
             'provider': 'wave',
-            'phone': '+2207000000',
+            'phone': '+220877000000',
         })
         self.assertIsNone(error_message)
         self.assertEqual(payment_link, 'https://pay.modempay.com/org')
@@ -138,19 +138,19 @@ class CreateOrganizationDonationTest(APITestCase):
                 'organization_id': uuid.uuid4(),
                 'amount': Decimal('100.00'),
                 'provider': 'wave',
-                'phone': '+2207000000',
+                'phone': '+220877000000',
             })
 
     def test_serializer_rejects_neither_destination(self):
         from apps.donations.serializers import DonationCreateSerializer
-        serializer = DonationCreateSerializer(data={'amount': '100.00', 'provider': 'wave', 'phone': '+2207000000'})
+        serializer = DonationCreateSerializer(data={'amount': '100.00', 'provider': 'wave', 'phone': '+220877000000'})
         self.assertFalse(serializer.is_valid())
 
     def test_serializer_rejects_both_destinations(self):
         from apps.donations.serializers import DonationCreateSerializer
         campaign = make_campaign()
         serializer = DonationCreateSerializer(data={
-            'amount': '100.00', 'provider': 'wave', 'phone': '+2207000000',
+            'amount': '100.00', 'provider': 'wave', 'phone': '+220877000000',
             'campaign_id': str(campaign.id), 'organization_id': str(self.org.id),
         })
         self.assertFalse(serializer.is_valid())
@@ -158,7 +158,7 @@ class CreateOrganizationDonationTest(APITestCase):
     def test_serializer_accepts_organization_only(self):
         from apps.donations.serializers import DonationCreateSerializer
         serializer = DonationCreateSerializer(data={
-            'amount': '100.00', 'provider': 'wave', 'phone': '+2207000000',
+            'amount': '100.00', 'provider': 'wave', 'phone': '+220877000000',
             'organization_id': str(self.org.id),
         })
         self.assertTrue(serializer.is_valid(), serializer.errors)
@@ -169,7 +169,7 @@ class ConfirmOrganizationDonationTest(APITestCase):
         self.owner, self.org = make_org_and_owner()
         self.donation = Donation.objects.create(
             organization=self.org, amount=Decimal('300.00'), fee=Decimal('0'),
-            payment_reference='SD-ORGCONFIRM', provider='wave', phone='+2207000000',
+            payment_reference='SD-ORGCONFIRM', provider='wave', phone='+220877000000',
             gateway='modempay', status=Donation.Status.PENDING,
         )
 
@@ -216,7 +216,7 @@ class OrganizationTotalsSeparationTest(APITestCase):
     def _make_paid(self, reference, **kwargs):
         defaults = {
             'amount': Decimal('100.00'), 'fee': Decimal('0'), 'payment_reference': reference,
-            'provider': 'wave', 'phone': '+2207000000', 'gateway': 'modempay',
+            'provider': 'wave', 'phone': '+220877000000', 'gateway': 'modempay',
             'status': Donation.Status.PENDING,
         }
         defaults.update(kwargs)
@@ -254,7 +254,7 @@ class RefundOrganizationDonationTest(APITestCase):
         self.donor = User.objects.create_user(email='donor@example.com', password='pass')
         self.donation = Donation.objects.create(
             organization=self.org, donor=self.donor, amount=Decimal('200.00'),
-            payment_reference='SD-ORGREFUND', provider='wave', phone='+2207000000',
+            payment_reference='SD-ORGREFUND', provider='wave', phone='+220877000000',
             gateway='modempay', provider_reference='ch_orgpaid', status=Donation.Status.PAID,
         )
 
@@ -344,7 +344,7 @@ class DonationCreateViewOrganizationTest(APITestCase):
             'organization_id': str(self.org.id),
             'amount': '150.00',
             'provider': 'wave',
-            'phone': '+2207000000',
+            'phone': '+220877000000',
             'donor_name': 'Ebrima',
         })
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -363,7 +363,7 @@ class DonationCreateViewOrganizationTest(APITestCase):
             'campaign_id': str(self.campaign.id),
             'amount': '150.00',
             'provider': 'wave',
-            'phone': '+2207000000',
+            'phone': '+220877000000',
             'donor_name': 'Ebrima',
         })
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -374,7 +374,7 @@ class DonationCreateViewOrganizationTest(APITestCase):
 
     def test_view_rejects_neither_destination(self):
         response = self.client.post(reverse('donation-create'), {
-            'amount': '150.00', 'provider': 'wave', 'phone': '+2207000000',
+            'amount': '150.00', 'provider': 'wave', 'phone': '+220877000000',
         })
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -431,7 +431,7 @@ class OpenEndedCampaignTest(APITestCase):
             'campaign_id': campaign.id,
             'amount': Decimal('100.00'),
             'provider': 'wave',
-            'phone': '+2207000000',
+            'phone': '+220877000000',
         })
         self.assertIsNone(error_message)
         self.assertIsNotNone(payment_link)

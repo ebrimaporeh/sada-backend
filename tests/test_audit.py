@@ -155,7 +155,7 @@ class DonationAuditTest(APITestCase):
         campaign = make_campaign()
         with patch('services.modempay_service.create_payment_intent', return_value=None):
             response = self.client.post('/api/v1/donations/', {
-                'campaign_id': str(campaign.id), 'amount': '100.00', 'provider': 'wave', 'phone': '+2207000000',
+                'campaign_id': str(campaign.id), 'amount': '100.00', 'provider': 'wave', 'phone': '+220877000000',
             }, format='json')
         self.assertEqual(response.status_code, status.HTTP_502_BAD_GATEWAY)
         entry = AuditLog.objects.filter(action=AuditLog.Action.DONATION_CREATED).first()
@@ -192,7 +192,7 @@ class DonationAuditTest(APITestCase):
         ):
             response = self.client.post('/api/v1/donations/', {
                 'campaign_id': str(campaign.id), 'amount': '100.00', 'provider': 'wave',
-                'phone': '+2207000000', 'donor_name': 'Musa Jallow',
+                'phone': '+220877000000', 'donor_name': 'Musa Jallow',
             }, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         entry = AuditLog.objects.get(action=AuditLog.Action.DONATION_CREATED)
@@ -205,7 +205,7 @@ class DonationAuditTest(APITestCase):
         campaign = make_campaign()
         from apps.donations.models import Donation
         donation = Donation.objects.create(
-            campaign=campaign, amount=Decimal('50.00'), currency='GMD', provider='wave', phone='+2207000000',
+            campaign=campaign, amount=Decimal('50.00'), currency='GMD', provider='wave', phone='+220877000000',
             payment_reference='SD-AUDIT1', gateway='modempay', status=Donation.Status.PENDING,
         )
         donation_service.confirm_donation_by_reference('SD-AUDIT1')

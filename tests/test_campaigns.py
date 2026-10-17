@@ -291,7 +291,7 @@ class CampaignUpdateNotificationTest(APITestCase):
     def make_donation(self, donor=None, status=Donation.Status.PAID, **kwargs):
         defaults = {
             'campaign': self.campaign, 'donor': donor, 'amount': Decimal('50.00'),
-            'provider': 'wave', 'phone': '+2207000000', 'gateway': 'modempay',
+            'provider': 'wave', 'phone': '+220877000000', 'gateway': 'modempay',
             'status': status,
         }
         defaults.update(kwargs)
@@ -670,12 +670,12 @@ class PublicPlatformStatsTest(APITestCase):
         for _ in range(3):
             Donation.objects.create(
                 campaign=campaign, donor=donor, amount=Decimal('50.00'), provider='wave',
-                phone='+2207000000', gateway='modempay', status=Donation.Status.PAID,
+                phone='+220877000000', gateway='modempay', status=Donation.Status.PAID,
             )
         # One guest (no donor account) donation too, counted separately.
         Donation.objects.create(
             campaign=campaign, donor=None, donor_name='Guest', amount=Decimal('20.00'),
-            provider='wave', phone='+2207000001', gateway='modempay', status=Donation.Status.PAID,
+            provider='wave', phone='+220877000001', gateway='modempay', status=Donation.Status.PAID,
         )
 
         stats = campaign_service.get_public_platform_stats()
