@@ -381,13 +381,15 @@ class DonationCreateGatewayTest(APITestCase):
         self.assertEqual(donation.status, Donation.Status.FAILED)
 
     @patch('services.modempay_service.get_client')
-    def test_aps_donation_omits_direct_charge_network_param(self, mock_get_client):
-        # Regression guard: ModemPay's real API 400s payment_intents.create
-        # with "Network 'aps' is not allowed for this payment intent." --
-        # every APS donation failed (surfaced to the donor as a 502) until
-        # 'aps' was removed from DIRECT_CHARGE_NETWORKS. Confirmed live
-        # against the sandbox API that omitting network/account_number
-        # entirely (ModemPay's generic hosted checkout) works for APS.
+    def test_aps_donation_includes_direct_charge_network_param(self, mock_get_client):
+        # ModemPay's real API used to 400 payment_intents.create with
+        # "Network 'aps' is not allowed for this payment intent." -- every
+        # APS donation failed (surfaced to the donor as a 502) until 'aps'
+        # was removed from DIRECT_CHARGE_NETWORKS. ModemPay has since added
+        # Direct Charge support for it, so APS now behaves like Wave/
+        # Afrimoney here. If this regresses (ModemPay drops 'aps' support
+        # again), that 400 would come back as a 502 to the donor -- see
+        # DIRECT_CHARGE_NETWORKS's own comment in modempay_service.py.
         mock_get_client.return_value.payment_intents.create.return_value = {
             'status': True, 'data': {'payment_link': 'https://pay.modempay.com/aps', 'intent_secret': 'sec_aps'},
         }
@@ -398,8 +400,8 @@ class DonationCreateGatewayTest(APITestCase):
         import services.modempay_service as modempay_service
         modempay_service.create_payment_intent(donation)
         params = mock_get_client.return_value.payment_intents.create.call_args.kwargs['params']
-        self.assertNotIn('network', params)
-        self.assertNotIn('account_number', params)
+        self.assertEqual(params['network'], 'aps')
+        self.assertEqual(params['account_number'], '7000000')
 
     @patch('services.modempay_service.get_client')
     def test_wave_donation_includes_direct_charge_network_param(self, mock_get_client):
