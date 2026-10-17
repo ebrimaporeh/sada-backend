@@ -48,6 +48,15 @@ def create_poster(user, *, destination_type, campaign=None, organization=None, n
     fundraising_destination.check_destination_manage_access(
         user, destination_type=destination_type, campaign=campaign, organization=organization,
     )
+    # One poster per destination (see Poster's own docstring) -- checked
+    # here, not left to the DB's UniqueConstraint, so a second attempt gets
+    # a clear 400 instead of a raw IntegrityError/500. A plain string (not
+    # a dict) -- utils/exceptions.py's custom_exception_handler drops any
+    # extra dict keys alongside 'detail', keeping only the message.
+    existing = Poster.objects.filter(campaign=campaign) if campaign else Poster.objects.filter(organization=organization)
+    if existing.exists():
+        from rest_framework.exceptions import ValidationError
+        raise ValidationError('This destination already has a poster.')
     poster = Poster.objects.create(
         destination_type=destination_type, campaign=campaign, organization=organization,
         created_by=user, name=name, template=template, design=design or {},
@@ -70,18 +79,6 @@ def update_poster(user, poster: Poster, **fields) -> Poster:
         setattr(poster, field, value)
     poster.save()
     return poster
-
-
-def duplicate_poster(user, poster: Poster) -> Poster:
-    fundraising_destination.check_destination_manage_access(
-        user, destination_type=poster.destination_type, campaign=poster.campaign, organization=poster.organization,
-    )
-    new_poster = Poster.objects.create(
-        destination_type=poster.destination_type, campaign=poster.campaign, organization=poster.organization,
-        created_by=user, name=f'{poster.name} (Copy)', template=poster.template, design=poster.design,
-    )
-    ShareLink.objects.create(poster=new_poster, code=_generate_share_code())
-    return new_poster
 
 
 def delete_poster(user, poster: Poster) -> None:

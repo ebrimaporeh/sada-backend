@@ -5,7 +5,6 @@ from . import embed_views, poster_views
 urlpatterns = [
     path('posters/', poster_views.PosterListCreateView.as_view(), name='poster-list-create'),
     path('posters/<uuid:pk>/', poster_views.PosterDetailView.as_view(), name='poster-detail'),
-    path('posters/<uuid:pk>/duplicate/', poster_views.PosterDuplicateView.as_view(), name='poster-duplicate'),
     path('posters/<uuid:pk>/images/', poster_views.PosterImageUploadView.as_view(), name='poster-image-upload'),
 
     path('organizations/<uuid:organization_id>/embed/', embed_views.OrganizationEmbedView.as_view(), name='organization-embed'),

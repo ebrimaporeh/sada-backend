@@ -39,13 +39,29 @@ class DestinationType(models.TextChoices):
 
 
 class Poster(BaseModel):
+    """Exactly one Poster per destination (campaign or organization), like
+    Embed is exactly one per organization -- see the one_per_campaign/
+    one_per_organization constraints below. A poster is no longer "one
+    size, one row": `design.elements` holds each element's canonical
+    geometry (evaluated at the Square 1080x1080 reference) once, shared
+    across all three layouts (square/story/wide) -- editing text, color,
+    bindings, or adding/deleting/reordering elements always touches this
+    shared data, so it shows up in every layout immediately. Position/size
+    customized for one specific layout (because square/story/wide
+    genuinely need different geometry sometimes, e.g. where a QR code
+    sits) lives in `design.layoutOverrides.<layout>.<elementId>` instead --
+    sparse, present only where someone has actually dragged/resized
+    something in that layout; everything else is computed from the shared
+    canonical geometry. See the frontend's poster/layoutProjection.js for
+    the one place both read and write sides agree on this shape, and
+    .claude/backend/fundraising.md for the full writeup."""
     class Template(models.TextChoices):
-        """Size/aspect-ratio choice, not a design style -- every template
-        renders the same composition (destination's cover photo full-bleed,
-        dark scrim, title/org/description + QR anchored bottom-left, see
-        the frontend's templateCompositions.js), just at a different frame
-        shape matched to how people actually share it: a square feed post,
-        a vertical story/status, or a wide link-preview banner."""
+        """Square/story/wide -- a size/aspect-ratio choice, not a design
+        style (every layout renders the same shared composition, just at a
+        different frame shape, see Poster's own docstring). No longer
+        "the poster's one size": a Poster now covers all three
+        simultaneously, so this field is only `default_layout` -- which one
+        the editor opens to and the Posters list thumbnail/download uses."""
         SQUARE = 'square', 'Square'
         STORY = 'story', 'Story'
         WIDE = 'wide', 'Wide'
@@ -86,11 +102,18 @@ class Poster(BaseModel):
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
     )
     name = models.CharField(max_length=200, help_text='Internal, organization-facing name (e.g. "Ramadan Poster").')
+    # Which layout the editor opens to and the Posters list thumbnail/
+    # download uses -- no longer "the poster's size" (see Poster's own
+    # docstring and Template's above). Still set at creation, still
+    # PATCHable, just no longer tied to regenerating/discarding `design`.
     template = models.CharField(max_length=20, choices=Template.choices)
     # The full serializable canvas document -- {version, width, height,
-    # background, elements: [...]}. Never just a generated PNG: this is
-    # what makes the poster re-editable. See fundraising.md for the element
-    # schema (static vs. binding-tagged dynamic elements).
+    # background, elements: [...], layoutOverrides: {...}}. `width`/
+    # `height` are always the canonical Square reference (1080x1080), not
+    # "this poster's size" -- see Poster's own docstring. Never just a
+    # generated PNG: this is what makes the poster re-editable. See
+    # fundraising.md for the element schema (static vs. binding-tagged
+    # dynamic elements, and the layoutOverrides shape).
     design = models.JSONField(default=dict, blank=True)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)
 
@@ -105,6 +128,17 @@ class Poster(BaseModel):
                     | models.Q(destination_type=DestinationType.ORGANIZATION, campaign__isnull=True, organization__isnull=False)
                 ),
                 name='poster_exactly_one_destination',
+            ),
+            # One poster per destination -- same "one per org" shape as
+            # Embed.organization's OneToOneField, just expressed as a
+            # partial unique constraint instead since Poster's destination
+            # is a nullable trio (campaign-or-organization), not a single
+            # non-null FK a OneToOneField could sit on directly.
+            models.UniqueConstraint(
+                fields=['campaign'], condition=models.Q(campaign__isnull=False), name='poster_one_per_campaign',
+            ),
+            models.UniqueConstraint(
+                fields=['organization'], condition=models.Q(organization__isnull=False), name='poster_one_per_organization',
             ),
         ]
 

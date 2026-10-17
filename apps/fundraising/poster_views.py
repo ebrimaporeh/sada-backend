@@ -76,17 +76,6 @@ class PosterDetailView(APIView):
         return Response({'success': True, 'message': 'Poster deleted.'}, status=204)
 
 
-@extend_schema(tags=['Fundraising'], summary='Duplicate a poster')
-class PosterDuplicateView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request, pk):
-        poster = poster_service.get_owner_poster(request.user, pk)
-        new_poster = poster_service.duplicate_poster(request.user, poster)
-        out = PosterDetailSerializer(new_poster, context={'request': request})
-        return Response({'success': True, 'message': 'Poster duplicated.', 'data': {'poster': out.data}}, status=201)
-
-
 @extend_schema(tags=['Fundraising'], summary='Upload an image for use in a poster design')
 class PosterImageUploadView(APIView):
     permission_classes = [IsAuthenticated]

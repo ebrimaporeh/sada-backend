@@ -185,14 +185,17 @@ class PosterUpdateDuplicateDeleteTest(APITestCase):
         response = self.client.patch(reverse('poster-detail', args=[self.poster_id]), {'name': 'Hijacked'})
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_duplicate_creates_a_new_poster_with_its_own_share_link(self):
-        original_code = Poster.objects.get(pk=self.poster_id).share_link.code
-        response = self.client.post(reverse('poster-duplicate', args=[self.poster_id]))
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
-        new_id = response.data['data']['poster']['id']
-        self.assertNotEqual(new_id, self.poster_id)
-        new_code = Poster.objects.get(pk=new_id).share_link.code
-        self.assertNotEqual(new_code, original_code)
+    def test_cannot_create_a_second_poster_for_the_same_campaign(self):
+        # One poster per destination now covers all three layouts itself
+        # (see Poster's own docstring) -- a second create attempt for a
+        # destination that already has one is a conflict, not a way to get
+        # an alternate design.
+        response = self.client.post(reverse('poster-list-create'), {
+            'destination_type': DestinationType.CAMPAIGN, 'campaign_id': str(self.campaign.id),
+            'name': 'Second', 'template': Poster.Template.SQUARE,
+        })
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST, response.data)
+        self.assertEqual(Poster.objects.filter(campaign=self.campaign).count(), 1)
 
     def test_delete_removes_the_poster(self):
         response = self.client.delete(reverse('poster-detail', args=[self.poster_id]))

@@ -89,6 +89,18 @@ class PosterModelConstraintTest(APITestCase):
         self.assertEqual(poster.organization, org)
         self.assertIsNone(poster.campaign)
 
+    def test_cannot_save_second_poster_for_same_campaign(self):
+        campaign = make_campaign()
+        Poster.objects.create(destination_type=DestinationType.CAMPAIGN, campaign=campaign, name='First', template=Poster.Template.SQUARE)
+        with self.assertRaises(Exception):
+            Poster.objects.create(destination_type=DestinationType.CAMPAIGN, campaign=campaign, name='Second', template=Poster.Template.SQUARE)
+
+    def test_cannot_save_second_poster_for_same_organization(self):
+        _, org = make_org_and_owner()
+        Poster.objects.create(destination_type=DestinationType.ORGANIZATION, organization=org, name='First', template=Poster.Template.SQUARE)
+        with self.assertRaises(Exception):
+            Poster.objects.create(destination_type=DestinationType.ORGANIZATION, organization=org, name='Second', template=Poster.Template.SQUARE)
+
 
 class EmbedModelConstraintTest(APITestCase):
     def test_cannot_save_embed_without_organization(self):
